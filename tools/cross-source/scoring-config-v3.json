@@ -1,0 +1,169 @@
+{
+  "signal_thresholds": {
+    "email_response_latency_hours": {"strong": 10, "weak": 2, "default": 48.0},
+    "slack_response_latency_hours": {"strong": 10, "weak": 2, "default": 24.0},
+    "contact_rhythm_cov": {"strong": 10, "weak": 3, "default": 1.0},
+    "formality_score": {"strong": 5, "weak": 1, "default": 0.5},
+    "whatsapp_informal_score": {"strong": 20, "weak": 5, "default": 0.0},
+    "meeting_warmth_score": {"strong": 3, "weak": 1, "default": 0.0},
+    "linguistic_style_matching": {"strong": 20, "weak": 5, "default": 0.0},
+    "turn_taking_balance": {"strong": 3, "weak": 1, "default": 0.5},
+    "personal_topic_count": {"strong": 5, "weak": 1, "default": 0},
+    "topic_breadth": {"strong": 5, "weak": 1, "default": 0},
+    "recency_weighted_frequency": {"strong": 10, "weak": 3, "default": 0.0},
+    "weekend_evening_email_ratio": {"strong": 5, "weak": 2, "default": 0.0}
+  },
+  "signal_to_dimension": {
+    "is_family": "intimacy",
+    "personal_topic_count": "intimacy",
+    "whatsapp_late_night_pct": "intimacy",
+    "whatsapp_informal_score": "intimacy",
+    "weekend_evening_email_ratio": "intimacy",
+    "topic_breadth": "intimacy",
+    "self_disclosure_count": "intimacy",
+    "formality_trend": "intimacy",
+    "email_response_latency_hours": "interaction_quality",
+    "slack_response_latency_hours": "interaction_quality",
+    "contact_rhythm_cov": "interaction_quality",
+    "recency_weighted_frequency": "interaction_quality",
+    "formality_score": "communication_quality",
+    "emotional_word_density": "communication_quality",
+    "inclusive_pronoun_ratio": "communication_quality",
+    "humor_markers_density": "communication_quality",
+    "linguistic_style_matching": "communication_quality",
+    "topic_coherence": "communication_quality",
+    "turn_taking_balance": "communication_quality",
+    "meeting_warmth_score": "communication_quality",
+    "personal_topic_in_meeting": "communication_quality",
+    "pagerank": "structural",
+    "introductions_count": "structural",
+    "promise_completion_ratio": "trust_commitment",
+    "action_items_count": "trust_commitment",
+    "attio_connection_strength": "trust_commitment",
+    "commitment_facts_count": "trust_commitment"
+  },
+  "type_priors": {
+    "family": {
+      "intimacy": 0.70,
+      "interaction_quality": 0.10,
+      "communication_quality": 0.30,
+      "structural": 0.05,
+      "trust_commitment": 0.60
+    },
+    "personal_friend": {
+      "intimacy": 0.50,
+      "interaction_quality": 0.10,
+      "communication_quality": 0.30,
+      "structural": 0.05,
+      "trust_commitment": 0.40
+    },
+    "close_partner": {
+      "intimacy": 0.30,
+      "interaction_quality": 0.20,
+      "communication_quality": 0.20,
+      "structural": 0.15,
+      "trust_commitment": 0.15
+    },
+    "business_partner": {
+      "intimacy": 0.05,
+      "interaction_quality": 0.25,
+      "communication_quality": 0.15,
+      "structural": 0.30,
+      "trust_commitment": 0.25
+    },
+    "colleague": {
+      "intimacy": 0.05,
+      "interaction_quality": 0.30,
+      "communication_quality": 0.20,
+      "structural": 0.20,
+      "trust_commitment": 0.10
+    },
+    "investor": {
+      "intimacy": 0.05,
+      "interaction_quality": 0.30,
+      "communication_quality": 0.20,
+      "structural": 0.25,
+      "trust_commitment": 0.30
+    },
+    "advisor": {
+      "intimacy": 0.10,
+      "interaction_quality": 0.20,
+      "communication_quality": 0.30,
+      "structural": 0.15,
+      "trust_commitment": 0.30
+    },
+    "client": {
+      "intimacy": 0.05,
+      "interaction_quality": 0.30,
+      "communication_quality": 0.20,
+      "structural": 0.20,
+      "trust_commitment": 0.20
+    },
+    "vendor": {
+      "intimacy": 0.05,
+      "interaction_quality": 0.30,
+      "communication_quality": 0.15,
+      "structural": 0.20,
+      "trust_commitment": 0.20
+    },
+    "ex_employee": {
+      "intimacy": 0.05,
+      "interaction_quality": 0.10,
+      "communication_quality": 0.10,
+      "structural": 0.10,
+      "trust_commitment": 0.20
+    },
+    "acquaintance": {
+      "intimacy": 0.05,
+      "interaction_quality": 0.10,
+      "communication_quality": 0.10,
+      "structural": 0.10,
+      "trust_commitment": 0.10
+    },
+    "unknown": {
+      "intimacy": 0.0,
+      "interaction_quality": 0.0,
+      "communication_quality": 0.0,
+      "structural": 0.0,
+      "trust_commitment": 0.0
+    }
+  },
+  "score_floors": {
+    "family": 2.0,
+    "personal_friend": 1.5
+  },
+  "confidence_weights": {
+    "OBSERVED_STRONG": 1.0,
+    "OBSERVED_WEAK": 0.5,
+    "PARTIALLY_OBSERVED": 0.3,
+    "UNOBSERVED": 0.0
+  },
+  "type_profiles": {
+    "family": {"intimacy": 0.45, "interaction_quality": 0.10, "communication_quality": 0.10, "structural": 0.05, "trust_commitment": 0.30},
+    "close_partner": {"intimacy": 0.30, "interaction_quality": 0.20, "communication_quality": 0.20, "structural": 0.15, "trust_commitment": 0.15},
+    "business_partner": {"intimacy": 0.05, "interaction_quality": 0.25, "communication_quality": 0.15, "structural": 0.30, "trust_commitment": 0.25},
+    "colleague": {"intimacy": 0.10, "interaction_quality": 0.25, "communication_quality": 0.20, "structural": 0.35, "trust_commitment": 0.10},
+    "investor": {"intimacy": 0.05, "interaction_quality": 0.20, "communication_quality": 0.15, "structural": 0.25, "trust_commitment": 0.35},
+    "advisor": {"intimacy": 0.10, "interaction_quality": 0.20, "communication_quality": 0.20, "structural": 0.15, "trust_commitment": 0.35},
+    "client": {"intimacy": 0.05, "interaction_quality": 0.30, "communication_quality": 0.20, "structural": 0.20, "trust_commitment": 0.25},
+    "vendor": {"intimacy": 0.05, "interaction_quality": 0.30, "communication_quality": 0.15, "structural": 0.25, "trust_commitment": 0.25},
+    "personal_friend": {"intimacy": 0.40, "interaction_quality": 0.15, "communication_quality": 0.20, "structural": 0.05, "trust_commitment": 0.20},
+    "ex_employee": {"intimacy": 0.05, "interaction_quality": 0.20, "communication_quality": 0.15, "structural": 0.35, "trust_commitment": 0.25},
+    "acquaintance": {"intimacy": 0.10, "interaction_quality": 0.30, "communication_quality": 0.20, "structural": 0.20, "trust_commitment": 0.20},
+    "unknown": {"intimacy": 0.05, "interaction_quality": 0.30, "communication_quality": 0.20, "structural": 0.25, "trust_commitment": 0.20}
+  },
+  "type_half_lives": {
+    "family": 365,
+    "personal_friend": 270,
+    "advisor": 180,
+    "investor": 120,
+    "close_partner": 90,
+    "business_partner": 60,
+    "client": 60,
+    "vendor": 60,
+    "ex_employee": 60,
+    "acquaintance": 45,
+    "colleague": 30,
+    "unknown": 60
+  }
+}

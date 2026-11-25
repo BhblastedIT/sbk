@@ -1,0 +1,92 @@
+<!-- Plaud recording detail partial (speaker-centric view) -->
+{% if detail %}
+<div class="p-4">
+    <!-- Recording info -->
+    <div class="flex items-center gap-4 mb-4 text-sm text-base-content/60">
+        <span>{{ detail.category }}</span>
+        <span>{{ "%.1f"|format(detail.duration_min / 60) }} min</span>
+        <span>{{ detail.total_segments }} segmenti</span>
+        {% if detail.calendar_match and detail.calendar_match.event %}
+        <span class="badge badge-info badge-xs">Calendar: {{ detail.calendar_match.event[:40] }}</span>
+        {% endif %}
+    </div>
+
+    <!-- Speaker form -->
+    <form onsubmit="event.preventDefault(); saveSpeakerOverrides('{{ detail.source_file | e }}', this, {{ badge_idx }});">
+        <div class="space-y-4">
+            {% for speaker in detail.speakers %}
+            {% set inp_id = "inp-" ~ badge_idx ~ "-" ~ loop.index %}
+            <div class="card bg-base-300 shadow-sm">
+                <div class="card-body p-3">
+                    <!-- Speaker header -->
+                    <div class="flex items-center gap-3 flex-wrap">
+                        <span class="font-mono text-sm font-bold">{{ speaker.label }}</span>
+                        <span class="text-sm">
+                            &rarr;
+                            {% if speaker.identity in ('other', 'uncertain') %}
+                            <span class="identity-label text-warning">{{ speaker.identity }}</span>
+                            {% else %}
+                            <span class="identity-label text-success">{{ speaker.identity }}</span>
+                            {% endif %}
+                        </span>
+                        <span class="text-xs text-base-content/40">
+                            conf: {{ speaker.confidence }} | source: {{ speaker.source }} | {{ speaker.segment_count }} seg
+                        </span>
+
+                        <!-- Name input -->
+                        <div class="ml-auto flex items-center gap-2">
+                            <input type="text"
+                                   id="{{ inp_id }}"
+                                   data-speaker="{{ speaker.label }}"
+                                   list="speaker-names"
+                                   placeholder="Nome reale..."
+                                   value="{{ speaker.override_name }}"
+                                   class="input input-bordered input-sm w-48 {% if speaker.override_name %}input-success{% endif %}">
+                        </div>
+                    </div>
+
+                    <!-- Snippets -->
+                    {% if speaker.snippets %}
+                    <div class="mt-2 space-y-1">
+                        {% for snippet in speaker.snippets %}
+                        <div class="text-xs text-base-content/70 bg-base-100 rounded px-2 py-1 font-mono">
+                            &ldquo;{{ snippet }}&rdquo;
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-xs text-base-content/30 mt-1 italic">No segment available</div>
+                    {% endif %}
+
+                    <!-- Suggestions -->
+                    {% if suggestions %}
+                    <div class="mt-2 flex gap-1 flex-wrap">
+                        <span class="text-xs text-base-content/40">Suggestions:</span>
+                        {% for sug in suggestions[:8] %}
+                        <button type="button"
+                                class="btn btn-ghost btn-xs"
+                                onclick="applySuggestion('{{ inp_id }}', '{{ sug }}')">
+                            {{ sug }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Save button -->
+        <div class="flex justify-end mt-4">
+            <button type="submit" class="save-btn btn btn-primary btn-sm gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+                Save speaker map
+            </button>
+        </div>
+    </form>
+</div>
+{% else %}
+<div class="p-4 text-center text-base-content/40">Recording not found.</div>
+{% endif %}

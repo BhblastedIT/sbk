@@ -1,0 +1,194 @@
+/*
+ * ============================================================================
+ *  !!! DISABLED — ANTI-PATTERN: PARALLEL FAN-OUT TOWARD A SINGLE LINKEDIN ACCOUNT
+ * ============================================================================
+ *
+ *  This script spawns NUM_WORKERS (was 8) `linkedin-worker.js` processes IN
+ *  PARALLEL. linkedin-worker.js hits LinkedIn. Concurrent workers against the
+ *  same account is the single strongest anti-automation trigger and is the kind
+ *  of behavior that can get an account temporarily restricted.
+ *
+ *  PROJECT POLICY: NO parallelism
+ *  toward LinkedIn. Ever. Scripts must be serialized through the shared safety
+ *  guard (tools/linkedin/li-safety.js) with conservative delays, session/daily
+ *  caps, and the shared kill-switch.
+ *
+ *  STATUS: kept DISABLED (file extension `.DISABLED`). DO NOT re-enable.
+ *
+ *  If this logic is ever needed again, it MUST be rewritten SERIALIZED (a single
+ *  worker, one request at a time) on top of li-safety.js — NOT resurrected as-is.
+ *
+ *  The guard below hard-aborts the run unless the operator sets the explicit
+ *  override env var (and even then the shared kill-switch lock is honored). This
+ *  is a deliberate second line of defense in case the file is ever copied to a
+ *  runnable name and executed by mistake.
+ * ============================================================================
+ */
+
+'use strict';
+
+const { execSync, spawn } = require('child_process');
+const fs = require('fs');
+
+// --- Mass-execution guard (default: refuse to run) ---------------------------
+// Honor the shared kill-switch first: if any Python/Node LinkedIn script tripped
+// it, nothing LinkedIn-related may start until the account owner removes the lock manually.
+try {
+  const safety = require('./li-safety.js'); // shim -> ../li-safety.js (single source of truth)
+  safety.checkKillswitch(); // exits(2) if the shared kill-switch lock is present
+} catch (e) {
+  // If the shared module can't be loaded, fail closed: do NOT run mass parallel.
+  console.error(
+    '[linkedin-parallel] Could not load shared safety guard (./li-safety.js). ' +
+      'Refusing to run mass parallel fan-out. Aborting.\n  ' + (e && e.message ? e.message : e)
+  );
+  process.exit(2);
+}
+
+if (process.env.LI_ALLOW_MASS_PARALLEL !== '1') {
+  console.error(
+    '\n[linkedin-parallel] BLOCKED — parallel fan-out toward LinkedIn is forbidden by policy.\n' +
+      '  This script (8 concurrent workers vs a single account) is the exact anti-pattern\n' +
+      '  that can get an account restricted. It is intentionally DISABLED.\n' +
+      '  Do NOT bypass it. Rewrite serialized (1 worker) on top of li-safety.js instead.\n' +
+      '  (Emergency override, NOT recommended: LI_ALLOW_MASS_PARALLEL=1 — and even then\n' +
+      '   the shared kill-switch and caps still apply.)\n'
+  );
+  process.exit(2);
+}
+
+console.error(
+  '\n[linkedin-parallel] WARNING: LI_ALLOW_MASS_PARALLEL=1 set. Running parallel fan-out.\n' +
+    '  This is against policy and risks restricting the account. You are on your own.\n'
+);
+
+const TOTAL_PROFILES = 100;
+// Policy is NO parallelism toward LinkedIn. Forced to 1 even under override:
+// the shared guard enforces conservative delays/caps; concurrency is not allowed.
+const NUM_WORKERS = 1; // was 8 — parallelism removed (anti-pattern)
+const CHUNK_SIZE = Math.ceil(TOTAL_PROFILES / NUM_WORKERS);
+
+console.log(`\n=== LAUNCHING ${NUM_WORKERS} WORKER (SERIALIZED, parallelism disabled) ===`);
+console.log(`Total profiles: ${TOTAL_PROFILES}`);
+console.log(`Chunk size: ${CHUNK_SIZE}\n`);
+
+const workers = [];
+
+for (let i = 0; i < NUM_WORKERS; i++) {
+  const start = i * CHUNK_SIZE;
+  const end = Math.min(start + CHUNK_SIZE, TOTAL_PROFILES);
+
+  if (start >= TOTAL_PROFILES) break;
+
+  console.log(`Worker ${i}: profiles ${start}-${end}`);
+
+  const worker = spawn('node', ['linkedin-worker.js', start.toString(), end.toString(), i.toString()], {
+    cwd: process.cwd(),
+    stdio: 'pipe'
+  });
+
+  let output = '';
+  worker.stdout.on('data', (data) => {
+    const lines = data.toString().split('\n');
+    lines.forEach(line => {
+      if (line.trim()) console.log(line);
+    });
+    output += data.toString();
+  });
+
+  worker.stderr.on('data', (data) => {
+    console.error(`W${i} ERR: ${data.toString().substring(0, 100)}`);
+  });
+
+  workers.push({
+    id: i,
+    process: worker,
+    start,
+    end,
+    promise: new Promise(resolve => {
+      worker.on('close', (code) => {
+        console.log(`\nWorker ${i} finished (exit ${code})`);
+        resolve(code);
+      });
+    })
+  });
+
+  // Delay between worker starts to avoid overloading Google
+  if (i < NUM_WORKERS - 1) {
+    execSync('sleep 2');
+  }
+}
+
+// Wait for all workers
+Promise.all(workers.map(w => w.promise)).then(() => {
+  console.log('\n=== ALL WORKERS COMPLETED ===\n');
+
+  // Merge results
+  const db = JSON.parse(fs.readFileSync('contacts-api-database.json', 'utf-8'));
+  const allResults = [];
+
+  for (let i = 0; i < NUM_WORKERS; i++) {
+    const file = `linkedin-worker-${i}.json`;
+    if (fs.existsSync(file)) {
+      const results = JSON.parse(fs.readFileSync(file, 'utf-8'));
+      allResults.push(...results);
+      console.log(`Worker ${i}: ${results.length} results, ${results.filter(r => r.confidence >= 50).length} verified`);
+    }
+  }
+
+  // Update database
+  const resultMap = new Map(allResults.map(r => [r.id, r]));
+
+  let verified = 0, possible = 0, notFound = 0;
+
+  db.contacts = db.contacts.map(inv => {
+    const r = resultMap.get(inv.id);
+    if (r && r.linkedin) {
+      if (r.confidence >= 50) {
+        inv.linkedin = r.linkedin;
+        inv.linkedinConfidence = r.confidence;
+        inv.linkedinSource = r.source;
+        inv.linkedinSnippet = r.snippet;
+        verified++;
+      } else if (r.confidence >= 30) {
+        inv.linkedinPossible = r.linkedin;
+        inv.linkedinConfidence = r.confidence;
+        possible++;
+      }
+    } else {
+      notFound++;
+    }
+    return inv;
+  });
+
+  db.metadata.lastLinkedinSearch = new Date().toISOString();
+  db.metadata.stats.linkedinVerified = verified;
+  db.metadata.stats.linkedinPossible = possible;
+  db.metadata.stats.linkedinNotFound = notFound;
+
+  fs.writeFileSync('contacts-api-database.json', JSON.stringify(db, null, 2));
+  fs.writeFileSync('linkedin-all-results.json', JSON.stringify(allResults, null, 2));
+
+  console.log(`\n${'='.repeat(50)}`);
+  console.log('FINAL LINKEDIN REPORT');
+  console.log('='.repeat(50));
+  console.log(`Total searched: ${allResults.length}`);
+  console.log(`Verified (>= 50%): ${verified}`);
+  console.log(`Possible (30-49%): ${possible}`);
+  console.log(`Not found: ${notFound}`);
+
+  // Show the best matches
+  console.log('\n=== LINKEDIN VERIFIED (>= 50% confidence) ===');
+  allResults
+    .filter(r => r.confidence >= 50)
+    .sort((a, b) => b.confidence - a.confidence)
+    .forEach(r => {
+      console.log(`  ${r.confidence}% | ${r.name} | ${r.linkedin}`);
+    });
+
+  // Cleanup worker files
+  for (let i = 0; i < NUM_WORKERS; i++) {
+    const file = `linkedin-worker-${i}.json`;
+    if (fs.existsSync(file)) fs.unlinkSync(file);
+  }
+});

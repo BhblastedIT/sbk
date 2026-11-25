@@ -1,0 +1,77 @@
+{% if ideas %}
+<div class="space-y-3">
+    {% for idea in ideas %}
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-4">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono text-xs text-base-content/40">{{ idea.id }}</span>
+                        {% if idea.status == 'intuizione' %}
+                            <span class="badge badge-info badge-xs">insight</span>
+                        {% elif idea.status == 'sviluppata' %}
+                            <span class="badge badge-warning badge-xs">developed</span>
+                        {% elif idea.status == 'tesi' %}
+                            <span class="badge badge-success badge-xs">thesis</span>
+                        {% endif %}
+                    </div>
+                    <p class="font-bold text-sm mt-1">{{ idea.core_concept }}</p>
+                    <p class="text-sm text-base-content/70 mt-1">{{ idea.summary }}</p>
+                </div>
+            </div>
+
+            <!-- Entities -->
+            {% if idea.entities %}
+            <div class="flex flex-wrap gap-1 mt-2">
+                {% for ent in idea.entities %}
+                <span class="badge badge-outline badge-xs">{{ ent.text }} ({{ ent.type }})</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Connections -->
+            {% if idea.connections %}
+            <div class="mt-2">
+                <p class="text-xs text-base-content/50">Graph connections</p>
+                <div class="flex flex-wrap gap-1 mt-1">
+                    {% for conn in idea.connections %}
+                    <a href="/person?q={{ conn.person_name }}"
+                       class="badge badge-primary badge-xs cursor-pointer">
+                        {{ conn.person_name }}
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Tags -->
+            {% if idea.tags %}
+            <div class="flex gap-1 mt-2">
+                {% for tag in idea.tags %}
+                <span class="badge badge-ghost badge-xs">{{ tag }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Meta -->
+            <div class="text-xs text-base-content/40 mt-2">
+                {{ idea.created_at[:10] if idea.created_at else '' }}
+            </div>
+
+            <!-- Expand: full content -->
+            {% if idea.content_raw %}
+            <details class="mt-2">
+                <summary class="text-xs text-base-content/40 cursor-pointer">Full text</summary>
+                <div class="mt-1 text-sm bg-base-300 rounded p-3 whitespace-pre-wrap">{{ idea.content_corrected or idea.content_raw }}</div>
+            </details>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12 text-base-content/40">
+    <p class="text-lg">No ideas captured</p>
+    <p class="text-sm mt-1">Use the "Capture Idea" tab to record your thoughts</p>
+</div>
+{% endif %}

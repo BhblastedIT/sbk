@@ -1,0 +1,45 @@
+<!-- partials/person_meetings.html: Meeting summaries for a specific person -->
+
+{% if summaries %}
+<div class="space-y-2">
+    {% for s in summaries %}
+    <div class="bg-base-100 rounded-lg p-3 hover:bg-base-300 transition-colors cursor-pointer"
+         hx-get="/partials/meeting_detail/{{ s.meeting_id }}"
+         hx-target="#meeting-person-modal-body"
+         hx-swap="innerHTML"
+         onclick="document.getElementById('meeting-person-modal').showModal()">
+        <div class="flex items-start justify-between">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs text-base-content/50">{{ s.date }}</span>
+                    <span class="badge badge-xs {% if s.source == 'plaud' %}badge-info{% elif s.source == 'tactiq' %}badge-warning{% else %}badge-ghost{% endif %}">{{ s.source }}</span>
+                </div>
+                <p class="text-sm line-clamp-2">{{ s.summary[:200] if s.summary is string else s.get('summary', '')[:200] }}</p>
+            </div>
+            <div class="flex gap-2 text-xs text-base-content/50 shrink-0 ml-3">
+                {% if s.decisions is defined and s.decisions %}
+                <span class="badge badge-xs badge-info badge-outline">{{ s.decisions | length }} dec</span>
+                {% endif %}
+                {% if s.follow_ups is defined and s.follow_ups %}
+                <span class="badge badge-xs badge-warning badge-outline">{{ s.follow_ups | length }} FU</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Meeting Detail Modal (person context) -->
+<dialog id="meeting-person-modal" class="modal">
+    <div class="modal-box max-w-3xl">
+        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">X</button></form>
+        <div id="meeting-person-modal-body">
+            <span class="loading loading-spinner"></span>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+{% else %}
+<p class="text-xs text-base-content/40">No meeting summary found for this person.</p>
+{% endif %}

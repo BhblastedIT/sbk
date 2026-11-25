@@ -1,0 +1,19 @@
+# Manifest job registro — calendar-l1-extract
+# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+job_id: calendar-l1-extract
+cmd: python3
+args:
+- tools/calendar/ca-l1-extract.py
+timeout_s: 900
+lock: pipeline-run
+paid: false
+cadence_minutes: 15
+night_ok: true
+cascade: false
+state: shadow
+owner_area: L1-enrich
+backend: subprocess
+fragile: false
+artifact_refs: []
+forbidden_adapter_types: []
+description: Estrazione L1 calendario.

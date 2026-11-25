@@ -1,0 +1,134 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Decay Parameters</h2>
+        <p class="text-sm text-base-content/60 mb-4">
+            Configuration of relationship tiers and global decay tracker parameters.
+        </p>
+
+        <!-- Tier Cards -->
+        <h3 class="font-semibold text-base mb-3">Relationship tiers</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            {% for tier in settings.decay.tiers %}
+            <div class="card bg-base-200 compact">
+                <div class="card-body">
+                    <h4 class="font-bold capitalize text-primary">{{ tier.name }}</h4>
+                    <div class="grid grid-cols-3 gap-3 mt-2">
+                        <div class="form-control">
+                            <label class="label py-0">
+                                <span class="label-text text-xs">Min Score</span>
+                            </label>
+                            <input type="number"
+                                   id="tier-{{ tier.name }}-min_score"
+                                   value="{{ tier.min_score }}"
+                                   min="0" max="1" step="0.05"
+                                   class="input input-bordered input-xs w-full">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0">
+                                <span class="label-text text-xs">Capacity</span>
+                            </label>
+                            <input type="number"
+                                   id="tier-{{ tier.name }}-capacity"
+                                   value="{{ tier.capacity }}"
+                                   min="1" max="10000" step="1"
+                                   class="input input-bordered input-xs w-full">
+                        </div>
+                        <div class="form-control">
+                            <label class="label py-0">
+                                <span class="label-text text-xs">Half-life (days)</span>
+                            </label>
+                            <input type="number"
+                                   id="tier-{{ tier.name }}-half_life_days"
+                                   value="{{ tier.half_life_days }}"
+                                   min="1" max="365" step="1"
+                                   class="input input-bordered input-xs w-full">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Global Params -->
+        <h3 class="font-semibold text-base mb-3">Global parameters</h3>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text text-sm">EWMA Alpha</span>
+                </label>
+                <input type="number"
+                       id="decay-ewma_alpha"
+                       value="{{ settings.decay.ewma_alpha }}"
+                       min="0.01" max="1" step="0.05"
+                       class="input input-bordered input-sm w-full">
+            </div>
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text text-sm">Alert Cooldown (days)</span>
+                </label>
+                <input type="number"
+                       id="decay-alert_cooldown_days"
+                       value="{{ settings.decay.alert_cooldown_days }}"
+                       min="1" max="90" step="1"
+                       class="input input-bordered input-sm w-full">
+            </div>
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text text-sm">Alert budget/day</span>
+                </label>
+                <input type="number"
+                       id="decay-budget"
+                       value="{{ settings.decay.budget }}"
+                       min="1" max="50" step="1"
+                       class="input input-bordered input-sm w-full">
+            </div>
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text text-sm">Decay threshold</span>
+                </label>
+                <input type="number"
+                       id="decay-threshold"
+                       value="{{ settings.decay.threshold }}"
+                       min="0.1" max="1" step="0.05"
+                       class="input input-bordered input-sm w-full">
+            </div>
+        </div>
+
+        <div class="card-actions justify-end mt-6">
+            <button class="btn btn-ghost btn-sm" onclick="resetSection('decay')">
+                Reset default
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="saveDecay()">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function saveDecay() {
+    saveSection('decay', function() {
+        var tierNames = [];
+        {% for tier in settings.decay.tiers %}
+        tierNames.push('{{ tier.name }}');
+        {% endfor %}
+
+        var tiers = tierNames.map(function(name) {
+            return {
+                name: name,
+                min_score: parseFloat(document.getElementById('tier-' + name + '-min_score').value) || 0,
+                capacity: parseInt(document.getElementById('tier-' + name + '-capacity').value) || 50,
+                half_life_days: parseInt(document.getElementById('tier-' + name + '-half_life_days').value) || 60
+            };
+        });
+
+        return {
+            tiers: tiers,
+            ewma_alpha: parseFloat(document.getElementById('decay-ewma_alpha').value) || 0.3,
+            alert_cooldown_days: parseInt(document.getElementById('decay-alert_cooldown_days').value) || 14,
+            budget: parseInt(document.getElementById('decay-budget').value) || 5,
+            threshold: parseFloat(document.getElementById('decay-threshold').value) || 0.70
+        };
+    });
+}
+</script>

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Content & Ideas — SBK{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold">Content & Ideas</h1>
+            <p class="text-sm text-base-content/60 mt-1">Content Intelligence (F2) + Knowledge Capture (F7)</p>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div role="tablist" class="tabs tabs-bordered" id="content-tabs">
+        <a role="tab" class="tab tab-active" onclick="switchTab('ideas-tab', this)">Content Ideas</a>
+        <a role="tab" class="tab" onclick="switchTab('capture-tab', this)">Capture Idea</a>
+        <a role="tab" class="tab" onclick="switchTab('knowledge-tab', this)">Knowledge Base</a>
+    </div>
+
+    <!-- Tab: Content Ideas (F2) -->
+    <div id="ideas-tab" class="tab-content">
+        <div class="flex items-center gap-3 mb-4">
+            <button class="btn btn-primary btn-sm"
+                    hx-post="/api/content/generate"
+                    hx-headers='{"X-SBK-CSRF": "1"}'
+                    hx-target="#generate-result"
+                    hx-indicator="#generate-spinner"
+                    hx-swap="innerHTML">
+                Generate ideas
+            </button>
+            <span id="generate-spinner" class="htmx-indicator loading loading-spinner loading-sm"></span>
+            <select class="select select-bordered select-sm"
+                    hx-get="/partials/content_ideas"
+                    hx-target="#content-ideas-list"
+                    hx-swap="innerHTML"
+                    name="status">
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+
+        <div id="generate-result" class="mb-4"></div>
+
+        <div id="content-ideas-list"
+             hx-get="/partials/content_ideas"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="flex justify-center p-8">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Capture Idea (F7) -->
+    <div id="capture-tab" class="tab-content hidden">
+        <div class="card bg-base-200 shadow-sm">
+            <div class="card-body">
+                <h3 class="card-title text-lg">Quick capture</h3>
+                <p class="text-sm text-base-content/60">Write an idea, a thought, an insight. Claude will analyze it and link it to your knowledge graph.</p>
+                <textarea id="idea-input"
+                          class="textarea textarea-bordered w-full mt-3"
+                          rows="4"
+                          placeholder="e.g. Add a payment system to the product. It came up in the last call..."></textarea>
+                <div class="card-actions justify-end mt-3">
+                    <button class="btn btn-primary btn-sm"
+                            onclick="captureIdea()"
+                            id="capture-btn">
+                        Capture
+                    </button>
+                    <span id="capture-spinner" class="htmx-indicator loading loading-spinner loading-sm hidden"></span>
+                </div>
+                <div id="capture-result" class="mt-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab: Knowledge Base (F7 list) -->
+    <div id="knowledge-tab" class="tab-content hidden">
+        <div class="flex items-center gap-3 mb-4">
+            <select class="select select-bordered select-sm"
+                    hx-get="/partials/ideas_list"
+                    hx-target="#ideas-list"
+                    hx-swap="innerHTML"
+                    name="status">
+                <option value="">All</option>
+                <option value="intuizione">Insights</option>
+                <option value="sviluppata">Developed</option>
+                <option value="tesi">Thesis</option>
+            </select>
+        </div>
+        <div id="ideas-list"
+             hx-get="/partials/ideas_list"
+             hx-trigger="load"
+             hx-swap="innerHTML">
+            <div class="flex justify-center p-8">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+function switchTab(tabId, el) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+    // Show selected
+    document.getElementById(tabId).classList.remove('hidden');
+    // Update tab styling
+    document.querySelectorAll('#content-tabs .tab').forEach(t => t.classList.remove('tab-active'));
+    el.classList.add('tab-active');
+}
+
+async function captureIdea() {
+    const text = document.getElementById('idea-input').value.trim();
+    if (!text) return;
+    const btn = document.getElementById('capture-btn');
+    const spinner = document.getElementById('capture-spinner');
+    const result = document.getElementById('capture-result');
+    btn.disabled = true;
+    spinner.classList.remove('hidden');
+    result.innerHTML = '';
+
+    try {
+        const resp = await fetch('/api/ideas/capture', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'X-SBK-CSRF': '1'},
+            body: JSON.stringify({text: text})
+        });
+        const data = await resp.json();
+        if (data.status === 'ok') {
+            const idea = data.idea;
+            let html = `<div class="alert alert-success">
+                <div>
+                    <p class="font-bold">Idea captured</p>
+                    <p class="text-sm mt-1"><strong>Summary</strong> ${escapeHtml(idea.summary)}</p>
+                    <p class="text-sm"><strong>Concept</strong> ${escapeHtml(idea.core_concept)}</p>`;
+            if (idea.entities && idea.entities.length > 0) {
+                html += `<p class="text-sm"><strong>Entities</strong> ${idea.entities.map(e => escapeHtml(e.text) + ' (' + escapeHtml(e.type) + ')').join(', ')}</p>`;
+            }
+            if (idea.connections && idea.connections.length > 0) {
+                html += `<p class="text-sm"><strong>Graph connections</strong> ${idea.connections.map(c => escapeHtml(c.person_name)).join(', ')}</p>`;
+            }
+            if (idea.tags && idea.tags.length > 0) {
+                html += `<div class="flex gap-1 mt-1">${idea.tags.map(t => '<span class="badge badge-sm badge-outline">' + escapeHtml(t) + '</span>').join('')}</div>`;
+            }
+            html += `</div></div>`;
+            result.innerHTML = html;
+            document.getElementById('idea-input').value = '';
+            // Refresh knowledge list if visible
+            htmx.trigger('#ideas-list', 'load');
+        } else {
+            result.innerHTML = `<div class="alert alert-error"><p>${escapeHtml(data.message || 'Capture error')}</p></div>`;
+        }
+    } catch(e) {
+        result.innerHTML = `<div class="alert alert-error"><p>Error: ${escapeHtml(e.message)}</p></div>`;
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('hidden');
+    }
+}
+</script>
+{% endblock %}

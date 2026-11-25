@@ -1,0 +1,171 @@
+<!-- Shadows table partial (HTMX) -->
+<div class="overflow-x-auto">
+    <table class="table table-sm table-zebra" id="shadows-tbl">
+        <thead>
+            <tr class="text-xs">
+                <th class="w-8">#</th>
+                <th>Nome</th>
+                <th>Score</th>
+                <th>Mentions</th>
+                <th>Sources</th>
+                <th>Company</th>
+                <th>Role</th>
+                <th>Intro via</th>
+                <th>Last</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr class="hover cursor-pointer"
+                onclick="toggleDetail('detail-{{ loop.index }}')"
+                data-name="{{ item.canonical_name }}"
+                data-score="{{ item.shadow_score }}">
+                <td class="text-xs text-base-content/40">{{ (page - 1) * 50 + loop.index }}</td>
+                <td>
+                    <div class="font-medium">{{ item.display_name }}</div>
+                    {% if item.canonical_name != item.display_name|lower %}
+                    <div class="text-xs text-base-content/40">{{ item.canonical_name }}</div>
+                    {% endif %}
+                </td>
+                <td>
+                    <div class="flex items-center gap-1">
+                        <div class="radial-progress text-xs
+                            {% if item.shadow_score >= 80 %}text-success
+                            {% elif item.shadow_score >= 40 %}text-warning
+                            {% else %}text-base-content/40{% endif %}"
+                            style="--value:{{ item.shadow_score }}; --size:1.5rem; --thickness:2px;">
+                        </div>
+                        <span class="font-mono text-sm">{{ item.shadow_score }}</span>
+                    </div>
+                </td>
+                <td class="font-mono text-sm">{{ item.mention_count }}</td>
+                <td>
+                    <div class="flex gap-0.5 flex-wrap">
+                        {% for src in item.source_types %}
+                        <span class="badge badge-xs
+                            {% if src == 'slack' %}badge-info
+                            {% elif src == 'tactiq' %}badge-success
+                            {% elif src == 'plaud' %}badge-warning
+                            {% elif src == 'email' %}badge-primary
+                            {% elif src == 'whatsapp' %}badge-accent
+                            {% else %}badge-ghost{% endif %}">{{ src }}</span>
+                        {% endfor %}
+                    </div>
+                </td>
+                <td class="text-sm max-w-[12rem] truncate">{{ item.inferred_company }}</td>
+                <td class="text-sm">{{ item.inferred_role }}</td>
+                <td class="text-xs text-base-content/60 max-w-[8rem] truncate">{{ item.intro_via_name }}</td>
+                <td class="text-xs text-base-content/60">{{ item.last_seen[:10] if item.last_seen else '' }}</td>
+            </tr>
+            <!-- Expandable detail row -->
+            <tr id="detail-{{ loop.index }}" class="hidden bg-base-200/50">
+                <td colspan="9" class="p-3">
+                    <div class="flex gap-4 flex-wrap text-sm">
+                        <div>
+                            <span class="font-semibold">ID:</span> {{ item.shadow_id }}
+                        </div>
+                        <div>
+                            <span class="font-semibold">Confidence:</span> {{ item.confidence_score }}
+                        </div>
+                        <div>
+                            <span class="font-semibold">First seen:</span> {{ item.first_seen }}
+                        </div>
+                        <div>
+                            <span class="font-semibold">Last seen:</span> {{ item.last_seen }}
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-2">
+                        <button class="btn btn-xs btn-primary"
+                                onclick="event.stopPropagation(); promptAlias('{{ item.canonical_name }}')">
+                            Map alias
+                        </button>
+                        <button class="btn btn-xs btn-warning"
+                                onclick="event.stopPropagation(); quickNoise('{{ item.canonical_name }}')">
+                            Filter as noise
+                        </button>
+                        {% if item.inferred_company %}
+                        <button class="btn btn-xs btn-error"
+                                onclick="event.stopPropagation(); quickCompany('{{ item.inferred_company }}')">
+                            Filter company "{{ item.inferred_company }}"
+                        </button>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if pages > 1 %}
+<div class="flex justify-center mt-4">
+    <div class="join">
+        {% if page > 1 %}
+        <button class="join-item btn btn-sm"
+                hx-get="/partials/shadows_table?page={{ page - 1 }}"
+                hx-target="#shadows-table"
+                hx-include="#category-filter, #search-input, #sort-select">Prev</button>
+        {% endif %}
+        <button class="join-item btn btn-sm btn-active">{{ page }} / {{ pages }}</button>
+        {% if page < pages %}
+        <button class="join-item btn btn-sm"
+                hx-get="/partials/shadows_table?page={{ page + 1 }}"
+                hx-target="#shadows-table"
+                hx-include="#category-filter, #search-input, #sort-select">Next</button>
+        {% endif %}
+    </div>
+    <span class="text-xs text-base-content/40 ml-3 self-center">{{ total }} results</span>
+</div>
+{% endif %}
+
+<script>
+function toggleDetail(id) {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden');
+}
+
+function promptAlias(name) {
+    const fullName = prompt('Full name for "' + name + '":');
+    if (!fullName) return;
+    fetch('/api/shadows/add-alias', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({alias: name, full_name: fullName})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            alert('Alias added: ' + name + ' -> ' + fullName);
+        } else {
+            alert('Error: ' + data.error);
+        }
+    });
+}
+
+function quickNoise(name) {
+    if (!confirm('Add "' + name + '" to the noise filter?')) return;
+    fetch('/api/shadows/add-noise', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phrases: [name]})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) alert('Added to the noise filter');
+    });
+}
+
+function quickCompany(name) {
+    if (!confirm('Add "' + name + '" to the company filter?')) return;
+    fetch('/api/shadows/add-company', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({companies: [name]})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) alert('Added to the company filter');
+    });
+}
+</script>

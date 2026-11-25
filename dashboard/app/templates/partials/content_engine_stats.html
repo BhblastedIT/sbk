@@ -1,0 +1,93 @@
+<!-- Stats partial — loaded via HTMX -->
+<div class="space-y-4">
+    <div id="stats-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div class="text-center py-8 text-base-content/50">Loading...</div>
+    </div>
+</div>
+
+<script>
+(function() {
+    fetch('/api/content-engine/stats')
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderStats(data); })
+        .catch(function(e) { console.error('Stats fetch error:', e); });
+
+    function renderStats(data) {
+        var container = document.getElementById('stats-container');
+        var html = '';
+
+        // Seeds total
+        html += statCard('Total Seeds', data.seeds_total || 0, 'text-primary', data.seeds_generated_at);
+
+        // Drafts total
+        html += statCard('Total Drafts', data.drafts_total || 0, 'text-secondary', data.drafts_generated_at);
+
+        // Seeds by pillar
+        html += breakdownCard('Seeds per Pillar', data.seeds_by_pillar || {}, {
+            'how_i_build': 'How I Build',
+            'market_view': 'Market View',
+            'lessons': 'Lessons'
+        });
+
+        // Seeds by sensitivity
+        html += breakdownCard('Seeds per Sensitivity', data.seeds_by_sensitivity || {}, {
+            'green': 'Green',
+            'yellow': 'Yellow'
+        });
+
+        // Drafts by platform
+        html += breakdownCard('Drafts per platform', data.drafts_by_platform || {}, {
+            'twitter': 'Twitter',
+            'linkedin': 'LinkedIn',
+            'substack': 'Substack'
+        });
+
+        // Drafts by status
+        html += breakdownCard('Draft per Status', data.drafts_by_status || {}, {
+            'pending': 'Pending',
+            'approved': 'Approved',
+            'published': 'Published',
+            'skipped': 'Skipped'
+        });
+
+        container.innerHTML = html;
+    }
+
+    function statCard(title, value, colorClass, timestamp) {
+        var ts = timestamp ? '<div class="text-xs text-base-content/40 mt-1">Last: ' + timestamp.substring(0, 19) + '</div>' : '';
+        return '<div class="card bg-base-100 shadow-sm border border-base-300">'
+            + '<div class="card-body p-4">'
+            + '<div class="text-sm text-base-content/60">' + title + '</div>'
+            + '<div class="text-3xl font-bold ' + colorClass + '">' + value.toLocaleString() + '</div>'
+            + ts
+            + '</div></div>';
+    }
+
+    function breakdownCard(title, counts, labels) {
+        var html = '<div class="card bg-base-100 shadow-sm border border-base-300">'
+            + '<div class="card-body p-4">'
+            + '<div class="text-sm text-base-content/60 mb-2">' + title + '</div>';
+
+        var total = 0;
+        Object.values(counts).forEach(function(v) { total += v; });
+
+        if (total === 0) {
+            html += '<div class="text-base-content/40 text-sm">No data</div>';
+        } else {
+            Object.keys(counts).forEach(function(key) {
+                var label = (labels && labels[key]) ? labels[key] : key;
+                var val = counts[key];
+                var pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                html += '<div class="flex justify-between items-center text-sm mb-1">';
+                html += '<span class="capitalize">' + label + '</span>';
+                html += '<span class="font-mono">' + val + ' <span class="text-base-content/40">(' + pct + '%)</span></span>';
+                html += '</div>';
+                html += '<progress class="progress progress-primary w-full h-1" value="' + pct + '" max="100"></progress>';
+            });
+        }
+
+        html += '</div></div>';
+        return html;
+    }
+})();
+</script>

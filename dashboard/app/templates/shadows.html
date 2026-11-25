@@ -1,0 +1,381 @@
+{% extends "base.html" %}
+
+{% block title %}Shadow Contacts | SBK{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Shadow Contacts Review</h1>
+        <p class="text-sm text-base-content/60 mt-1">
+            <span id="total-count">{{ stats.total }}</span> shadow contacts to review
+        </p>
+    </div>
+</div>
+
+<!-- Stats cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 mb-6">
+    <div class="stat bg-base-100 rounded-lg shadow-sm p-3">
+        <div class="stat-title text-xs">Total</div>
+        <div class="stat-value text-xl text-primary">{{ stats.total }}</div>
+    </div>
+    <div class="stat bg-base-100 rounded-lg shadow-sm p-3">
+        <div class="stat-title text-xs">Multi-source</div>
+        <div class="stat-value text-xl text-success">{{ stats.multi_source }}</div>
+    </div>
+    <div class="stat bg-base-100 rounded-lg shadow-sm p-3">
+        <div class="stat-title text-xs">1 source</div>
+        <div class="stat-value text-xl text-warning">{{ stats.single_source }}</div>
+    </div>
+    <div class="stat bg-base-100 rounded-lg shadow-sm p-3">
+        <div class="stat-title text-xs">With company</div>
+        <div class="stat-value text-xl">{{ stats.with_company }}</div>
+    </div>
+    <div class="stat bg-base-100 rounded-lg shadow-sm p-3">
+        <div class="stat-title text-xs">Avg score</div>
+        <div class="stat-value text-xl">{{ stats.avg_score }}</div>
+    </div>
+    <div class="stat bg-base-100 rounded-lg shadow-sm p-3">
+        <div class="stat-title text-xs">Avg mentions</div>
+        <div class="stat-value text-xl">{{ stats.avg_mentions }}</div>
+    </div>
+</div>
+
+<!-- Filters bar -->
+<div class="flex flex-wrap gap-3 items-center mb-4 bg-base-100 rounded-lg p-3 shadow-sm">
+    <select id="category-filter" class="select select-bordered select-sm"
+            hx-get="/partials/shadows_table"
+            hx-target="#shadows-table"
+            hx-include="#category-filter, #search-input, #sort-select"
+            name="category">
+        <option value="all">All</option>
+        <option value="slack_usernames">Slack usernames</option>
+        <option value="single_name">Name only</option>
+        <option value="multi_source">Multi-source (2+)</option>
+        <option value="high_score">High score (60+)</option>
+        <option value="with_company">With company</option>
+        <option value="no_company">No company</option>
+    </select>
+
+    <input type="text" id="search-input" name="search" placeholder="Search name..."
+           class="input input-bordered input-sm w-48"
+           hx-get="/partials/shadows_table"
+           hx-target="#shadows-table"
+           hx-trigger="keyup changed delay:300ms"
+           hx-include="#category-filter, #search-input, #sort-select">
+
+    <select id="sort-select" name="sort" class="select select-bordered select-sm"
+            hx-get="/partials/shadows_table"
+            hx-target="#shadows-table"
+            hx-include="#category-filter, #search-input, #sort-select">
+        <option value="score">Score (desc)</option>
+        <option value="mentions">Mentions (desc)</option>
+        <option value="sources">Sources (desc)</option>
+        <option value="name">Name (A-Z)</option>
+    </select>
+
+    <div class="ml-auto text-xs text-base-content/40">
+        Click a row for details
+    </div>
+</div>
+
+<!-- Action bar -->
+<div class="flex flex-wrap gap-2 mb-4 items-center">
+    <div class="dropdown">
+        <label tabindex="0" class="btn btn-primary btn-sm">Add alias</label>
+        <div tabindex="0" class="dropdown-content z-[1] card card-compact shadow-xl bg-base-200 w-80 p-4 mt-1">
+            <div class="form-control gap-2">
+                <input type="text" id="alias-key" placeholder="Username/nickname (e.g. sam)" class="input input-bordered input-sm">
+                <input type="text" id="alias-value" placeholder="Full name (e.g. sam taylor)" class="input input-bordered input-sm">
+                <button class="btn btn-primary btn-sm" onclick="addAlias()">Save alias</button>
+            </div>
+            <div id="alias-result" class="text-xs mt-2"></div>
+        </div>
+    </div>
+
+    <div class="dropdown">
+        <label tabindex="0" class="btn btn-warning btn-sm">Add noise</label>
+        <div tabindex="0" class="dropdown-content z-[1] card card-compact shadow-xl bg-base-200 w-80 p-4 mt-1">
+            <div class="form-control gap-2">
+                <textarea id="noise-phrases" placeholder="One phrase per line (e.g. target audience)" class="textarea textarea-bordered textarea-sm h-24"></textarea>
+                <button class="btn btn-warning btn-sm" onclick="addNoise()">Add to filter</button>
+            </div>
+            <div id="noise-result" class="text-xs mt-2"></div>
+        </div>
+    </div>
+
+    <div class="dropdown">
+        <label tabindex="0" class="btn btn-error btn-sm">Add company</label>
+        <div tabindex="0" class="dropdown-content z-[1] card card-compact shadow-xl bg-base-200 w-80 p-4 mt-1">
+            <div class="form-control gap-2">
+                <textarea id="company-names" placeholder="One name per line (e.g. acme group)" class="textarea textarea-bordered textarea-sm h-24"></textarea>
+                <button class="btn btn-error btn-sm" onclick="addCompany()">Add to filter</button>
+            </div>
+            <div id="company-result" class="text-xs mt-2"></div>
+        </div>
+    </div>
+
+    <div class="ml-auto">
+        <button class="btn btn-ghost btn-sm" onclick="rerunExtract()" id="rerun-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            Re-run extraction
+        </button>
+    </div>
+</div>
+
+<!-- Active filters (collapsible) -->
+<div class="collapse collapse-arrow bg-base-100 shadow-sm mb-4" id="active-filters-panel">
+    <input type="checkbox" />
+    <div class="collapse-title font-semibold text-sm flex items-center gap-2">
+        Active filters
+        <span class="badge badge-ghost badge-sm" id="filters-count">...</span>
+    </div>
+    <div class="collapse-content">
+        <div id="filters-content">
+            <div class="flex justify-center p-4">
+                <span class="loading loading-spinner loading-sm"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div id="shadows-table"
+     hx-get="/partials/shadows_table"
+     hx-trigger="load"
+     hx-include="#category-filter, #search-input, #sort-select">
+    <div class="flex justify-center p-8">
+        <span class="loading loading-spinner loading-md"></span>
+    </div>
+</div>
+
+<script>
+// --- Active Filters ---
+function loadActiveFilters() {
+    fetch('/api/shadows/active-filters')
+    .then(r => r.json())
+    .then(data => {
+        const total = data.aliases.length + data.noise.length + data.companies.length;
+        const customCount = data.aliases.filter(a => a.custom).length
+            + data.noise.filter(n => n.custom).length
+            + data.companies.filter(c => c.custom).length;
+        document.getElementById('filters-count').textContent = total + ' total, ' + customCount + ' custom';
+        renderFilters(data);
+    });
+}
+
+function renderFilters(data) {
+    let html = '<div role="tablist" class="tabs tabs-bordered mb-3">';
+    html += '<a role="tab" class="tab tab-active" onclick="switchFilterTab(this, \'tab-aliases\')">Aliases (' + data.aliases.length + ')</a>';
+    html += '<a role="tab" class="tab" onclick="switchFilterTab(this, \'tab-noise\')">Noise (' + data.noise.length + ')</a>';
+    html += '<a role="tab" class="tab" onclick="switchFilterTab(this, \'tab-companies\')">Companies (' + data.companies.length + ')</a>';
+    html += '</div>';
+
+    // Aliases tab
+    html += '<div id="tab-aliases" class="filter-tab">';
+    if (data.aliases.length === 0) {
+        html += '<p class="text-sm text-base-content/50 p-2">No alias configured</p>';
+    } else {
+        html += '<div class="flex flex-wrap gap-2">';
+        data.aliases.forEach(a => {
+            const badge = a.custom ? ' <span class="badge badge-accent badge-xs">custom</span>' : '';
+            const removeBtn = a.custom
+                ? ' <button class="btn btn-ghost btn-xs text-error px-1" onclick="removeAlias(\'' + a.key.replace(/'/g, "\\'") + '\')" title="Remove">&times;</button>'
+                : '';
+            html += '<div class="flex items-center gap-1 bg-base-200 rounded px-2 py-1 text-xs">';
+            html += '<span class="font-mono">' + a.key + '</span>';
+            html += '<span class="text-base-content/40">&rarr;</span>';
+            html += '<span>' + a.value + '</span>';
+            html += badge + removeBtn;
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+
+    // Noise tab
+    html += '<div id="tab-noise" class="filter-tab" style="display:none">';
+    if (data.noise.length === 0) {
+        html += '<p class="text-sm text-base-content/50 p-2">No noise phrases configured</p>';
+    } else {
+        html += '<div class="flex flex-wrap gap-2">';
+        data.noise.forEach(n => {
+            const badge = n.custom ? ' <span class="badge badge-accent badge-xs">custom</span>' : '';
+            const removeBtn = n.custom
+                ? ' <button class="btn btn-ghost btn-xs text-error px-1" onclick="removeNoise(\'' + n.phrase.replace(/'/g, "\\'") + '\')" title="Remove">&times;</button>'
+                : '';
+            html += '<div class="flex items-center gap-1 bg-base-200 rounded px-2 py-1 text-xs">';
+            html += '<span>' + n.phrase + '</span>';
+            html += badge + removeBtn;
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+
+    // Companies tab
+    html += '<div id="tab-companies" class="filter-tab" style="display:none">';
+    if (data.companies.length === 0) {
+        html += '<p class="text-sm text-base-content/50 p-2">No company configured</p>';
+    } else {
+        html += '<div class="flex flex-wrap gap-2">';
+        data.companies.forEach(c => {
+            const badge = c.custom ? ' <span class="badge badge-accent badge-xs">custom</span>' : '';
+            const removeBtn = c.custom
+                ? ' <button class="btn btn-ghost btn-xs text-error px-1" onclick="removeCompany(\'' + c.name.replace(/'/g, "\\'") + '\')" title="Remove">&times;</button>'
+                : '';
+            html += '<div class="flex items-center gap-1 bg-base-200 rounded px-2 py-1 text-xs">';
+            html += '<span>' + c.name + '</span>';
+            html += badge + removeBtn;
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+
+    document.getElementById('filters-content').innerHTML = html;
+}
+
+function switchFilterTab(el, tabId) {
+    document.querySelectorAll('.filter-tab').forEach(t => t.style.display = 'none');
+    document.getElementById(tabId).style.display = 'block';
+    el.closest('[role="tablist"]').querySelectorAll('.tab').forEach(t => t.classList.remove('tab-active'));
+    el.classList.add('tab-active');
+}
+
+function removeAlias(key) {
+    fetch('/api/shadows/remove-alias', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({alias: key})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) loadActiveFilters();
+        else alert('Error: ' + data.error);
+    });
+}
+
+function removeNoise(phrase) {
+    fetch('/api/shadows/remove-noise', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phrase: phrase})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) loadActiveFilters();
+        else alert('Error: ' + data.error);
+    });
+}
+
+function removeCompany(name) {
+    fetch('/api/shadows/remove-company', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({company: name})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) loadActiveFilters();
+        else alert('Error: ' + data.error);
+    });
+}
+
+// Load filters on page load
+document.addEventListener('DOMContentLoaded', loadActiveFilters);
+
+// --- Add Actions ---
+function addAlias() {
+    const alias = document.getElementById('alias-key').value.trim();
+    const fullName = document.getElementById('alias-value').value.trim();
+    if (!alias || !fullName) {
+        document.getElementById('alias-result').innerHTML = '<span class="text-error">Fill in both fields</span>';
+        return;
+    }
+    fetch('/api/shadows/add-alias', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({alias: alias, full_name: fullName})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            document.getElementById('alias-result').innerHTML = '<span class="text-success">Added: ' + alias + ' -> ' + fullName + '</span>';
+            document.getElementById('alias-key').value = '';
+            document.getElementById('alias-value').value = '';
+            loadActiveFilters();
+        } else {
+            document.getElementById('alias-result').innerHTML = '<span class="text-error">' + data.error + '</span>';
+        }
+    });
+}
+
+function addNoise() {
+    const text = document.getElementById('noise-phrases').value.trim();
+    if (!text) return;
+    const phrases = text.split('\n').map(p => p.trim()).filter(p => p.length > 0);
+    fetch('/api/shadows/add-noise', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({phrases: phrases})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            document.getElementById('noise-result').innerHTML = '<span class="text-success">Added ' + data.added.length + ' phrases</span>';
+            document.getElementById('noise-phrases').value = '';
+            loadActiveFilters();
+        }
+    });
+}
+
+function addCompany() {
+    const text = document.getElementById('company-names').value.trim();
+    if (!text) return;
+    const companies = text.split('\n').map(c => c.trim()).filter(c => c.length > 0);
+    fetch('/api/shadows/add-company', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({companies: companies})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            document.getElementById('company-result').innerHTML = '<span class="text-success">Added ' + data.added.length + ' companies</span>';
+            document.getElementById('company-names').value = '';
+            loadActiveFilters();
+        }
+    });
+}
+
+function rerunExtract() {
+    const btn = document.getElementById('rerun-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Running...';
+    fetch('/api/shadows/rerun', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        if (data.ok) {
+            btn.innerHTML = 'Done! ' + data.count + ' shadow';
+            // Refresh table
+            htmx.ajax('GET', '/partials/shadows_table', '#shadows-table');
+            setTimeout(() => { btn.innerHTML = 'Re-run extraction'; }, 3000);
+        } else {
+            btn.innerHTML = 'Error: ' + (data.error || 'unknown');
+            setTimeout(() => { btn.innerHTML = 'Re-run extraction'; }, 3000);
+        }
+    })
+    .catch(() => {
+        btn.disabled = false;
+        btn.innerHTML = 'Re-run extraction';
+    });
+}
+</script>
+{% endblock %}

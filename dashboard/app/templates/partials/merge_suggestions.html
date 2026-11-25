@@ -1,0 +1,92 @@
+<!-- Entity merge suggestions -->
+{% if suggestions %}
+<div class="space-y-3">
+    <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">{{ suggestions|length }} suggestions found</span>
+        <span class="text-xs text-base-content/50">Sorted by score (high &rarr; low)</span>
+    </div>
+
+    {% for s in suggestions %}
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-4">
+            <!-- Score badge -->
+            <div class="flex items-center justify-between mb-2">
+                <span class="badge {% if s.score >= 90 %}badge-error{% elif s.score >= 80 %}badge-warning{% else %}badge-info{% endif %} badge-sm">
+                    Score: {{ s.score }}
+                </span>
+                <span class="text-xs text-base-content/50">{{ s.strategy }}</span>
+            </div>
+
+            <!-- Side by side comparison -->
+            <div class="grid grid-cols-2 gap-4">
+                <!-- Person A -->
+                <div class="text-sm">
+                    <div class="font-medium">{{ s.name_a }}</div>
+                    <div class="text-xs text-base-content/60">{{ s.email_a }}</div>
+                    {% if s.org_a and s.org_a != 'nan' %}
+                    <div class="text-xs text-base-content/50">{{ s.org_a }}</div>
+                    {% endif %}
+                </div>
+                <!-- Person B -->
+                <div class="text-sm">
+                    <div class="font-medium">{{ s.name_b }}</div>
+                    <div class="text-xs text-base-content/60">{{ s.email_b }}</div>
+                    {% if s.org_b and s.org_b != 'nan' %}
+                    <div class="text-xs text-base-content/50">{{ s.org_b }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Reasons -->
+            <div class="flex gap-1 mt-2 flex-wrap">
+                {% for reason in s.reasons %}
+                <span class="badge badge-ghost badge-xs">{{ reason }}</span>
+                {% endfor %}
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-2 mt-3">
+                <button class="btn btn-xs btn-primary"
+                        onclick="if(confirm('Merge {{ s.name_a }} with {{ s.name_b }}?')) mergeSuggestionAction('merge','{{ s.person_id_a }}','{{ s.person_id_b }}', this)">
+                    Merge
+                </button>
+                <button class="btn btn-xs btn-ghost"
+                        onclick="mergeSuggestionAction('ignore','{{ s.person_id_a }}','{{ s.person_id_b }}', this)">
+                    Ignore
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-sm text-base-content/50 py-4">No merge suggestion available. Run the <code>xs-l2-merge-suggest.py</code> script to generate suggestions.</p>
+{% endif %}
+
+<script>
+function mergeSuggestionAction(action, pidA, pidB, btn) {
+    btn.disabled = true;
+    var card = btn.closest('.card');
+    fetch('/api/entities/merge-suggestion?action=' + action + '&pid_a=' + encodeURIComponent(pidA) + '&pid_b=' + encodeURIComponent(pidB), {
+        method: 'POST'
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            card.classList.add('opacity-30');
+            setTimeout(function() {
+                card.remove();
+                var counter = document.querySelector('#merge-suggestions-container .text-sm.font-medium');
+                if (counter) counter.textContent = data.remaining + ' suggestions found';
+                if (data.remaining === 0) {
+                    htmx.ajax('GET', '/partials/merge_suggestions', '#merge-suggestions-container');
+                }
+            }, 300);
+        } else {
+            btn.disabled = false;
+            alert(data.error || 'Error');
+        }
+    })
+    .catch(function() { btn.disabled = false; });
+}
+</script>

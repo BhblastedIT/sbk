@@ -1,0 +1,54 @@
+{% if facts %}
+{% set cat_colors = {"financial": "badge-success", "deal": "badge-primary", "commitment": "badge-warning", "negotiation": "badge-error", "strategic": "badge-info", "operational": "badge-ghost"} %}
+{% set cat_labels = {"financial": "Finance", "deal": "Deal", "commitment": "Commitments", "negotiation": "Negotiation", "strategic": "Strategy", "operational": "Operational"} %}
+<div class="space-y-1 max-h-[32rem] overflow-y-auto pr-1">
+    {% for cat, cat_facts in facts|groupby("category") %}
+    <div class="collapse collapse-arrow bg-base-200 rounded-box">
+        <input type="checkbox" {% if loop.first %}checked{% endif %} />
+        <div class="collapse-title text-sm font-medium py-2 min-h-0">
+            <span class="badge badge-xs {{ cat_colors.get(cat, 'badge-ghost') }} mr-1">{{ cat[:3] if cat else '?' }}</span>
+            {{ cat_labels.get(cat, cat or 'Altro') }} ({{ cat_facts|length }})
+        </div>
+        <div class="collapse-content px-2">
+            {% for f in cat_facts %}
+            <div class="flex items-start gap-2 text-sm py-1.5 border-b border-base-300/30 last:border-0">
+                <div class="flex-1 min-w-0">
+                    <div>
+                        <span class="font-medium text-primary text-xs">{{ (f.predicate or "")|predicate_label }}</span>
+                        <span class="text-base-content">{{ f.object or "" }}</span>
+                    </div>
+                    {% if f.amount and f.amount != 'nan' and f.amount != '' %}
+                    <div class="text-xs font-medium text-success">{{ f.amount }} {{ f.currency or "" }}</div>
+                    {% endif %}
+                    {% if f.counterparty and f.counterparty != 'nan' and f.counterparty != '' %}
+                    <div class="text-xs text-base-content/60">
+                        <span class="text-base-content/40">Counterparty:</span> {{ f.counterparty }}
+                    </div>
+                    {% endif %}
+                    {% if f.context and f.context != 'nan' and f.context != '' %}
+                    <div class="text-xs text-base-content/40 truncate">{{ f.context }}</div>
+                    {% endif %}
+                </div>
+                <div class="text-right shrink-0">
+                    {% if f.confidence %}
+                    <div class="badge badge-xs
+                        {% if f.confidence == 'high' %}badge-success
+                        {% elif f.confidence == 'medium' %}badge-warning
+                        {% else %}badge-ghost{% endif %}">
+                        {{ f.confidence }}
+                    </div>
+                    {% endif %}
+                    {% if f.source_date and f.source_date != 'nan' and f.source_date != '' %}
+                    <div class="text-xs text-base-content/30">{{ f.source_date[:10] }}</div>
+                    {% endif %}
+                    {% if f.source_link %}<a href="{{ f.source_link }}" class="text-primary hover:underline text-xs">&#128279;</a>{% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No deep intelligence data for this person.</div>
+{% endif %}

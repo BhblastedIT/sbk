@@ -1,0 +1,101 @@
+<!-- Observability: API Costs (INF-082 + INF-OBS-V2) -->
+
+<!-- Stat cards -->
+<div class="stats shadow w-full mb-6">
+    <div class="stat">
+        <div class="stat-title">Total Cost ({{ data.hours }}h)</div>
+        <div class="stat-value text-primary">${{ "%.4f"|format(data.total_cost_usd) }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Daily Projection</div>
+        <div class="stat-value">${{ "%.2f"|format(data.daily_projection_usd) }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Total Calls</div>
+        <div class="stat-value">{{ data.total_calls }}</div>
+    </div>
+</div>
+
+<!-- Cost trend (last 7 days) -->
+<div class="card bg-base-200 shadow-sm mb-6"
+     hx-get="/api/observability/cost-trend?days=7"
+     hx-trigger="load"
+     hx-swap="innerHTML"
+     hx-target="#cost-trend-container">
+    <div class="card-body">
+        <h3 class="card-title text-lg mb-4">Cost Trend (7 days)</h3>
+        <div id="cost-trend-container">
+            <div class="flex justify-center py-4">
+                <span class="loading loading-spinner loading-sm"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Inline script to render trend bars from JSON API response -->
+<script>
+document.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.pathInfo && evt.detail.pathInfo.requestPath === '/api/observability/cost-trend?days=7') {
+        try {
+            var data = JSON.parse(evt.detail.xhr.responseText);
+            var container = document.getElementById('cost-trend-container');
+            if (!data || !data.length) {
+                container.innerHTML = '<p class="text-base-content/50 text-sm">No data available.</p>';
+                return;
+            }
+            var maxCost = Math.max(...data.map(d => d.total_cost_usd), 0.0001);
+            var html = '<div class="flex items-end gap-1" style="height:120px">';
+            data.forEach(function(d) {
+                var pct = Math.max((d.total_cost_usd / maxCost) * 100, 2);
+                var label = d.date.slice(5); // MM-DD
+                html += '<div class="flex flex-col items-center flex-1">';
+                html += '<div class="text-xs text-base-content/60 mb-1">$' + d.total_cost_usd.toFixed(4) + '</div>';
+                html += '<div class="w-full bg-primary rounded-t" style="height:' + pct + '%" title="' + d.date + ': $' + d.total_cost_usd.toFixed(4) + ' (' + d.total_calls + ' calls)"></div>';
+                html += '<div class="text-xs text-base-content/40 mt-1">' + label + '</div>';
+                html += '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        } catch(e) {
+            // Ignore parse errors
+        }
+    }
+});
+</script>
+
+<!-- Per-service breakdown -->
+{% if data.by_service %}
+<div class="card bg-base-200 shadow-sm mb-6">
+    <div class="card-body">
+        <h3 class="card-title text-lg mb-4">Cost per Service</h3>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th class="text-right">Calls</th>
+                        <th class="text-right">Tokens In</th>
+                        <th class="text-right">Tokens Out</th>
+                        <th class="text-right">Cost (USD)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for svc in data.by_service %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ svc.service }}</td>
+                        <td class="text-right">{{ svc.calls }}</td>
+                        <td class="text-right">{{ "{:,}".format(svc.tokens_in) if svc.tokens_in else '-' }}</td>
+                        <td class="text-right">{{ "{:,}".format(svc.tokens_out) if svc.tokens_out else '-' }}</td>
+                        <td class="text-right font-mono">${{ "%.4f"|format(svc.cost_usd) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info mb-6">
+    No API calls recorded in the last {{ data.hours }} hours.
+</div>
+{% endif %}

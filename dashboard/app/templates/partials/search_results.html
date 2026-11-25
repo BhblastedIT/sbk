@@ -1,0 +1,83 @@
+<div class="text-sm text-base-content/60 mb-3">
+    {{ results|length }} results found
+</div>
+
+<div class="space-y-3">
+    {% for r in results %}
+    <div class="card bg-base-100 shadow-sm hover:shadow-md transition-shadow search-result-card cursor-pointer"
+         onclick="this.querySelector('.search-expanded').classList.toggle('hidden')">
+        <div class="card-body p-4">
+            <div class="flex items-center gap-2 mb-1">
+                <span class="badge badge-sm
+                    {% if r.source_type == 'email' %}badge-primary
+                    {% elif r.source_type == 'plaud' %}badge-secondary
+                    {% elif r.source_type == 'tactiq' %}badge-accent
+                    {% elif r.source_type == 'slack' %}badge-info
+                    {% else %}badge-ghost{% endif %}">
+                    {{ r.source_type or "?" }}
+                </span>
+                <span class="text-xs text-base-content/50">{{ r.date or "" }}</span>
+                {% if r.combined_score %}
+                <span class="text-xs text-base-content/40 ml-auto">score: {{ "%.2f"|format(r.combined_score) }}</span>
+                {% endif %}
+            </div>
+            {% if r.context %}
+            <div class="text-xs text-base-content/50 mb-1">{{ r.context }}</div>
+            {% endif %}
+            <div class="text-sm">{{ r.text[:400] }}{% if r.text|length > 400 %}...{% endif %}</div>
+            {% if r.participants %}
+            <div class="text-xs text-base-content/40 mt-1">Participants: {{ r.participants }}</div>
+            {% endif %}
+
+            <!-- Expanded content (hidden by default) -->
+            <div class="search-expanded hidden mt-3 pt-3 border-t border-base-200">
+                <div class="text-sm whitespace-pre-wrap mb-2">{{ r.text }}</div>
+                <div class="flex gap-2 mt-2">
+                    {% if r.participants %}
+                    <a href="/person?q={{ r.participants.split(',')[0]|trim }}"
+                       class="btn btn-xs btn-outline btn-primary"
+                       onclick="event.stopPropagation()">
+                        View person
+                    </a>
+                    {% endif %}
+                    {% if r.source_id and r.source_type %}
+                    <button hx-get="/partials/thread/{{ r.source_type }}/{{ r.source_id }}"
+                            hx-target="#thread-modal-content" hx-swap="innerHTML"
+                            class="btn btn-xs btn-outline btn-secondary"
+                            onclick="event.stopPropagation(); document.getElementById('thread-modal').showModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                        </svg>
+                        Read conversation
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if results|length > 0 %}
+<div class="mt-4 text-center">
+    <button onclick="synthesizeResults()" class="btn btn-secondary btn-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        Summarise with Claude
+    </button>
+</div>
+{% endif %}
+
+<!-- Thread viewer modal -->
+<dialog id="thread-modal" class="modal">
+    <div class="modal-box max-w-4xl max-h-[80vh]">
+        <div id="thread-modal-content">
+            <span class="loading loading-spinner loading-md"></span>
+        </div>
+        <div class="modal-action">
+            <form method="dialog"><button class="btn btn-sm">Close</button></form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>

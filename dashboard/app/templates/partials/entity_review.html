@@ -1,0 +1,90 @@
+<div class="overflow-x-auto">
+    <table class="table table-sm table-zebra" id="entity-table">
+        <thead>
+            <tr>
+                <th class="w-8"></th>
+                <th class="cursor-pointer hover:text-primary" onclick="sortTable('name_a')">
+                    Nome A <span class="sort-arrow text-xs opacity-40" data-col="name_a"></span>
+                </th>
+                <th class="cursor-pointer hover:text-primary" onclick="sortTable('name_b')">
+                    Nome B <span class="sort-arrow text-xs opacity-40" data-col="name_b"></span>
+                </th>
+                <th class="cursor-pointer hover:text-primary" onclick="sortTable('key_a')">
+                    Key A <span class="sort-arrow text-xs opacity-40" data-col="key_a"></span>
+                </th>
+                <th class="cursor-pointer hover:text-primary" onclick="sortTable('key_b')">
+                    Key B <span class="sort-arrow text-xs opacity-40" data-col="key_b"></span>
+                </th>
+                <th class="text-center cursor-pointer hover:text-primary" onclick="sortTable('confidence')">
+                    Score <span class="sort-arrow text-xs opacity-40" data-col="confidence"></span>
+                </th>
+                <th class="cursor-pointer hover:text-primary" onclick="sortTable('reason_type')">
+                    Type <span class="sort-arrow text-xs opacity-40" data-col="reason_type"></span>
+                </th>
+                <th class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr class="hover transition-opacity duration-300 cursor-pointer select-none" onclick="rowClick(event, this)"
+                data-name_a="{{ item.name_a }}"
+                data-name_b="{{ item.name_b }}"
+                data-key_a="{{ item.key_a }}"
+                data-key_b="{{ item.key_b }}"
+                data-confidence="{{ item.confidence }}"
+                data-reason_type="{{ item.reason_type }}">
+                <td>
+                    <input type="checkbox" class="checkbox checkbox-xs review-check"
+                           data-index="{{ item.index }}" onclick="checkboxClick(event, this)">
+                </td>
+                <td class="font-medium">{{ item.name_a }}</td>
+                <td class="font-medium">{{ item.name_b }}</td>
+                <td class="text-xs text-base-content/60 max-w-48 truncate" title="{{ item.key_a }}">{{ item.key_a }}</td>
+                <td class="text-xs text-base-content/60 max-w-48 truncate" title="{{ item.key_b }}">{{ item.key_b }}</td>
+                <td class="text-center">
+                    <span class="badge badge-sm {% if item.confidence >= 80 %}badge-warning{% elif item.confidence >= 60 %}badge-info{% else %}badge-ghost{% endif %}">
+                        {{ item.confidence }}%
+                    </span>
+                </td>
+                <td class="text-xs space-x-1">
+                    {% if 'fuzzy_name' in item.reason_type %}
+                        <span class="badge badge-xs badge-warning">Nome simile</span>
+                    {% endif %}
+                    {% if 'email_domain' in item.reason_type %}
+                        <span class="badge badge-xs badge-info">Same domain</span>
+                    {% endif %}
+                    {% if 'phone' in item.reason_type %}
+                        <span class="badge badge-xs badge-success">Same phone</span>
+                    {% endif %}
+                    {% if 'exact_email' in item.reason_type %}
+                        <span class="badge badge-xs badge-primary">Same email</span>
+                    {% endif %}
+                    {% if 'uncertain' in item.reason_type %}
+                        <span class="badge badge-xs badge-ghost">Uncertain</span>
+                    {% endif %}
+                    {% if item.reason_type and 'fuzzy_name' not in item.reason_type and 'email_domain' not in item.reason_type and 'phone' not in item.reason_type and 'exact_email' not in item.reason_type and 'uncertain' not in item.reason_type %}
+                        <span class="badge badge-xs badge-ghost">{{ item.reason_type }}</span>
+                    {% endif %}
+                    <span class="text-base-content/30 cursor-help" title="{{ item.reason_type }}">&#8505;</span>
+                </td>
+                <td class="text-center">
+                    <div class="flex gap-1 justify-center">
+                        <button class="btn btn-success btn-xs" onclick="decide({{ item.index }}, 'merge', this)" title="Same person, merge">
+                            Merge
+                        </button>
+                        <button class="btn btn-error btn-xs" onclick="decide({{ item.index }}, 'reject', this)" title="Different people, do not merge">
+                            Reject
+                        </button>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if not items %}
+<div class="text-center py-12 text-base-content/40">
+    No item to review.
+</div>
+{% endif %}

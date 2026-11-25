@@ -1,0 +1,61 @@
+{% if items %}
+{% for item in items %}
+<tr id="ea-row-{{ item.id | e }}">
+    <td>
+        <div class="font-medium">{{ item.name_a | e }}</div>
+        {% if item.email_a %}<div class="text-xs text-base-content/50">{{ item.email_a | e }}</div>{% endif %}
+        {% if item.org_a %}<div class="text-xs text-base-content/40">{{ item.org_a | e }}</div>{% endif %}
+    </td>
+    <td>
+        <div class="font-medium">{{ item.name_b | e }}</div>
+        {% if item.email_b %}<div class="text-xs text-base-content/50">{{ item.email_b | e }}</div>{% endif %}
+        {% if item.org_b %}<div class="text-xs text-base-content/40">{{ item.org_b | e }}</div>{% endif %}
+    </td>
+    <td>
+        {% set conf = item.confidence | default(0) %}
+        {% if conf >= 0.8 %}
+        <span class="badge badge-success badge-sm">{{ "%.0f"|format(conf * 100) }}%</span>
+        {% elif conf >= 0.5 %}
+        <span class="badge badge-warning badge-sm">{{ "%.0f"|format(conf * 100) }}%</span>
+        {% else %}
+        <span class="badge badge-ghost badge-sm">{{ "%.0f"|format(conf * 100) }}%</span>
+        {% endif %}
+    </td>
+    <td>
+        {% for reason in item.reasons | default([]) %}
+        <span class="badge badge-outline badge-xs">{{ reason | e }}</span>
+        {% endfor %}
+        {% if item.strategy %}
+        <span class="badge badge-info badge-xs">{{ item.strategy | e }}</span>
+        {% endif %}
+    </td>
+    <td class="ea-status-cell">
+        {% set st = item.status | default("pending") %}
+        {% if st == "approved" %}
+        <span class="badge badge-success badge-sm">approved</span>
+        {% elif st == "rejected" %}
+        <span class="badge badge-error badge-sm">rejected</span>
+        {% else %}
+        <span class="badge badge-warning badge-sm">pending</span>
+        {% endif %}
+    </td>
+    <td class="ea-actions-cell">
+        {% set st = item.status | default("pending") %}
+        {% if st == "pending" %}
+        <div class="flex gap-1">
+            <button class="btn btn-success btn-xs" onclick="approveRow('{{ item.id | e }}', this)">Approve</button>
+            <button class="btn btn-error btn-xs" onclick="rejectRow('{{ item.id | e }}', this)">Reject</button>
+        </div>
+        {% else %}
+        <span class="text-base-content/40 text-xs">done</span>
+        {% endif %}
+    </td>
+</tr>
+{% endfor %}
+{% else %}
+<tr>
+    <td colspan="6" class="text-center py-8 text-base-content/50">
+        No merge suggestions found. Run <code>xs-l2-merge-suggest.py</code> to generate.
+    </td>
+</tr>
+{% endif %}

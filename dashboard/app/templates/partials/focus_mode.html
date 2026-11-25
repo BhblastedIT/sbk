@@ -1,0 +1,72 @@
+<!-- Focus Mode Widget — QW5 -->
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-base">Focus Mode</h2>
+            <p class="widget-description text-xs text-base-content/40">The 3 most important things to do today</p>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-base-content/40">{{ stats.total_candidates }} items analysed</span>
+                <button
+                    class="btn btn-xs btn-ghost"
+                    hx-get="/partials/home_focus" hx-target="#focus-container" hx-swap="innerHTML"
+                    title="Refresh">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        {% if items %}
+        <div class="space-y-2">
+            {% for item in items %}
+            <a href="{{ item.link or '#' }}" class="flex items-start gap-3 p-3 rounded-lg no-underline hover:ring-2 hover:ring-primary/30 transition-all
+                {% if loop.index == 1 %}bg-error/5 border border-error/20
+                {% elif loop.index == 2 %}bg-warning/5 border border-warning/20
+                {% else %}bg-base-200/50 border border-base-300/30
+                {% endif %}">
+                <!-- Number badge -->
+                <div class="flex-shrink-0">
+                    <span class="badge badge-sm
+                        {% if loop.index == 1 %}badge-error
+                        {% elif loop.index == 2 %}badge-warning
+                        {% else %}badge-ghost
+                        {% endif %}">{{ loop.index }}</span>
+                </div>
+                <!-- Content -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-0.5">
+                        <!-- Type badge -->
+                        <span class="badge badge-xs
+                            {% if item.type == 'email' %}badge-info
+                            {% elif item.type == 'meeting' %}badge-warning
+                            {% elif item.type == 'followup' %}badge-accent
+                            {% elif item.type == 'reachout' %}badge-error
+                            {% else %}badge-ghost
+                            {% endif %}">{{ item.type }}</span>
+                        {% if item.tier %}
+                        <span class="text-xs text-base-content/40">{{ item.tier }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm font-medium truncate">{{ item.context|sanitize_nan }}</p>
+                    <p class="text-xs text-base-content/50 mt-0.5">{{ item.action|sanitize_nan }}</p>
+                </div>
+                <!-- Score -->
+                <div class="flex-shrink-0 text-right">
+                    <span class="text-xs font-mono
+                        {% if item.priority_score >= 0.7 %}text-error
+                        {% elif item.priority_score >= 0.5 %}text-warning
+                        {% else %}text-base-content/50
+                        {% endif %}">{{ "%.0f"|format(item.priority_score * 100) }}%</span>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-center py-4">
+            <p class="text-sm text-success">No urgent priority</p>
+            <p class="text-xs text-base-content/40 mt-1">Free day!</p>
+        </div>
+        {% endif %}
+    </div>
+</div>

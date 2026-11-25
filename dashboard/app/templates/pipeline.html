@@ -1,0 +1,557 @@
+{% extends "base.html" %}
+
+{% block title %}SBK Pipeline{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
+    <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-bold">Data Pipeline</h1>
+        <span class="text-sm text-base-content/40">{{ grid_data.total if grid_data else 0 }} stages</span>
+    </div>
+    <div class="flex items-center gap-2 flex-wrap">
+        <button class="btn btn-xs btn-accent"
+                hx-post="/api/pipeline/smart-run"
+                hx-swap="none"
+                onclick="switchTab('jobs'); startLogStream(this)"
+                title="Detects changes and runs only the needed steps (L1-L2-L3)">
+            Smart Run
+        </button>
+        <button class="btn btn-xs btn-outline btn-accent"
+                hx-post="/api/pipeline/full-rebuild"
+                hx-swap="none"
+                onclick="switchTab('jobs'); startLogStream(this)"
+                title="Full rebuild of all stages">
+            Full Rebuild
+        </button>
+        <span class="text-base-content/20">|</span>
+        <span class="flex items-center gap-1 text-xs text-base-content/50">
+            {% if scheduler_status.running %}
+                <span class="w-1.5 h-1.5 rounded-full bg-success inline-block"></span> Scheduler
+            {% else %}
+                <span class="w-1.5 h-1.5 rounded-full bg-base-content/20 inline-block"></span> Scheduler
+            {% endif %}
+        </span>
+        {% if scheduler_status.running %}
+        <button class="btn btn-xs btn-ghost btn-error"
+                hx-post="/api/settings/scheduler/stop"
+                hx-swap="none"
+                onclick="setTimeout(() => location.reload(), 500)">Stop</button>
+        {% else %}
+        <button class="btn btn-xs btn-ghost"
+                hx-post="/api/settings/scheduler/start"
+                hx-swap="none"
+                onclick="setTimeout(() => location.reload(), 500)">Start</button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Tabs -->
+<div role="tablist" class="tabs tabs-bordered mb-6">
+    <a role="tab" class="tab tab-active" id="tab-sources" onclick="switchTab('sources')">Sources</a>
+    <a role="tab" class="tab" id="tab-jobs" onclick="switchTab('jobs')">Jobs</a>
+    <a role="tab" class="tab" id="tab-events" onclick="switchTab('events')">Events</a>
+    <a role="tab" class="tab" id="tab-system" onclick="switchTab('system')">System</a>
+</div>
+
+<!-- Tab Panel: SOURCES -->
+<div id="panel-sources" class="tab-panel">
+    <!-- Pipeline Grid (full 94-row view, auto-refresh) -->
+    <div id="grid-container"
+         hx-get="/partials/pipeline_grid"
+         hx-trigger="every 30s"
+         hx-swap="innerHTML">
+        {% include "partials/pipeline_grid.html" %}
+    </div>
+
+</div>
+
+<!-- Tab Panel: JOBS -->
+<div id="panel-jobs" class="tab-panel hidden">
+    <!-- Log Area -->
+    <div class="mb-4">
+        <h2 class="text-lg font-semibold mb-2">Execution Log</h2>
+        <div id="log-area" class="log-terminal bg-neutral text-neutral-content rounded-box p-4 font-mono text-sm min-h-[200px] max-h-[500px] overflow-y-auto">
+            <span class="text-base-content/40">Select a source and click a button to start...</span>
+        </div>
+    </div>
+
+    <!-- Jobs Table -->
+    <div class="mb-4">
+        <h2 class="text-lg font-semibold mb-2">Recent jobs</h2>
+        <div id="jobs-container"
+             hx-get="/partials/jobs"
+             hx-trigger="every 5s, refreshJobs"
+             hx-swap="innerHTML">
+            <p class="pg-dim" style="padding:16px;font-size:13px">Loading...</p>
+        </div>
+    </div>
+</div>
+
+<!-- Tab Panel: EVENTS (Event Bus Timeline) -->
+<div id="panel-events" class="tab-panel hidden">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-lg font-semibold">Event Bus Timeline</h2>
+        <span class="pg-timestamp">Auto-refresh every 15s</span>
+    </div>
+    <div id="event-log-container"
+         hx-get="/partials/event_log"
+         hx-trigger="every 15s"
+         hx-swap="innerHTML">
+        <p class="pg-dim" style="padding:16px;font-size:13px">Loading...</p>
+    </div>
+</div>
+
+<!-- Tab Panel: SYSTEM -->
+<div id="panel-system" class="tab-panel hidden">
+    <div hx-get="/partials/stats"
+         hx-trigger="every 30s"
+         hx-swap="innerHTML">
+        {% include "partials/stats_cards.html" %}
+    </div>
+</div>
+
+<!-- DLQ Section (lazy-loaded) -->
+<div id="dlq-container"
+     hx-get="/partials/pipeline_dlq"
+     hx-trigger="load, every 60s"
+     hx-swap="innerHTML">
+    <div class="card bg-base-100 shadow mt-4 p-6">
+        <span class="loading loading-spinner loading-md"></span>
+    </div>
+</div>
+
+<script>
+// ─── Tab switching ──────────────────────────────────────────────────────
+const tabIds = ['sources', 'jobs', 'events', 'system'];
+
+function switchTab(name) {
+    tabIds.forEach(id => {
+        const tab = document.getElementById('tab-' + id);
+        const panel = document.getElementById('panel-' + id);
+        if (id === name) {
+            tab.classList.add('tab-active');
+            panel.classList.remove('hidden');
+        } else {
+            tab.classList.remove('tab-active');
+            panel.classList.add('hidden');
+        }
+    });
+    // Force HTMX to load content for newly visible panel
+    const panel = document.getElementById('panel-' + name);
+    if (panel) {
+        panel.querySelectorAll('[hx-get][id]').forEach(el => {
+            htmx.ajax('GET', el.getAttribute('hx-get'), {target: '#' + el.id, swap: 'innerHTML'});
+        });
+    }
+    // Update URL without reload
+    const url = new URL(window.location);
+    if (name === 'sources') {
+        url.searchParams.delete('tab');
+    } else {
+        url.searchParams.set('tab', name);
+    }
+    history.replaceState(null, '', url);
+}
+
+// Activate tab from URL parameter on load
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab && tabIds.includes(tab)) {
+        switchTab(tab);
+    }
+})();
+
+// ─── Pipeline execution ─────────────────────────────────────────────────
+function _formatErrorDetail(detail) {
+    if (typeof detail === 'string') return detail;
+    if (Array.isArray(detail)) return detail.map(d => d.msg || JSON.stringify(d)).join('; ');
+    return JSON.stringify(detail);
+}
+
+function startLogStream(btn) {
+    const logArea = document.getElementById('log-area');
+
+    btn.classList.add('btn-disabled', 'loading');
+    btn.setAttribute('disabled', 'true');
+
+    logArea.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
+
+    btn.addEventListener('htmx:afterRequest', function handler(e) {
+        btn.removeEventListener('htmx:afterRequest', handler);
+        btn.classList.remove('btn-disabled', 'loading');
+        btn.removeAttribute('disabled');
+
+        try {
+            const resp = JSON.parse(e.detail.xhr.responseText);
+            if (resp.job_id) {
+                connectSSE(resp.job_id);
+                htmx.trigger('#jobs-container', 'refreshJobs');
+            } else if (resp.error || resp.detail) {
+                logArea.innerHTML = '<span class="text-error">' + _formatErrorDetail(resp.error || resp.detail) + '</span>';
+            }
+        } catch(err) {
+            logArea.innerHTML = '<span class="text-error">Response parsing error</span>';
+        }
+    }, {once: true});
+}
+
+function runGridScript(btn, script, args) {
+    const logArea = document.getElementById('log-area');
+    switchTab('jobs');
+
+    btn.classList.add('btn-disabled', 'loading');
+    btn.setAttribute('disabled', 'true');
+    logArea.innerHTML = '<span class="loading loading-spinner loading-sm"></span> Starting...';
+
+    fetch('/api/pipeline/run-grid', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-SBK-CSRF': '1'},
+        body: JSON.stringify({script: script, args: args || ''})
+    })
+    .then(r => r.json())
+    .then(resp => {
+        btn.classList.remove('btn-disabled', 'loading');
+        btn.removeAttribute('disabled');
+        if (resp.job_id) {
+            connectSSE(resp.job_id);
+            htmx.trigger('#jobs-container', 'refreshJobs');
+        } else if (resp.error || resp.detail) {
+            logArea.innerHTML = '<span class="text-error">' + _formatErrorDetail(resp.error || resp.detail) + '</span>';
+        }
+    })
+    .catch(err => {
+        btn.classList.remove('btn-disabled', 'loading');
+        btn.removeAttribute('disabled');
+        logArea.innerHTML = '<span class="text-error">Error: ' + err.message + '</span>';
+    });
+}
+
+const _SEV_CLASSES = {
+    error: 'text-error',
+    warning: 'text-warning',
+    success: 'text-success',
+    debug: 'text-base-content/40',
+    info: ''
+};
+
+function _fmtNumber(n) {
+    if (n == null) return '';
+    return Number(n).toLocaleString('it-IT');
+}
+
+function _renderMetricBadges(metrics) {
+    if (!metrics || Object.keys(metrics).length === 0) return '';
+    let html = '';
+    for (const [k, v] of Object.entries(metrics)) {
+        html += '<span class="badge badge-outline badge-xs ml-2 font-mono">' + k + ': ' + _fmtNumber(v) + '</span>';
+    }
+    return html;
+}
+
+function _renderSummaryCard(summary, status, exitCode) {
+    if (!summary) return '';
+    const isOk = status === 'completed';
+    const borderClass = isOk ? 'border-success' : 'border-error';
+    const stages = (summary.stages || []).join(' > ') || 'none';
+    let metricsHtml = '';
+    if (summary.metrics && Object.keys(summary.metrics).length > 0) {
+        metricsHtml = '<div class="flex flex-wrap gap-2 mt-2">';
+        for (const [k, v] of Object.entries(summary.metrics)) {
+            metricsHtml += '<span class="badge badge-sm">' + k + ': ' + _fmtNumber(v) + '</span>';
+        }
+        metricsHtml += '</div>';
+    }
+    return '<div class="border-l-4 ' + borderClass + ' bg-base-200 rounded-box p-3 mt-3 text-sm">'
+        + '<div class="font-bold mb-1">' + (isOk ? 'Completed' : 'Ended: ' + status) + '</div>'
+        + '<div class="flex flex-wrap gap-4 text-xs">'
+        + '<span>Rows: <b>' + (summary.total_lines || 0) + '</b></span>'
+        + (summary.error_count ? '<span class="text-error">Errori: <b>' + summary.error_count + '</b></span>' : '')
+        + (summary.warning_count ? '<span class="text-warning">Warning: <b>' + summary.warning_count + '</b></span>' : '')
+        + '<span>Stages: <b>' + stages + '</b></span>'
+        + '</div>'
+        + metricsHtml
+        + '</div>';
+}
+
+function connectSSE(jobId) {
+    const logArea = document.getElementById('log-area');
+    logArea.innerHTML = '';
+
+    const source = new EventSource('/api/stream/pipeline/' + jobId);
+
+    source.addEventListener('log', function(e) {
+        const data = JSON.parse(e.data);
+        const el = document.createElement('div');
+        el.className = 'flex items-start gap-2 leading-tight py-px';
+
+        // Timestamp
+        if (data.timestamp) {
+            const ts = document.createElement('span');
+            ts.className = 'text-base-content/30 select-none shrink-0';
+            ts.textContent = data.timestamp;
+            el.appendChild(ts);
+        }
+
+        // Message
+        const msg = document.createElement('span');
+        const sevClass = _SEV_CLASSES[data.severity] || '';
+
+        if (data.is_stage_header) {
+            msg.className = 'font-bold border-b border-primary/30 text-primary w-full pb-px mt-1 ' + sevClass;
+        } else {
+            msg.className = sevClass;
+        }
+
+        msg.textContent = data.message || data.line;
+
+        // Inline metric badges
+        if (data.metrics && Object.keys(data.metrics).length > 0) {
+            msg.innerHTML = msg.textContent + _renderMetricBadges(data.metrics);
+        }
+
+        el.appendChild(msg);
+        logArea.appendChild(el);
+        logArea.scrollTop = logArea.scrollHeight;
+    });
+
+    source.addEventListener('done', function(e) {
+        const data = JSON.parse(e.data);
+
+        // Summary card
+        const summaryHtml = _renderSummaryCard(data.summary, data.status, data.exit_code);
+        if (summaryHtml) {
+            const div = document.createElement('div');
+            div.innerHTML = summaryHtml;
+            logArea.appendChild(div);
+        } else {
+            // Fallback: simple status line
+            const line = document.createElement('div');
+            if (data.status === 'completed') {
+                line.className = 'text-success mt-2 font-bold';
+                line.textContent = 'Completed (exit: ' + data.exit_code + ')';
+            } else if (data.status === 'cancelled') {
+                line.className = 'text-warning mt-2 font-bold';
+                line.textContent = 'Annullato';
+            } else if (data.status === 'timeout') {
+                line.className = 'text-warning mt-2 font-bold';
+                line.textContent = 'Timeout (limite 10 min)';
+            } else {
+                line.className = 'text-error mt-2 font-bold';
+                line.textContent = 'Failed (exit: ' + data.exit_code + ')';
+            }
+            logArea.appendChild(line);
+        }
+
+        logArea.scrollTop = logArea.scrollHeight;
+        source.close();
+        htmx.trigger('#jobs-container', 'refreshJobs');
+        showToast(data.status === 'completed' ? 'Job completed' : 'Job ended: ' + data.status,
+                  data.status === 'completed' ? 'success' : 'error');
+    });
+
+    source.addEventListener('error', function(e) {
+        try {
+            const data = JSON.parse(e.data);
+            const line = document.createElement('div');
+            line.className = 'text-error';
+            line.textContent = 'Error: ' + (data.error || 'connection lost');
+            logArea.appendChild(line);
+        } catch(err) {}
+        source.close();
+    });
+
+    source.onerror = function() {
+        source.close();
+    };
+}
+
+// ─── Pipeline Grid: column groups + collapse/expand + filters ────────
+
+// Column group sizes and state
+var CG_SIZES = {timing: 2, dati: 3, conn: 4, pipe: 4, exec: 4};
+var _cgState = {timing: true, dati: true, conn: false, pipe: false, exec: false};
+
+// Row collapse state
+var _gs = {
+    layers: {l0: true},
+    subs: {
+        {% if grid_data and grid_data.archive %}
+        {% for s in grid_data.archive %}{% if s.count > 1 %}'archive-{{ s.key }}': true,{% endif %}{% endfor %}
+        {% endif %}
+    }
+};
+
+// ── Column group toggling ──
+function toggleCG(group) {
+    _cgState[group] = !_cgState[group];
+    _applyCGState();
+}
+
+function _applyCGState() {
+    var tbl = document.querySelector('.pg-table');
+    if (!tbl) return;
+    for (var g in _cgState) {
+        if (_cgState[g]) tbl.classList.remove('hide-' + g);
+        else tbl.classList.add('hide-' + g);
+    }
+    document.querySelectorAll('.pg-chip').forEach(function(btn) {
+        var g = btn.getAttribute('data-group');
+        if (g && _cgState[g]) btn.classList.add('pg-chip-on');
+        else if (g) btn.classList.remove('pg-chip-on');
+    });
+    _updateFullspan();
+}
+
+function _updateFullspan() {
+    var tbl = document.querySelector('.pg-table');
+    if (!tbl) return;
+    var n = 4; // 3 sticky + 1 run
+    for (var g in CG_SIZES) {
+        if (_cgState[g]) n += CG_SIZES[g];
+    }
+    tbl.querySelectorAll('.pg-fullspan').forEach(function(td) {
+        td.colSpan = n;
+    });
+}
+
+// ── Row collapse/expand ──
+function toggleLayer(key) {
+    var open = _gs.layers[key] = !_gs.layers[key];
+    document.querySelectorAll('[data-layer="' + key + '"]').forEach(function(el) {
+        if (open) {
+            var sg = el.getAttribute('data-subgroup');
+            if (el.hasAttribute('data-subgroup-header') || !sg) {
+                el.style.display = '';
+            } else {
+                el.style.display = _gs.subs[sg] ? '' : 'none';
+            }
+        } else {
+            el.style.display = 'none';
+        }
+    });
+    if (!open) {
+        Object.keys(_gs.subs).forEach(function(sk) {
+            if (sk.startsWith(key + '-')) {
+                _gs.subs[sk] = false;
+                _setArrow(sk, false);
+            }
+        });
+    }
+    _setArrow(key, open);
+}
+
+function toggleSubgroup(key) {
+    var open = _gs.subs[key] = !_gs.subs[key];
+    document.querySelectorAll('[data-subgroup="' + key + '"]').forEach(function(el) {
+        if (el.hasAttribute('data-subgroup-header')) return;
+        el.style.display = open ? '' : 'none';
+    });
+    _setArrow(key, open);
+}
+
+function _setArrow(key, open) {
+    var a = document.getElementById('arrow-' + key);
+    if (a) {
+        if (open) a.classList.add('pg-arrow-open');
+        else a.classList.remove('pg-arrow-open');
+    }
+}
+
+function _applyGridState() {
+    document.querySelectorAll('[data-layer-header]').forEach(function(hdr) {
+        var key = hdr.getAttribute('data-layer-header');
+        var open = !!_gs.layers[key];
+        _setArrow(key, open);
+        document.querySelectorAll('[data-layer="' + key + '"]').forEach(function(el) {
+            if (open) {
+                var sg = el.getAttribute('data-subgroup');
+                if (el.hasAttribute('data-subgroup-header') || !sg) {
+                    el.style.display = '';
+                } else {
+                    el.style.display = _gs.subs[sg] ? '' : 'none';
+                }
+            } else {
+                el.style.display = 'none';
+            }
+        });
+    });
+    Object.keys(_gs.subs).forEach(function(sk) {
+        _setArrow(sk, _gs.subs[sk]);
+        if (!_gs.subs[sk]) {
+            document.querySelectorAll('[data-subgroup="' + sk + '"]').forEach(function(el) {
+                if (!el.hasAttribute('data-subgroup-header')) el.style.display = 'none';
+            });
+        }
+    });
+}
+
+// ── Filters ──
+function applyGridFilters() {
+    var statusEl = document.getElementById('pg-filter-status');
+    var textEl = document.getElementById('pg-filter-text');
+    if (!statusEl || !textEl) return;
+    var sv = statusEl.value.toLowerCase();
+    var tv = textEl.value.toLowerCase().trim();
+    document.querySelectorAll('.pg-data').forEach(function(row) {
+        var st = (row.getAttribute('data-status') || '').toLowerCase();
+        var nm = (row.getAttribute('data-name') || '');
+        var ok = (!sv || st.startsWith(sv.substring(0, 2))) && (!tv || nm.indexOf(tv) >= 0);
+        if (ok) row.classList.remove('pg-filtered');
+        else row.classList.add('pg-filtered');
+    });
+}
+
+// ── Init + HTMX refresh ──
+function _initGrid() {
+    _applyCGState();
+    _applyGridState();
+    applyGridFilters();
+}
+
+document.addEventListener('DOMContentLoaded', _initGrid);
+document.addEventListener('htmx:afterSwap', function(evt) {
+    if (evt.detail.target.id === 'grid-container') _initGrid();
+});
+
+// ─── Schedule update (inline dropdowns) ────────────────────────────────
+function updateSchedule(source, stage, intervalMin) {
+    fetch('/api/settings/schedule', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({source: source, stage: stage, interval_min: intervalMin})
+    })
+    .then(r => {
+        if (!r.ok) throw new Error('Invalid interval');
+        return r.json();
+    })
+    .then(data => {
+        if (data.ok) {
+            showToast('Schedule: ' + source + '/' + stage + ' updated', 'success');
+        }
+    })
+    .catch(err => {
+        showToast('Error: ' + err.message, 'error');
+    });
+}
+
+// ─── Sync trigger ──────────────────────────────────────────────────────
+async function triggerSync(source, btn) {
+    btn.classList.add('btn-disabled', 'loading');
+    try {
+        const resp = await fetch('/api/monitor/trigger/' + encodeURIComponent(source), {method: 'POST'});
+        const data = await resp.json();
+        if (typeof showToast === 'function') {
+            showToast('Sync ' + source + ' started', 'success');
+        }
+    } catch(err) {
+        if (typeof showToast === 'function') {
+            showToast('Sync error ' + source, 'error');
+        }
+    } finally {
+        btn.classList.remove('btn-disabled', 'loading');
+    }
+}
+</script>
+{% endblock %}

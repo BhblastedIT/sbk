@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+
+{% block title %}Plaud Speaker Review | SBK{% endblock %}
+
+{% block content %}
+<!-- Stats header -->
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Plaud Speaker Review</h1>
+        <p class="text-sm text-base-content/60 mt-1">
+            <span class="font-mono">{{ stats.reviewed }}</span> reviewed,
+            <span class="font-mono">{{ stats.pending }}</span> pending —
+            <span class="font-mono">{{ stats.total }}</span> total recordings —
+            avg conf: <span class="font-mono">{{ stats.avg_confidence }}</span>
+        </p>
+    </div>
+    <div class="flex gap-2">
+        <div class="badge badge-success gap-1">HIGH {{ stats.tiers.HIGH }}</div>
+        <div class="badge badge-warning gap-1">MED {{ stats.tiers.MEDIUM }}</div>
+        <div class="badge badge-error gap-1">LOW {{ stats.tiers.LOW }}</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="flex gap-3 items-center flex-wrap mb-4">
+    <input type="text" id="plaud-search" placeholder="Search title..."
+           class="input input-bordered input-sm w-56"
+           hx-get="/partials/plaud_recordings"
+           hx-trigger="input changed delay:300ms"
+           hx-target="#recordings-list"
+           hx-include="#plaud-search, #filter-status, #filter-confidence, #filter-category"
+           name="search">
+
+    <select id="filter-status" name="status" class="select select-bordered select-sm"
+            hx-get="/partials/plaud_recordings"
+            hx-trigger="change"
+            hx-target="#recordings-list"
+            hx-include="#plaud-search, #filter-status, #filter-confidence, #filter-category">
+        <option value="">All</option>
+        <option value="pending">Pending</option>
+        <option value="reviewed">Reviewed</option>
+    </select>
+
+    <select id="filter-confidence" name="confidence" class="select select-bordered select-sm"
+            hx-get="/partials/plaud_recordings"
+            hx-trigger="change"
+            hx-target="#recordings-list"
+            hx-include="#plaud-search, #filter-status, #filter-confidence, #filter-category">
+        <option value="">Confidence: all</option>
+        <option value="HIGH">HIGH (>0.7)</option>
+        <option value="MEDIUM">MEDIUM (0.4-0.7)</option>
+        <option value="LOW">LOW (<0.4)</option>
+    </select>
+
+    <select id="filter-category" name="category" class="select select-bordered select-sm"
+            hx-get="/partials/plaud_recordings"
+            hx-trigger="change"
+            hx-target="#recordings-list"
+            hx-include="#plaud-search, #filter-status, #filter-confidence, #filter-category">
+        <option value="">Category: all</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}">{{ cat }}</option>
+        {% endfor %}
+    </select>
+</div>
+
+<!-- Lane cockpit legend (evidence engine) -->
+<div class="alert bg-base-200 mb-4 text-sm flex-wrap gap-3">
+    <span class="font-semibold">Lane cockpit</span>
+    <span class="flex items-center gap-1"><span class="badge badge-success badge-sm">AUTO</span> high confidence, accept in bulk</span>
+    <span class="flex items-center gap-1"><span class="badge badge-warning badge-sm">CONFIRM</span> confirm in &lt;10s</span>
+    <span class="flex items-center gap-1"><span class="badge badge-error badge-sm">CONTEXT</span> give context by voice</span>
+    <span class="flex items-center gap-1"><span class="badge badge-error badge-outline badge-sm">WRONG MATCH</span> the engine disagrees with the Plaud label</span>
+    <span class="text-base-content/60">Open a recording to see the lanes proposed by the engine.</span>
+</div>
+
+<!-- Recordings list -->
+<div id="recordings-list">
+    {% include "partials/plaud_recordings.html" %}
+</div>
+
+<!-- Hidden datalist for autocomplete (loaded once) -->
+<datalist id="speaker-names">
+    {% for name in all_names %}
+    <option value="{{ name }}">
+    {% endfor %}
+</datalist>
+
+<script>
+function toggleRecording(idx, sourceFile, btn) {
+    var detailRow = document.getElementById('detail-' + idx);
+    if (!detailRow) return;
+
+    if (detailRow.dataset.loaded === 'true') {
+        detailRow.classList.toggle('hidden');
+        btn.querySelector('.expand-icon').classList.toggle('rotate-90');
+        return;
+    }
+
+    // Show and load via HTMX
+    detailRow.classList.remove('hidden');
+    btn.querySelector('.expand-icon').classList.add('rotate-90');
+
+    htmx.ajax('GET', '/partials/plaud_recording_detail?file=' + encodeURIComponent(sourceFile) + '&idx=' + idx, {
+        target: '#detail-' + idx + ' td',
+        swap: 'innerHTML'
+    }).then(function() {
+        detailRow.dataset.loaded = 'true';
+        loadCockpit(sourceFile, idx);
+    });
+}
+
+// --- Lane cockpit (evidence-ledger engine) ------------------------------- //
+
+function loadCockpit(sourceFile, idx) {
+    var td = document.querySelector('#detail-' + idx + ' td');
+    if (!td) return;
+    var box = document.createElement('div');
+    box.id = 'cockpit-' + idx;
+    box.className = 'mt-6 border-t border-base-300 pt-4';
+    box.innerHTML = '<div class="text-sm text-base-content/60">Analyzing engine lanes...</div>';
+    td.appendChild(box);
+
+    fetch('/api/plaud/cockpit/' + encodeURIComponent(sourceFile))
+        .then(function(r) {
+            if (!r.ok) throw new Error('http ' + r.status);
+            return r.json();
+        })
+        .then(function(payload) { COCKPIT_PAYLOADS[sourceFile] = payload; renderCockpit(payload, box, sourceFile); })
+        .catch(function() {
+            box.innerHTML = '<div class="text-sm text-warning">Engine lanes not available for this recording.</div>';
+        });
+}
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function(c) {
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+}
+
+var LANE_BADGE = {AUTO: 'badge-success', CONFERMA: 'badge-warning', CONTESTO: 'badge-error'};
+
+// Cockpit payload per source_file (used by the "Apply to Plaud" button).
+var COCKPIT_PAYLOADS = {};
+
+function renderSpeakerCard(sp) {
+    var disagree = sp.plaud_disagree;
+    var cardCls = 'card card-compact bg-base-100 border ' +
+        (disagree ? 'border-error border-2' : 'border-base-300');
+    var laneBadge = LANE_BADGE[sp.lane] || 'badge-ghost';
+
+    var head = '<div class="flex items-center justify-between gap-2">' +
+        '<span class="font-mono text-xs opacity-70">' + escapeHtml(sp.speaker_id) + '</span>' +
+        '<span class="badge ' + laneBadge + ' badge-sm">' + escapeHtml(sp.lane) + '</span>' +
+        '</div>';
+
+    var best = '<div class="mt-1"><span class="font-semibold">' +
+        escapeHtml(sp.best_name || '(no candidate)') + '</span>' +
+        ' <span class="text-xs opacity-70">' + sp.confidence_pct + '%</span></div>';
+
+    var plaud = '';
+    if (sp.plaud_label) {
+        plaud = '<div class="text-xs opacity-70">Plaud: ' + escapeHtml(sp.plaud_label) + '</div>';
+    }
+
+    var warn = '';
+    if (disagree) {
+        warn = '<div class="badge badge-error badge-outline badge-sm mt-1">WRONG MATCH</div>';
+    }
+
+    var contra = '<div class="text-xs opacity-60 mt-1">contradiction ' + sp.contradiction_pct + '%</div>';
+
+    var quotes = '';
+    if (sp.evidence && sp.evidence.length) {
+        quotes = '<ul class="text-xs mt-2 space-y-1">';
+        sp.evidence.slice(0, 4).forEach(function(e) {
+            var q = e.quote || e.claim || '';
+            quotes += '<li class="opacity-80"><span class="font-mono opacity-60">[' +
+                escapeHtml(e.source) + ']</span> ' + escapeHtml(q) + '</li>';
+        });
+        quotes += '</ul>';
+    }
+
+    return '<div class="' + cardCls + '"><div class="card-body">' +
+        head + best + plaud + warn + contra + quotes + '</div></div>';
+}
+
+function renderCockpit(payload, box, sourceFile) {
+    if (!payload || !payload.n_speakers) {
+        box.innerHTML = '<div class="text-sm text-base-content/60">No resolvable speaker for this recording.</div>';
+        return;
+    }
+
+    var nProp = countProposals(payload);
+    var header = '<div class="flex items-center gap-3 mb-3">' +
+        '<h4 class="font-semibold">Engine lanes</h4>' +
+        '<span class="text-xs opacity-70">' + payload.n_speakers + ' speaker</span>';
+    if (payload.n_disagree > 0) {
+        header += '<span class="badge badge-error badge-sm">' + payload.n_disagree + ' wrong matches</span>';
+    }
+    if (nProp > 0) {
+        header += '<button id="apply-plaud-btn" class="btn btn-xs btn-primary ml-auto">' +
+            'Apply ' + nProp + ' to Plaud</button>';
+    }
+    header += '</div>';
+
+    var cols = '<div class="grid grid-cols-1 md:grid-cols-3 gap-4">';
+    payload.lane_order.forEach(function(lane) {
+        var speakers = (payload.lanes && payload.lanes[lane]) || [];
+        var meta = (payload.lane_labels && payload.lane_labels[lane]) || {};
+        var badge = LANE_BADGE[lane] || 'badge-ghost';
+        cols += '<div class="bg-base-200 rounded-lg p-3">' +
+            '<div class="flex items-center justify-between mb-2">' +
+            '<span class="badge ' + badge + '">' + escapeHtml(lane) + '</span>' +
+            '<span class="text-xs opacity-60">' + speakers.length + '</span></div>' +
+            '<div class="text-xs opacity-60 mb-2">' + escapeHtml(meta.hint || '') + '</div>';
+        if (!speakers.length) {
+            cols += '<div class="text-xs opacity-40 italic">empty</div>';
+        } else {
+            cols += '<div class="space-y-2">';
+            speakers.forEach(function(sp) { cols += renderSpeakerCard(sp); });
+            cols += '</div>';
+        }
+        cols += '</div>';
+    });
+    cols += '</div>';
+
+    box.innerHTML = header + cols;
+
+    var applyBtn = box.querySelector('#apply-plaud-btn');
+    if (applyBtn) {
+        applyBtn.onclick = function() { applyToPlaud(sourceFile); };
+    }
+}
+
+// Collects proposals {speaker_id: best_name} from the payload lanes.
+function collectRenames(payload) {
+    // Uses proposed_name (2-match rule): only corroborated, writable names.
+    var renames = {};
+    (payload.lane_order || []).forEach(function(lane) {
+        ((payload.lanes && payload.lanes[lane]) || []).forEach(function(sp) {
+            if (sp.proposed_name && sp.speaker_id) { renames[sp.speaker_id] = sp.proposed_name; }
+        });
+    });
+    return renames;
+}
+
+function countProposals(payload) {
+    return Object.keys(collectRenames(payload)).length;
+}
+
+// POST to the write endpoint. The CSRF header is injected by base.html.
+function postApply(sourceFile, renames, doApply) {
+    return fetch('/api/plaud/apply-renames', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({source_file: sourceFile, renames: renames, apply: doApply})
+    }).then(function(r) {
+        return r.json().then(function(j) {
+            if (!r.ok) { j._error = j.detail || j.error || ('HTTP ' + r.status); }
+            return j;
+        });
+    }).catch(function() { return {_error: 'Network error'}; });
+}
+
+// Safe flow: dry-run -> explicit confirmation (shows what changes) -> real write.
+function applyToPlaud(sourceFile) {
+    var payload = COCKPIT_PAYLOADS[sourceFile];
+    if (!payload) { return; }
+    var renames = collectRenames(payload);
+    if (!Object.keys(renames).length) {
+        showToast('No proposal to apply', 'warning');
+        return;
+    }
+    var btn = document.getElementById('apply-plaud-btn');
+    if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+
+    postApply(sourceFile, renames, false).then(function(dry) {
+        if (dry._error) {
+            if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+            showToast(dry._error, 'error');
+            return;
+        }
+        var lines = Object.keys(renames).map(function(k) { return '  ' + k + '  ->  ' + renames[k]; }).join('\n');
+        var msg = 'Write to Plaud (PERMANENT)?\n\n' + lines + '\n\n' +
+            dry.changed + ' segments will change. Automatic backup before writing.';
+        if (!window.confirm(msg)) {
+            if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+            return;
+        }
+        postApply(sourceFile, renames, true).then(function(res) {
+            if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+            if (res._error) { showToast(res._error, 'error'); return; }
+            showToast('Written to Plaud: ' + res.changed + ' segments', 'success');
+        });
+    });
+}
+
+function saveSpeakerOverrides(sourceFile, formEl, badgeIdx) {
+    var inputs = formEl.querySelectorAll('input[data-speaker]');
+    var overrides = {};
+    inputs.forEach(function(inp) {
+        var val = inp.value.trim();
+        if (val) overrides[inp.dataset.speaker] = val;
+    });
+
+    var btn = formEl.querySelector('.save-btn');
+    btn.classList.add('loading');
+
+    fetch('/api/plaud/speaker-override', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({source_file: sourceFile, overrides: overrides})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        btn.classList.remove('loading');
+        if (data.ok) {
+            showToast('Speaker map saved', 'success');
+            // Update badge
+            var badge = document.getElementById('badge-' + badgeIdx);
+            if (badge) {
+                badge.className = 'badge badge-success badge-sm';
+                badge.textContent = 'REVIEWED';
+            }
+            // Update identity labels in the detail panel
+            inputs.forEach(function(inp) {
+                var val = inp.value.trim();
+                if (val) {
+                    var card = inp.closest('.card');
+                    if (card) {
+                        var idSpan = card.querySelector('.identity-label');
+                        if (idSpan) {
+                            idSpan.textContent = val;
+                            idSpan.className = 'identity-label text-success';
+                        }
+                    }
+                    inp.classList.add('input-success');
+                }
+            });
+        } else {
+            showToast('Error: ' + (data.error || 'unknown'), 'error');
+        }
+    })
+    .catch(function() {
+        btn.classList.remove('loading');
+        showToast('Network error', 'error');
+    });
+}
+
+function applySuggestion(inputId, name) {
+    var input = document.getElementById(inputId);
+    if (input) {
+        input.value = name;
+        input.classList.add('input-success');
+        setTimeout(function() { input.classList.remove('input-success'); }, 1000);
+    }
+}
+</script>
+{% endblock %}

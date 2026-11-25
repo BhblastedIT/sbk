@@ -1,0 +1,66 @@
+<!-- Plaud recordings list partial -->
+<div class="text-sm text-base-content/50 mb-2">{{ recordings|length }} recording</div>
+
+<table class="table table-sm w-full">
+    <thead>
+        <tr class="text-xs">
+            <th class="w-8"></th>
+            <th>Data</th>
+            <th>Title</th>
+            <th class="text-center">Speaker</th>
+            <th class="text-center">Segmenti</th>
+            <th class="text-center">Confidence</th>
+            <th class="text-center">Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for rec in recordings %}
+        <tr class="hover cursor-pointer" onclick="toggleRecording({{ loop.index }}, '{{ rec.source_file | e }}', this)">
+            <td>
+                <svg class="expand-icon h-4 w-4 transition-transform duration-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+            </td>
+            <td class="font-mono text-xs whitespace-nowrap">{{ rec.date }}</td>
+            <td class="max-w-md truncate text-sm" title="{{ rec.title }}">
+                {{ rec.title[:80] }}{% if rec.title|length > 80 %}...{% endif %}
+            </td>
+            <td class="text-center">
+                <span class="font-mono text-xs">{{ rec.speaker_count }}</span>
+                {% if rec.real_names > 0 %}
+                <span class="text-success text-xs">({{ rec.real_names }} id)</span>
+                {% endif %}
+            </td>
+            <td class="text-center font-mono text-xs">{{ rec.total_segments }}</td>
+            <td class="text-center">
+                {% if rec.confidence_tier == 'HIGH' %}
+                <span class="badge badge-success badge-xs">{{ rec.avg_confidence }}</span>
+                {% elif rec.confidence_tier == 'MEDIUM' %}
+                <span class="badge badge-warning badge-xs">{{ rec.avg_confidence }}</span>
+                {% else %}
+                <span class="badge badge-error badge-xs">{{ rec.avg_confidence }}</span>
+                {% endif %}
+            </td>
+            <td class="text-center">
+                <span id="badge-{{ loop.index }}" class="badge {% if rec.reviewed %}badge-success{% elif rec.needs_review %}badge-error{% else %}badge-ghost{% endif %} badge-sm">
+                    {% if rec.reviewed %}REVIEWED{% elif rec.needs_review %}REVIEW{% else %}OK{% endif %}
+                </span>
+            </td>
+        </tr>
+        <!-- Detail row (hidden, loaded on demand) -->
+        <tr id="detail-{{ loop.index }}" class="hidden" data-loaded="false">
+            <td colspan="7" class="p-0 bg-base-200">
+                <div class="p-4 text-center text-base-content/40">
+                    <span class="loading loading-spinner loading-sm"></span> Loading...
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if not recordings %}
+<div class="text-center text-base-content/40 py-12">
+    No recording found with the selected filters.
+</div>
+{% endif %}

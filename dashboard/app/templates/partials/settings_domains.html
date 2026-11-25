@@ -1,0 +1,113 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Domini Extra</h2>
+        <p class="text-sm text-base-content/60 mb-4">
+            Additional domains to add to the filter lists. One domain per line.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Noise Domains Extra -->
+            <div>
+                <h3 class="font-semibold text-sm mb-2">Noise Domains Extra</h3>
+                <p class="text-xs text-base-content/50 mb-2">
+                    SaaS/notification domains to exclude from the contact count.
+                </p>
+                <textarea id="domains-noise"
+                          class="textarea textarea-bordered w-full h-40 font-mono text-xs"
+                          placeholder="example.com&#10;other-service.io">{{ settings.noise_domains_extra | join('\n') }}</textarea>
+
+                {% if settings.noise_domains_extra %}
+                <div class="flex flex-wrap gap-1 mt-2">
+                    {% for d in settings.noise_domains_extra %}
+                    <span class="badge badge-outline badge-xs">{{ d }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- Internal Domains Extra -->
+            <div>
+                <h3 class="font-semibold text-sm mb-2">Internal Domains Extra</h3>
+                <p class="text-xs text-base-content/50 mb-2">
+                    Internal domains of your organization to exclude from decay/alerts.
+                </p>
+                <textarea id="domains-internal"
+                          class="textarea textarea-bordered w-full h-40 font-mono text-xs"
+                          placeholder="new-company.com">{{ settings.internal_domains_extra | join('\n') }}</textarea>
+
+                {% if settings.internal_domains_extra %}
+                <div class="flex flex-wrap gap-1 mt-2">
+                    {% for d in settings.internal_domains_extra %}
+                    <span class="badge badge-outline badge-xs">{{ d }}</span>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card-actions justify-end mt-6">
+            <button class="btn btn-ghost btn-sm" onclick="resetDomains()">
+                Reset default
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="saveDomains()">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function parseDomainList(textareaId) {
+    var text = document.getElementById(textareaId).value;
+    return text.split('\n')
+        .map(function(d) { return d.trim().toLowerCase(); })
+        .filter(function(d) { return d.length > 0; });
+}
+
+function saveDomains() {
+    var noise = parseDomainList('domains-noise');
+    var internal = parseDomainList('domains-internal');
+
+    // Save both sections
+    Promise.all([
+        fetch('/api/settings/section/noise_domains_extra', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(noise)
+        }),
+        fetch('/api/settings/section/internal_domains_extra', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(internal)
+        })
+    ])
+    .then(function(responses) {
+        var allOk = responses.every(function(r) { return r.ok; });
+        if (!allOk) throw new Error('Save error');
+        showToast('Domains saved', 'success');
+    })
+    .catch(function(err) {
+        showToast('Error: ' + err.message, 'error');
+    });
+}
+
+function resetDomains() {
+    Promise.all([
+        fetch('/api/settings/reset/noise_domains_extra', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        }),
+        fetch('/api/settings/reset/internal_domains_extra', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+    ])
+    .then(function() {
+        showToast('Domain reset completed', 'success');
+        setTimeout(function() { location.reload(); }, 500);
+    })
+    .catch(function(err) {
+        showToast('Error: ' + err.message, 'error');
+    });
+}
+</script>

@@ -1,0 +1,86 @@
+<!-- Observability: System Health Detailed (INF-083) -->
+
+<!-- Overall status badge -->
+<div class="flex items-center gap-3 mb-6" id="overall-status-badge">
+    {% if data.overall == 'OK' %}
+        <span class="badge badge-success badge-lg gap-2">System OK</span>
+    {% elif data.overall == 'WARNING' %}
+        <span class="badge badge-warning badge-lg gap-2">Warning</span>
+    {% else %}
+        <span class="badge badge-error badge-lg gap-2">Critical</span>
+    {% endif %}
+    <span class="text-sm text-base-content/60">{{ data.checks | length }} checks</span>
+</div>
+
+<!-- Component checklist -->
+<div class="card bg-base-200 shadow-sm mb-6">
+    <div class="card-body">
+        <h3 class="card-title text-lg mb-4">Component Health</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {% for check in data.checks %}
+            <div class="flex items-center gap-3 p-3 bg-base-100 rounded-lg">
+                {% if not check.ok %}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-error shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                {% elif check.warning %}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-warning shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                {% else %}
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-success shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                {% endif %}
+                <div class="flex-1 min-w-0">
+                    <div class="font-medium text-sm">{{ check.name }}</div>
+                    <div class="text-xs text-base-content/60 truncate">{{ check.detail }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- L0 Freshness table -->
+{% if data.l0_freshness %}
+<div class="card bg-base-200 shadow-sm">
+    <div class="card-body">
+        <h3 class="card-title text-lg mb-4">L0 Source Freshness</h3>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Source</th>
+                        <th>Last Run</th>
+                        <th>Hours Ago</th>
+                        <th>Staleness</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for src in data.l0_freshness %}
+                    <tr>
+                        <td class="font-mono text-xs">{{ src.source }}</td>
+                        <td class="text-xs">{{ src.last_run or '-' }}</td>
+                        <td class="text-right">{{ src.hours_ago if src.hours_ago is not none else '-' }}</td>
+                        <td>
+                            {% if src.hours_ago is not none %}
+                                {% if src.hours_ago < 6 %}
+                                    <span class="badge badge-success badge-xs">Fresh</span>
+                                {% elif src.hours_ago < 24 %}
+                                    <span class="badge badge-warning badge-xs">Aging</span>
+                                {% else %}
+                                    <span class="badge badge-error badge-xs">Stale</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="badge badge-ghost badge-xs">Unknown</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}

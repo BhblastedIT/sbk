@@ -1,0 +1,148 @@
+<!-- API Stats partial — loaded via HTMX -->
+
+<!-- Summary cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+    <div class="stat bg-base-200 rounded-box p-4">
+        <div class="stat-title text-xs">Total calls</div>
+        <div class="stat-value text-2xl">{{ total }}</div>
+        <div class="stat-desc">last {{ window_hours }}h</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box p-4">
+        <div class="stat-title text-xs">READ</div>
+        <div class="stat-value text-2xl text-info">{{ total_read }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box p-4">
+        <div class="stat-title text-xs">WRITE</div>
+        <div class="stat-value text-2xl text-warning">{{ total_write }}</div>
+    </div>
+    <div class="stat bg-base-200 rounded-box p-4">
+        <div class="stat-title text-xs">Errori + Rate-Ltd</div>
+        <div class="stat-value text-2xl {% if total_errors > 0 %}text-error{% endif %}">{{ total_errors + total_rate_limited }}</div>
+    </div>
+</div>
+
+<!-- Per-service table -->
+<div class="card bg-base-200 mb-6">
+    <div class="card-body p-4">
+        <h3 class="font-semibold mb-3">By service</h3>
+        {% if by_service %}
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th class="text-right">READ</th>
+                        <th class="text-right">WRITE</th>
+                        <th class="text-right">Errors</th>
+                        <th class="text-right">Rate-Ltd</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for svc, b in by_service.items() %}
+                    <tr>
+                        <td class="font-mono text-sm">{{ svc }}</td>
+                        <td class="text-right">{{ b.READ }}</td>
+                        <td class="text-right {% if b.WRITE > 0 %}text-warning{% endif %}">{{ b.WRITE }}</td>
+                        <td class="text-right {% if b.errors > 0 %}text-error{% endif %}">{{ b.errors }}</td>
+                        <td class="text-right {% if b.rate_limited > 0 %}text-error{% endif %}">{{ b.rate_limited }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="font-bold">
+                        <td>TOTAL</td>
+                        <td class="text-right">{{ total_read }}</td>
+                        <td class="text-right">{{ total_write }}</td>
+                        <td class="text-right">{{ total_errors }}</td>
+                        <td class="text-right">{{ total_rate_limited }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-base-content/50 text-sm py-4 text-center">No API calls recorded in the last {{ window_hours }} hours.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Recent WRITE calls -->
+{% if recent_writes %}
+<div class="card bg-base-200 mb-6">
+    <div class="card-body p-4">
+        <h3 class="font-semibold mb-3">Latest WRITEs ({{ recent_writes|length }})</h3>
+        <div class="overflow-x-auto">
+            <table class="table table-sm table-zebra">
+                <thead>
+                    <tr>
+                        <th>Ora</th>
+                        <th>Service</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Caller</th>
+                        <th>Latency</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in recent_writes %}
+                    <tr>
+                        <td class="font-mono text-xs">{{ e.ts[11:16] if e.ts|length > 16 else e.ts }}</td>
+                        <td>{{ e.service }}</td>
+                        <td class="font-mono text-xs">{{ e.method }}</td>
+                        <td>
+                            {% if e.status == 'ok' %}
+                            <span class="badge badge-success badge-xs">ok</span>
+                            {% elif e.status == 'error' %}
+                            <span class="badge badge-error badge-xs">error</span>
+                            {% else %}
+                            <span class="badge badge-warning badge-xs">{{ e.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-xs text-base-content/60">{{ e.caller }}</td>
+                        <td class="text-xs">{% if e.latency_ms %}{{ e.latency_ms }}ms{% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Recent errors -->
+{% if recent_errors %}
+<div class="card bg-base-200">
+    <div class="card-body p-4">
+        <h3 class="font-semibold mb-3 text-error">Recent errors ({{ recent_errors|length }})</h3>
+        <div class="overflow-x-auto">
+            <table class="table table-sm table-zebra">
+                <thead>
+                    <tr>
+                        <th>Ora</th>
+                        <th>Service</th>
+                        <th>Method</th>
+                        <th>Status</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for e in recent_errors %}
+                    <tr>
+                        <td class="font-mono text-xs">{{ e.ts[11:16] if e.ts|length > 16 else e.ts }}</td>
+                        <td>{{ e.service }}</td>
+                        <td class="font-mono text-xs">{{ e.method }}</td>
+                        <td>
+                            {% if e.status == 'rate_limited' %}
+                            <span class="badge badge-warning badge-xs">429</span>
+                            {% else %}
+                            <span class="badge badge-error badge-xs">error</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-xs text-base-content/60 max-w-xs truncate">{{ e.detail or '' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}

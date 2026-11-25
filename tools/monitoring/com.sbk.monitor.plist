@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The monitor (run-monitor.sh), kept running. See docs/CONNECTING.md for what it reads.
+  Template, not active. To turn it on, run from the repo folder (fills in your paths):
+    sed -e "s|__SBK_REPO__|$PWD|g" -e "s|__SBK_DATA__|${SBK_DATA_ROOT:-$HOME/.sbk-data}|g" \
+        -e "s|__UV__|$(command -v uv)|g" -e "s|__UV_DIR__|$(dirname "$(command -v uv)")|g" \
+        tools/monitoring/com.sbk.monitor.plist > ~/Library/LaunchAgents/com.sbk.monitor.plist
+    launchctl load ~/Library/LaunchAgents/com.sbk.monitor.plist
+  To turn it off: launchctl unload ~/Library/LaunchAgents/com.sbk.monitor.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sbk.monitor</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__SBK_REPO__/tools/monitoring/run-monitor.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>__SBK_DATA__/monitor-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__SBK_DATA__/monitor-stderr.log</string>
+    <key>WorkingDirectory</key>
+    <string>__SBK_DATA__</string>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>60</integer>
+</dict>
+</plist>

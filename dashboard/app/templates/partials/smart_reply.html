@@ -1,0 +1,146 @@
+<!-- Smart Reply Modal -->
+<dialog id="smart-reply-modal" class="modal">
+    <div class="modal-box w-11/12 max-w-2xl">
+        <form method="dialog">
+            <button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">X</button>
+        </form>
+
+        <h3 class="font-bold text-lg mb-1">Reply draft</h3>
+        <div id="smart-reply-meta" class="text-xs text-base-content/50 mb-3"></div>
+
+        <!-- Loading state -->
+        <div id="smart-reply-loading" class="flex flex-col items-center justify-center py-8 hidden">
+            <span class="loading loading-spinner loading-md"></span>
+            <p class="text-sm text-base-content/60 mt-2">Generating draft...</p>
+        </div>
+
+        <!-- Error state -->
+        <div id="smart-reply-error" class="alert alert-error text-sm mb-3 hidden">
+            <span id="smart-reply-error-text"></span>
+        </div>
+
+        <!-- Draft content -->
+        <div id="smart-reply-content" class="hidden">
+            <textarea id="smart-reply-draft"
+                      class="textarea textarea-bordered w-full min-h-[200px] text-sm leading-relaxed"
+                      placeholder="The draft will appear here..."></textarea>
+
+            <div class="flex items-center justify-between mt-3">
+                <div class="flex gap-2">
+                    <button onclick="smartReplyCopy(event)" class="btn btn-sm btn-primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Copy
+                    </button>
+                    <button onclick="smartReplyRegenerate()" class="btn btn-sm btn-ghost">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Regenerate
+                    </button>
+                </div>
+                <form method="dialog">
+                    <button class="btn btn-sm btn-ghost">Close</button>
+                </form>
+            </div>
+
+            <div id="smart-reply-badge" class="mt-2 text-xs text-base-content/40"></div>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop">
+        <button>close</button>
+    </form>
+</dialog>
+
+<script>
+// Smart Reply state
+let _smartReplyCtx = {};
+
+function smartReplyOpen(emailData) {
+    _smartReplyCtx = emailData;
+    const modal = document.getElementById('smart-reply-modal');
+    const loading = document.getElementById('smart-reply-loading');
+    const content = document.getElementById('smart-reply-content');
+    const error = document.getElementById('smart-reply-error');
+    const meta = document.getElementById('smart-reply-meta');
+
+    // Reset state
+    loading.classList.remove('hidden');
+    content.classList.add('hidden');
+    error.classList.add('hidden');
+    meta.textContent = 'A: ' + (emailData.from_name || emailData.sender_email) +
+                       (emailData.subject ? ' — ' + emailData.subject : '');
+
+    modal.showModal();
+    _smartReplyFetch(emailData);
+}
+
+function _smartReplyFetch(emailData) {
+    const loading = document.getElementById('smart-reply-loading');
+    const content = document.getElementById('smart-reply-content');
+    const error = document.getElementById('smart-reply-error');
+    const errorText = document.getElementById('smart-reply-error-text');
+    const draft = document.getElementById('smart-reply-draft');
+    const badge = document.getElementById('smart-reply-badge');
+
+    fetch('/api/emails/smart-reply', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-SBK-CSRF': '1'
+        },
+        body: JSON.stringify({
+            email_text: emailData.snippet || '',
+            sender_email: emailData.from_email || emailData.sender_email || '',
+            sender_name: emailData.from_name || emailData.sender_name || '',
+            subject: emailData.subject || '',
+            thread_context: emailData.thread_context || ''
+        })
+    })
+    .then(resp => resp.json().then(data => ({status: resp.status, data})))
+    .then(({status, data}) => {
+        loading.classList.add('hidden');
+        if (status >= 400 || data.error) {
+            error.classList.remove('hidden');
+            errorText.textContent = data.error || 'Generation error';
+            return;
+        }
+        content.classList.remove('hidden');
+        draft.value = data.draft || '';
+        badge.textContent = (data.segment || '') +
+                           (data.tier ? ' / ' + data.tier : '') +
+                           ' — ' + (data.tone || '');
+    })
+    .catch(err => {
+        loading.classList.add('hidden');
+        error.classList.remove('hidden');
+        errorText.textContent = 'Network error: ' + err.message;
+    });
+}
+
+function smartReplyCopy(e) {
+    const btn = e.currentTarget;
+    const draft = document.getElementById('smart-reply-draft');
+    navigator.clipboard.writeText(draft.value).then(() => {
+        const origHTML = btn.innerHTML;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>Copiato!';
+        btn.classList.add('btn-success');
+        setTimeout(() => {
+            btn.innerHTML = origHTML;
+            btn.classList.remove('btn-success');
+        }, 2000);
+    });
+}
+
+function smartReplyRegenerate() {
+    const loading = document.getElementById('smart-reply-loading');
+    const content = document.getElementById('smart-reply-content');
+    const error = document.getElementById('smart-reply-error');
+
+    loading.classList.remove('hidden');
+    content.classList.add('hidden');
+    error.classList.add('hidden');
+    _smartReplyFetch(_smartReplyCtx);
+}
+</script>

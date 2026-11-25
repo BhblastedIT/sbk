@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Entity Review | SBK{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Entity Review</h1>
+        <p class="text-sm text-base-content/60 mt-1">
+            <span id="remaining-count">{{ total }}</span> ambiguous matches to decide
+        </p>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex gap-3 items-center flex-wrap">
+        <input type="text" id="entity-search" placeholder="Search name/email..."
+               class="input input-bordered input-sm w-48"
+               oninput="filterEntityRows()">
+        <div class="flex items-center gap-2">
+            <span class="text-xs text-base-content/60">Confidence min:</span>
+            <input type="range" id="confidence-slider" min="0" max="100" value="0"
+                   class="range range-xs range-primary w-28"
+                   oninput="document.getElementById('confidence-val').textContent=this.value+'%'; filterEntityRows()">
+            <span id="confidence-val" class="text-xs font-mono w-8">0%</span>
+        </div>
+        <select id="reason-filter" class="select select-bordered select-sm"
+                hx-get="/partials/entity_review"
+                hx-target="#review-table"
+                hx-include="#reason-filter"
+                name="reason">
+            <option value="all" {% if reason_filter == 'all' %}selected{% endif %}>All ({{ total }})</option>
+            {% for r, count in reason_counts.items() %}
+            <option value="{{ r }}" {% if reason_filter == r %}selected{% endif %}>{{ r }} ({{ count }})</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- Batch actions -->
+<div class="flex gap-2 mb-4 items-center">
+    <button class="btn btn-success btn-sm" onclick="batchAction('merge')">
+        Merge selected
+    </button>
+    <button class="btn btn-error btn-sm" onclick="batchAction('reject')">
+        Reject selected
+    </button>
+    <label class="label cursor-pointer gap-2 ml-4">
+        <input type="checkbox" id="select-all" class="checkbox checkbox-sm" onchange="toggleAll(this)">
+        <span class="label-text text-sm">Select all</span>
+    </label>
+    <div class="ml-auto text-xs text-base-content/40">
+        <kbd class="kbd kbd-xs">j</kbd>/<kbd class="kbd kbd-xs">k</kbd> navigate
+        <kbd class="kbd kbd-xs">a</kbd> merge
+        <kbd class="kbd kbd-xs">r</kbd> reject
+        <kbd class="kbd kbd-xs">space</kbd> select
+    </div>
+</div>
+
+<!-- Review table -->
+<div id="review-table">
+    {% include "partials/entity_review.html" %}
+</div>
+
+<!-- Merge Suggestions (lazy-loaded) -->
+<div class="mt-6">
+    <h2 class="text-xl font-bold mb-3">Merge Suggestions</h2>
+    <div id="merge-suggestions-container"
+         hx-get="/partials/merge_suggestions"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <span class="loading loading-spinner loading-md"></span>
+    </div>
+</div>
+
+<script>
+let lastCheckedIndex = null;
+
+function decide(index, action, btn) {
+    btn.disabled = true;
+    const row = btn.closest('tr');
+    fetch('/api/entities/decide', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({index: index, action: action})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            row.classList.add('opacity-30');
+            setTimeout(() => row.remove(), 300);
+            document.getElementById('remaining-count').textContent = data.remaining;
+        } else {
+            btn.disabled = false;
+            alert(data.error || 'Error');
+        }
+    })
+    .catch(() => { btn.disabled = false; });
+}
+
+function rowClick(e, tr) {
+    // Skip if click was on a button or the checkbox itself
+    if (e.target.closest('button') || e.target.classList.contains('review-check')) return;
+    const cb = tr.querySelector('.review-check');
+    if (!cb) return;
+    cb.checked = !cb.checked;
+    handleShiftSelect(e, cb);
+}
+
+function checkboxClick(e, cb) {
+    e.stopPropagation();
+    handleShiftSelect(e, cb);
+}
+
+function handleShiftSelect(e, cb) {
+    const all = Array.from(document.querySelectorAll('.review-check'));
+    const currentIdx = all.indexOf(cb);
+    if (e.shiftKey && lastCheckedIndex !== null && lastCheckedIndex !== currentIdx) {
+        const start = Math.min(lastCheckedIndex, currentIdx);
+        const end = Math.max(lastCheckedIndex, currentIdx);
+        const state = cb.checked;
+        for (let i = start; i <= end; i++) {
+            all[i].checked = state;
+        }
+    }
+    lastCheckedIndex = currentIdx;
+}
+
+function toggleAll(checkbox) {
+    document.querySelectorAll('.review-check').forEach(cb => cb.checked = checkbox.checked);
+    lastCheckedIndex = null;
+}
+
+function batchAction(action) {
+    const checked = document.querySelectorAll('.review-check:checked');
+    if (checked.length === 0) return;
+
+    const decisions = Array.from(checked).map(cb => ({
+        index: parseInt(cb.dataset.index),
+        action: action
+    }));
+
+    fetch('/api/entities/decide-batch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({decisions: decisions})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            htmx.ajax('GET', '/partials/entity_review?reason=' +
+                document.getElementById('reason-filter').value, '#review-table');
+            document.getElementById('remaining-count').textContent = data.remaining;
+            document.getElementById('select-all').checked = false;
+            lastCheckedIndex = null;
+        }
+    });
+}
+
+// Column sorting
+let currentSort = { col: null, asc: true };
+
+function sortTable(col) {
+    const table = document.getElementById('entity-table');
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+
+    if (currentSort.col === col) {
+        currentSort.asc = !currentSort.asc;
+    } else {
+        currentSort.col = col;
+        currentSort.asc = true;
+    }
+
+    rows.sort((a, b) => {
+        let va = a.dataset[col] || '';
+        let vb = b.dataset[col] || '';
+        if (col === 'confidence') {
+            va = parseFloat(va) || 0;
+            vb = parseFloat(vb) || 0;
+            return currentSort.asc ? va - vb : vb - va;
+        }
+        va = va.toLowerCase();
+        vb = vb.toLowerCase();
+        if (va < vb) return currentSort.asc ? -1 : 1;
+        if (va > vb) return currentSort.asc ? 1 : -1;
+        return 0;
+    });
+
+    rows.forEach(r => tbody.appendChild(r));
+
+    // Update arrows
+    document.querySelectorAll('.sort-arrow').forEach(s => {
+        if (s.dataset.col === col) {
+            s.textContent = currentSort.asc ? ' \u25B2' : ' \u25BC';
+            s.classList.remove('opacity-40');
+            s.classList.add('opacity-100');
+        } else {
+            s.textContent = '';
+            s.classList.remove('opacity-100');
+            s.classList.add('opacity-40');
+        }
+    });
+}
+
+// ─── Keyboard navigation ────────────────────────────────────────────────
+
+let focusedRowIdx = -1;
+
+function getVisibleRows() {
+    return Array.from(document.querySelectorAll('#entity-table tbody tr')).filter(r => r.style.display !== 'none');
+}
+
+function focusRow(idx) {
+    const rows = getVisibleRows();
+    // Remove previous highlight
+    rows.forEach(r => r.classList.remove('ring-2', 'ring-primary', 'ring-inset'));
+    if (idx < 0 || idx >= rows.length) return;
+    focusedRowIdx = idx;
+    const row = rows[idx];
+    row.classList.add('ring-2', 'ring-primary', 'ring-inset');
+    row.scrollIntoView({block: 'nearest', behavior: 'smooth'});
+}
+
+document.addEventListener('keydown', function(e) {
+    // Skip if typing in an input/textarea
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+
+    const rows = getVisibleRows();
+    if (rows.length === 0) return;
+
+    switch(e.key) {
+        case 'j': // next row
+            e.preventDefault();
+            focusRow(Math.min(focusedRowIdx + 1, rows.length - 1));
+            break;
+        case 'k': // previous row
+            e.preventDefault();
+            focusRow(Math.max(focusedRowIdx - 1, 0));
+            break;
+        case 'a': // approve (merge)
+            e.preventDefault();
+            if (focusedRowIdx >= 0 && focusedRowIdx < rows.length) {
+                const btn = rows[focusedRowIdx].querySelector('.btn-success');
+                if (btn && !btn.disabled) btn.click();
+                // Move to next row after action
+                setTimeout(() => {
+                    const newRows = getVisibleRows();
+                    if (focusedRowIdx >= newRows.length) focusedRowIdx = newRows.length - 1;
+                    focusRow(focusedRowIdx);
+                }, 400);
+            }
+            break;
+        case 'r': // reject
+            e.preventDefault();
+            if (focusedRowIdx >= 0 && focusedRowIdx < rows.length) {
+                const btn = rows[focusedRowIdx].querySelector('.btn-error');
+                if (btn && !btn.disabled) btn.click();
+                setTimeout(() => {
+                    const newRows = getVisibleRows();
+                    if (focusedRowIdx >= newRows.length) focusedRowIdx = newRows.length - 1;
+                    focusRow(focusedRowIdx);
+                }, 400);
+            }
+            break;
+        case ' ': // toggle checkbox
+            e.preventDefault();
+            if (focusedRowIdx >= 0 && focusedRowIdx < rows.length) {
+                const cb = rows[focusedRowIdx].querySelector('.review-check');
+                if (cb) cb.checked = !cb.checked;
+            }
+            break;
+    }
+});
+
+function filterEntityRows() {
+    const search = (document.getElementById('entity-search').value || '').toLowerCase().trim();
+    const minConf = parseInt(document.getElementById('confidence-slider').value) || 0;
+    const rows = document.querySelectorAll('#entity-table tbody tr');
+    let visible = 0;
+    rows.forEach(function(row) {
+        const nameA = (row.dataset.name_a || '').toLowerCase();
+        const nameB = (row.dataset.name_b || '').toLowerCase();
+        const keyA = (row.dataset.key_a || '').toLowerCase();
+        const keyB = (row.dataset.key_b || '').toLowerCase();
+        const conf = parseFloat(row.dataset.confidence) || 0;
+        const matchesSearch = !search || nameA.includes(search) || nameB.includes(search) || keyA.includes(search) || keyB.includes(search);
+        const matchesConf = conf >= minConf;
+        if (matchesSearch && matchesConf) {
+            row.style.display = '';
+            visible++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    document.getElementById('remaining-count').textContent = visible;
+}
+</script>
+{% endblock %}

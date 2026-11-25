@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Entity Audit — SBK{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto space-y-4">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold">Entity Audit</h1>
+            <p class="text-base-content/60 text-sm mt-1">Review and approve/reject contact merge suggestions</p>
+        </div>
+        <span id="ea-spinner" class="loading loading-spinner loading-sm htmx-indicator"></span>
+    </div>
+
+    <!-- Stats cards (loaded via HTMX) -->
+    <div id="ea-stats"
+         hx-get="/api/entity-audit/stats"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="card bg-base-100 shadow-sm"><div class="card-body p-4 text-center"><span class="loading loading-spinner loading-xs"></span></div></div>
+            <div class="card bg-base-100 shadow-sm"><div class="card-body p-4 text-center"><span class="loading loading-spinner loading-xs"></span></div></div>
+            <div class="card bg-base-100 shadow-sm"><div class="card-body p-4 text-center"><span class="loading loading-spinner loading-xs"></span></div></div>
+            <div class="card bg-base-100 shadow-sm"><div class="card-body p-4 text-center"><span class="loading loading-spinner loading-xs"></span></div></div>
+        </div>
+    </div>
+
+    <!-- Filter bar -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-3 flex flex-row flex-wrap items-center gap-3">
+            <label class="text-sm font-medium">Confidence</label>
+            <select id="ea-confidence" class="select select-sm select-bordered"
+                    onchange="loadSuggestions()">
+                <option value="0">All</option>
+                <option value="0.8">High (&gt;0.8)</option>
+                <option value="0.5">Medium (0.5-0.8)</option>
+                <option value="0.01">Low (&lt;0.5)</option>
+            </select>
+
+            <label class="text-sm font-medium ml-4">Status</label>
+            <select id="ea-status" class="select select-sm select-bordered"
+                    onchange="loadSuggestions()">
+                <option value="">All</option>
+                <option value="pending" selected>Pending</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Suggestions table -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Person A</th>
+                        <th>Person B</th>
+                        <th>Confidence</th>
+                        <th>Matching Fields</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="ea-table-body"
+                       hx-get="/partials/entity_audit_list?status=pending"
+                       hx-trigger="load"
+                       hx-swap="innerHTML"
+                       hx-indicator="#ea-spinner">
+                    <tr><td colspan="6" class="text-center py-8"><span class="loading loading-spinner loading-md"></span></td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+// Render stats from JSON API response
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    if (evt.detail.pathInfo && evt.detail.pathInfo.requestPath === '/api/entity-audit/stats') {
+        try {
+            var data = JSON.parse(evt.detail.xhr.responseText);
+            var html = '<div class="grid grid-cols-2 md:grid-cols-4 gap-3">';
+            html += statsCard('Total', data.total || 0, 'badge-neutral');
+            html += statsCard('Pending', data.pending || 0, 'badge-warning');
+            html += statsCard('Approved', data.approved || 0, 'badge-success');
+            html += statsCard('Rejected', data.rejected || 0, 'badge-error');
+            html += '</div>';
+            document.getElementById('ea-stats').innerHTML = html;
+        } catch(e) {}
+    }
+});
+
+function statsCard(label, value, badgeClass) {
+    return '<div class="card bg-base-100 shadow-sm">' +
+        '<div class="card-body p-4 text-center">' +
+        '<div class="text-2xl font-bold">' + value + '</div>' +
+        '<div class="badge ' + badgeClass + ' badge-sm mt-1">' + label + '</div>' +
+        '</div></div>';
+}
+
+function loadSuggestions() {
+    var confidence = document.getElementById('ea-confidence').value;
+    var status = document.getElementById('ea-status').value;
+    var url = '/partials/entity_audit_list?min_confidence=' + confidence;
+    if (status) url += '&status=' + status;
+    htmx.ajax('GET', url, {target: '#ea-table-body', swap: 'innerHTML', indicator: '#ea-spinner'});
+}
+
+function approveRow(id, btn) {
+    var row = btn.closest('tr');
+    htmx.ajax('POST', '/api/entity-audit/approve/' + encodeURIComponent(id), {
+        target: row,
+        swap: 'outerHTML',
+        headers: {'X-SBK-CSRF': '1'}
+    }).then(function() {
+        refreshStats();
+    });
+}
+
+function rejectRow(id, btn) {
+    var row = btn.closest('tr');
+    htmx.ajax('POST', '/api/entity-audit/reject/' + encodeURIComponent(id), {
+        target: row,
+        swap: 'outerHTML',
+        headers: {'X-SBK-CSRF': '1'}
+    }).then(function() {
+        refreshStats();
+    });
+}
+
+function refreshStats() {
+    htmx.ajax('GET', '/api/entity-audit/stats', {target: '#ea-stats', swap: 'innerHTML'});
+}
+
+// Handle approve/reject POST responses: render updated row
+document.body.addEventListener('htmx:afterRequest', function(evt) {
+    var path = evt.detail.pathInfo ? evt.detail.pathInfo.requestPath : '';
+    if (path.indexOf('/api/entity-audit/approve/') === 0 || path.indexOf('/api/entity-audit/reject/') === 0) {
+        try {
+            var data = JSON.parse(evt.detail.xhr.responseText);
+            if (data.ok) {
+                var targetEl = evt.detail.target;
+                if (targetEl && targetEl.tagName === 'TR') {
+                    // Update the status badge in the row
+                    var statusCell = targetEl.querySelector('.ea-status-cell');
+                    var actionsCell = targetEl.querySelector('.ea-actions-cell');
+                    if (statusCell) {
+                        var badge = data.status === 'approved' ? 'badge-success' : 'badge-error';
+                        statusCell.innerHTML = '<span class="badge ' + badge + ' badge-sm">' + data.status + '</span>';
+                    }
+                    if (actionsCell) {
+                        actionsCell.innerHTML = '<span class="text-base-content/40 text-xs">done</span>';
+                    }
+                }
+                showToast('Suggestion ' + data.status, 'success');
+            } else if (data.error) {
+                showToast(data.error, 'error');
+            }
+        } catch(e) {}
+    }
+});
+</script>
+{% endblock %}

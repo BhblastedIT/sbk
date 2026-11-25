@@ -1,0 +1,72 @@
+{% if summaries %}
+<div class="space-y-3">
+    {% for s in summaries %}
+    <div class="card bg-base-200 cursor-pointer hover:bg-base-300 transition-colors"
+         hx-get="/partials/meeting_detail/{{ s.meeting_id }}" hx-target="#meeting-modal-body" hx-swap="innerHTML"
+         onclick="document.getElementById('meeting-modal').showModal()">
+        <div class="card-body py-4 px-5">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-xs text-base-content/50">{{ s.date }}</span>
+                        <span class="badge badge-xs {% if s.source == 'plaud' %}badge-info{% elif s.source == 'tactiq' %}badge-warning{% else %}badge-ghost{% endif %}">{{ s.source }}</span>
+                        {% if s.sentiment == 'positivo' %}
+                        <span class="badge badge-xs badge-success">positive</span>
+                        {% elif s.sentiment == 'negativo' %}
+                        <span class="badge badge-xs badge-error">negative</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-sm">{{ s.summary }}</p>
+                    {% if s.topics %}
+                    <div class="flex gap-1 mt-2 flex-wrap">
+                        {% for t in s.topics %}
+                        <span class="badge badge-xs badge-outline">{{ t }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="flex gap-3 text-xs text-base-content/50 shrink-0 ml-4">
+                    <div class="text-center">
+                        <div class="font-bold text-base-content">{{ s.attendee_count }}</div>
+                        <div>participants</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-bold text-primary">{{ s.decisions_count }}</div>
+                        <div>decisions</div>
+                    </div>
+                    <div class="text-center">
+                        <div class="font-bold text-warning">{{ s.follow_ups_count }}</div>
+                        <div>follow-up</div>
+                    </div>
+                </div>
+            </div>
+            {% if s.attendees %}
+            <div class="text-xs text-base-content/40 mt-1">
+                {{ s.attendees | join(', ') }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Meeting Detail Modal -->
+<dialog id="meeting-modal" class="modal">
+    <div class="modal-box max-w-3xl">
+        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">X</button></form>
+        <div id="meeting-modal-body">
+            <span class="loading loading-spinner"></span>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+{% else %}
+<div class="text-center py-16 text-base-content/40">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 mx-auto mb-4 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+    </svg>
+    <p class="text-lg mb-2">No meeting summary found</p>
+    <p class="text-sm">Use <code>python tools/meetings/mt-capture.py --batch --source plaud</code> to process transcripts</p>
+</div>
+{% endif %}

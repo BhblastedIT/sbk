@@ -1,0 +1,37 @@
+{% if suggestions %}
+<div class="space-y-2">
+    {% for s in suggestions %}
+    <div class="card bg-base-200/50 p-3">
+        <div class="flex items-start gap-2">
+            <div class="flex-1 min-w-0">
+                <div class="text-sm">
+                    <a href="/person?auto={{ s.person_a_name|urlencode }}" class="link link-primary font-medium">{{ s.person_a_name }}</a>
+                    {% if s.person_a_org %}<span class="text-base-content/40 text-xs">({{ s.person_a_org }})</span>{% endif %}
+                    <span class="text-base-content/50"> seeks </span>
+                    <span class="font-medium text-warning">{{ s.need[:80] }}</span>
+                </div>
+                <div class="text-sm mt-0.5">
+                    <a href="/person?auto={{ s.person_b_name|urlencode }}" class="link link-primary font-medium">{{ s.person_b_name }}</a>
+                    {% if s.person_b_org %}<span class="text-base-content/40 text-xs">({{ s.person_b_org }})</span>{% endif %}
+                    <span class="text-base-content/50"> works on </span>
+                    <span class="font-medium text-success">{{ s.offer[:80] }}</span>
+                </div>
+            </div>
+            <span class="badge badge-sm shrink-0
+                {% if s.match_level == 'strong' %}badge-success
+                {% elif s.match_level == 'good' %}badge-warning
+                {% else %}badge-ghost{% endif %}">
+                {{ s.match_level }}
+            </span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% if total > suggestions|length %}
+<div class="text-xs text-base-content/50 mt-2 text-center">
+    Showing {{ suggestions|length }} of {{ total }} possible introductions
+</div>
+{% endif %}
+{% else %}
+<p class="text-sm text-base-content/50">No introduction suggested.</p>
+{% endif %}

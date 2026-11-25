@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}SBK — Slack Health{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">Slack Health</h1>
+            <p class="text-base-content/60 text-sm mt-1">Process status, rate limiter, API activity. Auto-refresh every 30s</p>
+        </div>
+    </div>
+
+    <!-- HTMX partial container — auto-refresh every 30s -->
+    <div id="slack-health-container"
+         hx-get="/partials/slack_health_stats"
+         hx-trigger="load, every 30s"
+         hx-swap="innerHTML">
+        <div class="flex justify-center py-12">
+            <span class="loading loading-spinner loading-lg"></span>
+        </div>
+    </div>
+</div>
+{% endblock %}

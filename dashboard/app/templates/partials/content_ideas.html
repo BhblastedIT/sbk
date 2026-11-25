@@ -1,0 +1,100 @@
+{% if ideas %}
+<div class="space-y-4">
+    {% for idea in ideas %}
+    <div class="card bg-base-200 shadow-sm" id="ci-{{ idea.idea_id }}">
+        <div class="card-body p-4">
+            <div class="flex items-start justify-between">
+                <div class="flex-1">
+                    <h3 class="font-bold text-base">{{ idea.title }}</h3>
+                    <p class="text-sm text-base-content/70 mt-1">{{ idea.angle }}</p>
+                </div>
+                <div class="flex items-center gap-2 ml-4">
+                    {% if idea.status == 'pending' %}
+                        <span class="badge badge-warning badge-sm">pending</span>
+                    {% elif idea.status == 'approved' %}
+                        <span class="badge badge-success badge-sm">approved</span>
+                    {% elif idea.status == 'rejected' %}
+                        <span class="badge badge-error badge-sm">rejected</span>
+                    {% else %}
+                        <span class="badge badge-ghost badge-sm">{{ idea.status }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Key points -->
+            {% if idea.key_points %}
+            <ul class="list-disc list-inside text-sm mt-2 text-base-content/80">
+                {% for point in idea.key_points %}
+                <li>{{ point }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            <!-- Meta -->
+            <div class="flex flex-wrap items-center gap-2 mt-3 text-xs text-base-content/50">
+                {% if idea.format %}
+                <span class="badge badge-outline badge-xs">{{ idea.format }}</span>
+                {% endif %}
+                {% if idea.pillar %}
+                <span class="badge badge-outline badge-xs">{{ idea.pillar }}</span>
+                {% endif %}
+                {% if idea.language %}
+                <span class="badge badge-outline badge-xs">{{ idea.language }}</span>
+                {% endif %}
+                {% if idea.source_facts %}
+                <span>{{ idea.source_facts|length }} source(s)</span>
+                {% endif %}
+                <span>{{ idea.created_at[:10] if idea.created_at else '' }}</span>
+            </div>
+
+            <!-- Source facts details (collapsed) -->
+            {% if idea.source_facts %}
+            <details class="mt-2">
+                <summary class="text-xs text-base-content/40 cursor-pointer">Sources</summary>
+                <div class="text-xs mt-1 space-y-1">
+                    {% for sf in idea.source_facts %}
+                    <div class="bg-base-300 rounded px-2 py-1">
+                        <span class="font-mono">{{ sf.source_type }}</span>
+                        <span class="text-base-content/50">{{ sf.source_date }}</span>
+                        {% if sf.excerpt %}
+                        <span class="text-base-content/60"> {{ sf.excerpt[:100] }}</span>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </details>
+            {% endif %}
+
+            <!-- Actions -->
+            {% if idea.status == 'pending' %}
+            <div class="card-actions justify-end mt-3">
+                <button class="btn btn-success btn-xs"
+                        hx-put="/api/content/ideas/{{ idea.idea_id }}"
+                        hx-headers='{"X-SBK-CSRF": "1", "Content-Type": "application/json"}'
+                        hx-vals='{"status": "approved"}'
+                        hx-target="#ci-{{ idea.idea_id }}"
+                        hx-swap="outerHTML"
+                        hx-ext="json-enc">
+                    Approve
+                </button>
+                <button class="btn btn-error btn-xs"
+                        hx-put="/api/content/ideas/{{ idea.idea_id }}"
+                        hx-headers='{"X-SBK-CSRF": "1", "Content-Type": "application/json"}'
+                        hx-vals='{"status": "rejected"}'
+                        hx-target="#ci-{{ idea.idea_id }}"
+                        hx-swap="outerHTML"
+                        hx-ext="json-enc">
+                    Reject
+                </button>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12 text-base-content/40">
+    <p class="text-lg">No content ideas</p>
+    <p class="text-sm mt-1">Click "Generate ideas" to analyze facts from the last 14 days</p>
+</div>
+{% endif %}

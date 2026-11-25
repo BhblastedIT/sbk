@@ -1,0 +1,171 @@
+<!-- Slack Health partial — loaded via HTMX every 30s -->
+
+<!-- Row 1: Process cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+    <!-- MCP Processes -->
+    <div class="card bg-base-200">
+        <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-sm">MCP Processes</h3>
+                {% if mcp_processes|length == 0 %}
+                <span class="badge badge-success badge-sm">0 zombie</span>
+                {% else %}
+                <span class="badge badge-error badge-sm">{{ mcp_processes|length }} active</span>
+                {% endif %}
+            </div>
+            {% if mcp_processes %}
+            <div class="overflow-x-auto">
+                <table class="table table-xs">
+                    <thead><tr><th>PID</th><th>Command</th></tr></thead>
+                    <tbody>
+                        {% for p in mcp_processes %}
+                        <tr>
+                            <td class="font-mono">{{ p.pid }}</td>
+                            <td class="text-xs truncate max-w-xs">{{ p.cmd }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-base-content/50 text-sm">No Slack MCP process detected</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Monitor Daemon -->
+    <div class="card bg-base-200">
+        <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-sm">Monitor Daemon</h3>
+                {% if daemon_status.running %}
+                <span class="badge badge-success badge-sm">Running</span>
+                {% else %}
+                <span class="badge badge-error badge-sm">Stopped</span>
+                {% endif %}
+            </div>
+            {% if daemon_status.running %}
+            <div class="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                    <span class="text-base-content/60">PID</span>
+                    <span class="font-mono ml-2">{{ daemon_status.pid }}</span>
+                </div>
+                <div>
+                    <span class="text-base-content/60">Uptime</span>
+                    <span class="font-mono ml-2">{{ daemon_status.uptime or 'N/A' }}</span>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-base-content/50 text-sm">Daemon not running</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Row 2: Rate Limiter + API Activity -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+    <!-- Rate Limiter -->
+    <div class="card bg-base-200">
+        <div class="card-body p-4">
+            <h3 class="font-semibold text-sm mb-3">Rate Limiter</h3>
+            <div class="space-y-3">
+                <!-- Hourly -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span>Time</span>
+                        <span class="font-mono {% if rate_limiter.hourly >= rate_limiter.hourly_max %}text-error{% elif rate_limiter.hourly >= rate_limiter.hourly_max * 0.7 %}text-warning{% endif %}">{{ rate_limiter.hourly }}/{{ rate_limiter.hourly_max }}</span>
+                    </div>
+                    <progress class="progress {% if rate_limiter.hourly >= rate_limiter.hourly_max %}progress-error{% elif rate_limiter.hourly >= rate_limiter.hourly_max * 0.7 %}progress-warning{% else %}progress-success{% endif %} w-full" value="{{ rate_limiter.hourly }}" max="{{ rate_limiter.hourly_max }}"></progress>
+                </div>
+                <!-- Daily -->
+                <div>
+                    <div class="flex justify-between text-xs mb-1">
+                        <span>Daily</span>
+                        <span class="font-mono {% if rate_limiter.daily >= rate_limiter.daily_max %}text-error{% elif rate_limiter.daily >= rate_limiter.daily_max * 0.7 %}text-warning{% endif %}">{{ rate_limiter.daily }}/{{ rate_limiter.daily_max }}</span>
+                    </div>
+                    <progress class="progress {% if rate_limiter.daily >= rate_limiter.daily_max %}progress-error{% elif rate_limiter.daily >= rate_limiter.daily_max * 0.7 %}progress-warning{% else %}progress-success{% endif %} w-full" value="{{ rate_limiter.daily }}" max="{{ rate_limiter.daily_max }}"></progress>
+                </div>
+                <!-- Pending -->
+                <div class="flex justify-between text-sm">
+                    <span class="text-base-content/60">Pending digest</span>
+                    <span class="font-mono {% if rate_limiter.pending > 0 %}text-warning{% endif %}">{{ rate_limiter.pending }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Activity (Slack only, last hour) -->
+    <div class="card bg-base-200">
+        <div class="card-body p-4">
+            <h3 class="font-semibold text-sm mb-3">API Activity (last hour)</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="stat bg-base-300 rounded-box p-3">
+                    <div class="stat-title text-xs">READ</div>
+                    <div class="stat-value text-xl text-info">{{ api_stats.reads }}</div>
+                </div>
+                <div class="stat bg-base-300 rounded-box p-3">
+                    <div class="stat-title text-xs">WRITE</div>
+                    <div class="stat-value text-xl text-warning">{{ api_stats.writes }}</div>
+                </div>
+                <div class="stat bg-base-300 rounded-box p-3">
+                    <div class="stat-title text-xs">Errors</div>
+                    <div class="stat-value text-xl {% if api_stats.errors > 0 %}text-error{% endif %}">{{ api_stats.errors }}</div>
+                </div>
+                <div class="stat bg-base-300 rounded-box p-3">
+                    <div class="stat-title text-xs">Rate-Limited</div>
+                    <div class="stat-value text-xl {% if api_stats.rate_limited > 0 %}text-error{% endif %}">{{ api_stats.rate_limited }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Row 3: Dedup State + Logs -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+    <!-- Dedup State File -->
+    <div class="card bg-base-200">
+        <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-sm">Dedup State</h3>
+                <span class="badge badge-neutral badge-sm">{{ state_file.total_entries }} entries</span>
+            </div>
+            {% if state_file.recent %}
+            <div class="overflow-x-auto max-h-48 overflow-y-auto">
+                <table class="table table-xs">
+                    <thead><tr><th>Key</th><th>Timestamp</th></tr></thead>
+                    <tbody>
+                        {% for entry in state_file.recent %}
+                        <tr>
+                            <td class="font-mono text-xs truncate max-w-[200px]">{{ entry.key }}</td>
+                            <td class="font-mono text-xs whitespace-nowrap">{{ entry.ts }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-base-content/50 text-sm">No entry in the state file</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Recent Logs -->
+    <div class="card bg-base-200">
+        <div class="card-body p-4">
+            <h3 class="font-semibold text-sm mb-2">Recent logs (slack-related)</h3>
+            {% if recent_logs %}
+            <div class="bg-base-300 rounded-lg p-3 max-h-48 overflow-y-auto">
+                <pre class="text-xs font-mono whitespace-pre-wrap break-all">{% for line in recent_logs %}{{ line }}
+{% endfor %}</pre>
+            </div>
+            {% else %}
+            <p class="text-base-content/50 text-sm">No slack-related log found</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Timestamp -->
+<div class="text-right text-xs text-base-content/40">
+    Updated: {{ collected_at }}
+</div>

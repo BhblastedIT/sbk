@@ -1,0 +1,91 @@
+<!-- Email needs-reply widget -->
+{% if emails %}
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-lg">To answer</h2>
+            <span class="badge badge-warning badge-sm">{{ total }}</span>
+        </div>
+        <p class="widget-description text-xs text-base-content/40 mb-2">Emails waiting for your reply</p>
+
+        <!-- Account filter tabs -->
+        {% if accounts_summary and accounts_summary|length > 1 %}
+        <div class="flex gap-1 mb-3 flex-wrap">
+            <button class="btn btn-xs {% if current_account == 'all' %}btn-primary{% else %}btn-ghost{% endif %}"
+                    hx-get="/partials/emails_needs_reply?account=all"
+                    hx-target="#needs-reply-container"
+                    hx-swap="innerHTML">All ({{ total }})</button>
+            {% for acc_name, acc_count in accounts_summary.items() %}
+            <button class="btn btn-xs {% if current_account == acc_name %}btn-primary{% else %}btn-ghost{% endif %}"
+                    hx-get="/partials/emails_needs_reply?account={{ acc_name }}"
+                    hx-target="#needs-reply-container"
+                    hx-swap="innerHTML">{{ acc_name }} ({{ acc_count }})</button>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="space-y-1">
+            {% for email in emails[:10] %}
+            <div class="flex items-start gap-2 py-2 border-b border-base-300/30 last:border-0
+                        {% if email.priority == 'high' %}bg-warning/5{% endif %}">
+                <!-- Priority indicator -->
+                <div class="flex-none mt-1">
+                    {% if email.priority == 'high' %}
+                        <span class="badge badge-warning badge-xs">!</span>
+                    {% else %}
+                        <span class="w-4 inline-block"></span>
+                    {% endif %}
+                </div>
+
+                <!-- Content -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 text-sm">
+                        <span class="font-medium truncate">{{ email.from_name|sanitize_nan }}</span>
+                        {% if email.has_question %}
+                            <span class="badge badge-info badge-xs" title="Contains a question">?</span>
+                        {% endif %}
+                        <span class="badge badge-ghost badge-xs font-mono">{{ email.account }}</span>
+                    </div>
+                    <div class="text-xs mt-0.5">
+                        <a href="#" class="hover:underline font-medium"
+                           hx-get="/partials/thread_viewer?source_type=email&source_id={{ email.thread_id }}"
+                           hx-target="#modal-body" hx-swap="innerHTML"
+                           onclick="document.getElementById('thread-modal').showModal()">
+                            {{ email.subject }}
+                        </a>
+                    </div>
+                    {% if email.snippet %}
+                    <div class="text-xs text-base-content/50 mt-0.5 truncate">{{ email.snippet }}</div>
+                    {% endif %}
+                </div>
+
+                <!-- Meta + Draft -->
+                <div class="flex-none text-right flex flex-col items-end gap-1">
+                    <div class="text-xs text-base-content/50">{{ email.last_message_date[:10] }}</div>
+                    <div class="text-xs text-base-content/40">{{ email.msg_count }} msg</div>
+                    <button class="btn btn-xs btn-outline btn-primary mt-0.5"
+                            onclick='smartReplyOpen({{ {"from_name": email.from_name, "from_email": email.from_email, "subject": email.subject, "snippet": email.snippet, "thread_id": email.thread_id} | tojson | e }})'>
+                        Draft
+                    </button>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% if total > 10 %}
+        <div class="text-right mt-2">
+            <a href="/smart-reply" class="link link-hover text-xs text-primary">See all ({{ total }})</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-lg">To answer</h2>
+            <span class="badge badge-success badge-sm">0</span>
+        </div>
+        <p class="text-base-content/50 text-sm">No email awaiting reply.</p>
+    </div>
+</div>
+{% endif %}

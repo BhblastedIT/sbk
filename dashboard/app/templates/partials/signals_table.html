@@ -1,0 +1,60 @@
+{% if signals %}
+<div class="text-xs text-base-content/40 mb-3">{{ total }} total signals</div>
+
+<div class="space-y-3">
+    {% for s in signals %}
+    <div class="card bg-base-100 shadow-sm border border-base-300">
+        <div class="card-body p-4">
+            <div class="flex items-start justify-between gap-2">
+                <div class="flex-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <h3 class="font-bold text-sm">{{ s.theme }}</h3>
+                        {% if s.status == 'notified' %}
+                        <span class="badge badge-info badge-xs">notified</span>
+                        {% elif s.status == 'dismissed' %}
+                        <span class="badge badge-ghost badge-xs">dismissed</span>
+                        {% else %}
+                        <span class="badge badge-warning badge-xs">new</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="flex gap-2 text-xs text-base-content/50 mb-2">
+                        <span>Score: <strong>{{ "%.2f"|format(s.combined_score) }}</strong></span>
+                        <span>{{ s.source_types|join(', ') }}</span>
+                        <span>{{ s.first_seen }} - {{ s.last_seen }}</span>
+                        <span>{{ s.fact_count }} mentions</span>
+                    </div>
+
+                    {% if s.summary %}
+                    <p class="text-sm text-base-content/80">{{ s.summary[:300]|e }}</p>
+                    {% endif %}
+
+                    {% if s.sources %}
+                    <div class="flex gap-1 mt-2 flex-wrap">
+                        {% for src in s.sources[:5] %}
+                        <span class="badge badge-outline badge-xs">{{ src.type }} ({{ src.date }})</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+
+                {% if s.status != 'dismissed' %}
+                <button class="btn btn-ghost btn-xs shrink-0"
+                        hx-put="/api/signals/{{ s.signal_id }}/dismiss"
+                        hx-target="closest .card"
+                        hx-swap="delete"
+                        title="Ignore signal">
+                    &times;
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12 text-base-content/40">
+    <p>No signals detected with the selected filters.</p>
+    <p class="text-xs mt-2">Signals are generated automatically every 30 minutes by the monitor.</p>
+</div>
+{% endif %}

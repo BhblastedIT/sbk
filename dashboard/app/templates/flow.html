@@ -1,0 +1,443 @@
+{% extends "base.html" %}
+{% block title %}Flow — SBK{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header + Filters -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Flow</h1>
+            <p class="text-sm text-base-content/60">Communication flows and momentum</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Top N selector -->
+            <div class="form-control">
+                <select id="top-n-select" class="select select-sm select-bordered">
+                    <option value="15">Top 15</option>
+                    <option value="30" selected>Top 30</option>
+                    <option value="50">Top 50</option>
+                </select>
+            </div>
+            <!-- Channel toggle -->
+            <div class="btn-group" id="channel-toggle">
+                <button class="btn btn-sm btn-active" data-channel="all">All</button>
+                <button class="btn btn-sm" data-channel="email">Email</button>
+                <button class="btn btn-sm" data-channel="meeting">Meeting</button>
+                <button class="btn btn-sm" data-channel="slack">Slack</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 1: Chord + Sankey -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Chord Diagram -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title text-base">Who talks to whom</h2>
+                <div id="chord-container" style="height:480px">
+                    <div class="flex items-center justify-center h-full text-base-content/40">
+                        <span class="loading loading-spinner loading-md"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Investor Sankey -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title text-base">Investor Funnel</h2>
+                <div id="sankey-chart" style="height:480px">
+                    <div class="flex items-center justify-center h-full text-base-content/40">
+                        <span class="loading loading-spinner loading-md"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Communication Matrix -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+            <h2 class="card-title text-base">Communication Matrix</h2>
+            <div id="matrix-chart" style="height:500px">
+                <div class="flex items-center justify-center h-full text-base-content/40">
+                    <span class="loading loading-spinner loading-md"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 3: Momentum Panel (shown on click) -->
+    <div id="momentum-panel" class="card bg-base-100 shadow-sm hidden">
+        <div class="card-body p-4">
+            <div class="flex items-center justify-between">
+                <h2 class="card-title text-base" id="momentum-title">Momentum</h2>
+                <button class="btn btn-ghost btn-sm btn-square" onclick="closeMomentum()">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div class="stat bg-base-200 rounded-lg py-2 px-4">
+                    <div class="stat-title text-xs">Momentum</div>
+                    <div class="stat-value text-lg" id="momentum-status">-</div>
+                </div>
+                <div class="stat bg-base-200 rounded-lg py-2 px-4">
+                    <div class="stat-title text-xs">Avg gap (days)</div>
+                    <div class="stat-value text-lg" id="momentum-gap">-</div>
+                </div>
+                <div class="stat bg-base-200 rounded-lg py-2 px-4">
+                    <div class="stat-title text-xs">Touchpoint (90gg)</div>
+                    <div class="stat-value text-lg" id="momentum-count">-</div>
+                </div>
+            </div>
+            <div id="momentum-trend-chart" style="height:200px;margin-top:1rem"></div>
+        </div>
+    </div>
+</div>
+
+<!-- D3.js for Chord -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<!-- ECharts for Sankey, Heatmap, Line -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+<script>
+(function() {
+    var currentChannel = 'all';
+    var currentTopN = 30;
+    var sankeyChart = null;
+    var matrixChart = null;
+    var trendChart = null;
+
+    // Person ID lookup from graph node labels
+    var chordPersonIds = [];
+
+    // --- Channel toggle ---
+    document.querySelectorAll('#channel-toggle .btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('#channel-toggle .btn').forEach(function(b) {
+                b.classList.remove('btn-active');
+            });
+            btn.classList.add('btn-active');
+            currentChannel = btn.dataset.channel;
+            loadChord();
+        });
+    });
+
+    // --- Top N selector ---
+    document.getElementById('top-n-select').addEventListener('change', function() {
+        currentTopN = parseInt(this.value);
+        loadChord();
+        loadMatrix();
+    });
+
+    // --- Chord Diagram (D3.js) ---
+    function loadChord() {
+        fetch('/api/flow/chord?top_n=' + currentTopN + '&channel=' + currentChannel)
+            .then(function(r) { return r.json(); })
+            .then(function(data) { renderChord(data); })
+            .catch(function() {
+                document.getElementById('chord-container').innerHTML =
+                    '<div class="text-center text-error text-sm py-8">Error loading data</div>';
+            });
+    }
+
+    function renderChord(data) {
+        var container = document.getElementById('chord-container');
+        var labels = data.labels || [];
+        var matrix = data.matrix || [];
+
+        if (labels.length === 0) {
+            container.innerHTML = '<div class="text-center text-base-content/40 text-sm py-8">No data available</div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        chordPersonIds = labels;
+
+        var width = container.clientWidth;
+        var height = 480;
+        var innerRadius = Math.min(width, height) * 0.35;
+        var outerRadius = innerRadius + 14;
+
+        var svg = d3.select(container)
+            .append('svg')
+            .attr('width', width)
+            .attr('height', height)
+            .append('g')
+            .attr('transform', 'translate(' + width/2 + ',' + height/2 + ')');
+
+        var color = d3.scaleOrdinal(d3.schemeTableau10);
+
+        var chord = d3.chord()
+            .padAngle(0.04)
+            .sortSubgroups(d3.descending);
+
+        var chords = chord(matrix);
+
+        var arc = d3.arc().innerRadius(innerRadius).outerRadius(outerRadius);
+        var ribbon = d3.ribbon().radius(innerRadius);
+
+        // Groups (arcs)
+        var group = svg.selectAll('.group')
+            .data(chords.groups)
+            .enter().append('g')
+            .attr('class', 'group')
+            .style('cursor', 'pointer')
+            .on('click', function(event, d) {
+                showMomentumForLabel(labels[d.index]);
+            });
+
+        group.append('path')
+            .attr('d', arc)
+            .attr('fill', function(d) { return color(d.index); })
+            .attr('stroke', 'rgba(0,0,0,0.3)');
+
+        // Labels (only show if enough space)
+        group.append('text')
+            .each(function(d) { d.angle = (d.startAngle + d.endAngle) / 2; })
+            .attr('dy', '0.35em')
+            .attr('transform', function(d) {
+                return 'rotate(' + (d.angle * 180 / Math.PI - 90) + ') ' +
+                       'translate(' + (outerRadius + 8) + ')' +
+                       (d.angle > Math.PI ? ' rotate(180)' : '');
+            })
+            .attr('text-anchor', function(d) { return d.angle > Math.PI ? 'end' : null; })
+            .text(function(d) {
+                var name = labels[d.index] || '';
+                return name.length > 15 ? name.slice(0, 13) + '..' : name;
+            })
+            .attr('font-size', '9px')
+            .attr('fill', 'oklch(var(--bc)/0.7)');
+
+        // Ribbons
+        svg.selectAll('.ribbon')
+            .data(chords)
+            .enter().append('path')
+            .attr('class', 'ribbon')
+            .attr('d', ribbon)
+            .attr('fill', function(d) { return color(d.source.index); })
+            .attr('fill-opacity', 0.5)
+            .attr('stroke', 'none')
+            .on('mouseover', function() { d3.select(this).attr('fill-opacity', 0.8); })
+            .on('mouseout', function() { d3.select(this).attr('fill-opacity', 0.5); })
+            .append('title')
+            .text(function(d) {
+                return labels[d.source.index] + ' <> ' + labels[d.target.index] + ': ' + d.source.value;
+            });
+    }
+
+    // --- Investor Sankey (ECharts) ---
+    function loadSankey() {
+        fetch('/api/flow/sankey')
+            .then(function(r) { return r.json(); })
+            .then(function(data) { renderSankey(data); })
+            .catch(function() {});
+    }
+
+    function renderSankey(data) {
+        var el = document.getElementById('sankey-chart');
+        if (!sankeyChart) {
+            sankeyChart = echarts.init(el, 'dark');
+            window.addEventListener('resize', function() { sankeyChart.resize(); });
+        }
+
+        var nodes = (data.nodes || []).map(function(n) {
+            return { name: n.label + ' (' + n.count + ')' };
+        });
+        var links = (data.links || []).map(function(l) {
+            // Map source/target IDs to labels
+            var srcNode = data.nodes.find(function(n) { return n.id === l.source; });
+            var tgtNode = data.nodes.find(function(n) { return n.id === l.target; });
+            return {
+                source: srcNode ? srcNode.label + ' (' + srcNode.count + ')' : l.source,
+                target: tgtNode ? tgtNode.label + ' (' + tgtNode.count + ')' : l.target,
+                value: l.value
+            };
+        });
+
+        if (nodes.length === 0) {
+            el.innerHTML = '<div class="text-center text-base-content/40 text-sm py-8">No investor data</div>';
+            return;
+        }
+
+        sankeyChart.setOption({
+            tooltip: { trigger: 'item', triggerOn: 'mousemove' },
+            series: [{
+                type: 'sankey',
+                layout: 'none',
+                emphasis: { focus: 'adjacency' },
+                data: nodes,
+                links: links,
+                lineStyle: { color: 'gradient', curveness: 0.5 },
+                itemStyle: { borderWidth: 1, borderColor: '#333' },
+                label: { color: 'oklch(var(--bc)/0.8)', fontSize: 11 }
+            }]
+        });
+    }
+
+    // --- Communication Matrix (ECharts heatmap) ---
+    function loadMatrix() {
+        fetch('/api/flow/matrix?top_n=' + currentTopN)
+            .then(function(r) { return r.json(); })
+            .then(function(data) { renderMatrix(data); })
+            .catch(function() {});
+    }
+
+    function renderMatrix(data) {
+        var el = document.getElementById('matrix-chart');
+        if (!matrixChart) {
+            matrixChart = echarts.init(el, 'dark');
+            window.addEventListener('resize', function() { matrixChart.resize(); });
+        }
+
+        var labels = data.labels || [];
+        var matrixData = data.data || [];
+        var maxVal = data.max_value || 1;
+
+        if (labels.length === 0) {
+            el.innerHTML = '<div class="text-center text-base-content/40 text-sm py-8">No data available</div>';
+            return;
+        }
+
+        // Truncate labels for display
+        var shortLabels = labels.map(function(l) {
+            return l.length > 12 ? l.slice(0, 10) + '..' : l;
+        });
+
+        // Convert to ECharts heatmap format [x, y, value]
+        var edata = [];
+        for (var i = 0; i < matrixData.length; i++) {
+            for (var j = 0; j < matrixData[i].length; j++) {
+                if (matrixData[i][j] > 0) {
+                    edata.push([j, i, matrixData[i][j]]);
+                }
+            }
+        }
+
+        matrixChart.setOption({
+            tooltip: {
+                position: 'top',
+                formatter: function(p) {
+                    return labels[p.value[1]] + ' <> ' + labels[p.value[0]] + ': ' + p.value[2];
+                }
+            },
+            grid: { left: 120, right: 20, top: 20, bottom: 100 },
+            xAxis: {
+                type: 'category',
+                data: shortLabels,
+                splitArea: { show: true },
+                axisLabel: { rotate: 45, fontSize: 9, interval: 0 }
+            },
+            yAxis: {
+                type: 'category',
+                data: shortLabels,
+                splitArea: { show: true },
+                axisLabel: { fontSize: 9, interval: 0 }
+            },
+            visualMap: {
+                min: 0, max: maxVal, calculable: false, show: true,
+                orient: 'horizontal', left: 'center', bottom: 0,
+                inRange: { color: ['#1a1a2e', '#3b82f622', '#3b82f655', '#3b82f699', '#3b82f6'] }
+            },
+            series: [{
+                type: 'heatmap',
+                data: edata,
+                itemStyle: { borderRadius: 1 },
+                emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } }
+            }]
+        });
+
+        // Click to show momentum
+        matrixChart.on('click', function(params) {
+            if (params.value && params.value.length >= 2) {
+                var idx = params.value[1]; // y-axis index
+                showMomentumForLabel(labels[idx]);
+            }
+        });
+    }
+
+    // --- Momentum Panel ---
+    function showMomentumForLabel(label) {
+        // Search for person by name via contacts API
+        if (!label) return;
+        fetch('/api/contacts/search?q=' + encodeURIComponent(label) + '&limit=1')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var results = data.results || data || [];
+                if (results.length > 0) {
+                    var pid = results[0].person_id || results[0].id;
+                    if (pid) loadMomentum(pid, label);
+                }
+            })
+            .catch(function() {});
+    }
+
+    function loadMomentum(personId, label) {
+        fetch('/api/flow/momentum/' + encodeURIComponent(personId))
+            .then(function(r) { return r.json(); })
+            .then(function(data) { renderMomentum(data, label); })
+            .catch(function() {});
+    }
+
+    function renderMomentum(data, label) {
+        var panel = document.getElementById('momentum-panel');
+        panel.classList.remove('hidden');
+
+        var person = data.person || {};
+        document.getElementById('momentum-title').textContent = 'Momentum: ' + (person.name || label || '');
+
+        var mom = data.momentum || 'stable';
+        var momEl = document.getElementById('momentum-status');
+        momEl.textContent = mom === 'warming' ? 'Warming' : (mom === 'cooling' ? 'Cooling' : 'Stabile');
+        momEl.className = 'stat-value text-lg ' +
+            (mom === 'warming' ? 'text-success' : (mom === 'cooling' ? 'text-error' : 'text-warning'));
+
+        document.getElementById('momentum-gap').textContent = data.avg_gap_days || '-';
+        document.getElementById('momentum-count').textContent = (data.touchpoints || []).length;
+
+        // Trend chart
+        var trend = data.trend_30d || [];
+        if (trend.length > 0) {
+            var el = document.getElementById('momentum-trend-chart');
+            if (!trendChart) {
+                trendChart = echarts.init(el, 'dark');
+                window.addEventListener('resize', function() { trendChart.resize(); });
+            }
+
+            var weekLabels = trend.map(function(_, i) { return 'W-' + (trend.length - 1 - i); });
+
+            trendChart.setOption({
+                grid: { left: 40, right: 20, top: 10, bottom: 30 },
+                xAxis: { type: 'category', data: weekLabels, axisLabel: { fontSize: 10 } },
+                yAxis: { type: 'value', minInterval: 1 },
+                series: [{
+                    type: 'line',
+                    data: trend,
+                    smooth: true,
+                    areaStyle: { opacity: 0.3 },
+                    lineStyle: { width: 2 },
+                    itemStyle: {
+                        color: mom === 'warming' ? '#22c55e' : (mom === 'cooling' ? '#ef4444' : '#f59e0b')
+                    }
+                }]
+            }, true);
+        }
+
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function closeMomentum() {
+        document.getElementById('momentum-panel').classList.add('hidden');
+    }
+    window.closeMomentum = closeMomentum;
+
+    // --- Init ---
+    loadChord();
+    loadSankey();
+    loadMatrix();
+})();
+</script>
+{% endblock %}

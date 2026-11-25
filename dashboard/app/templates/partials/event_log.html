@@ -1,0 +1,43 @@
+<!-- Event Log table (pg-table style, HTMX auto-refresh) -->
+{% if events %}
+<div class="pg-scroll" style="max-height:60vh">
+<table class="pg-table">
+    <thead>
+        <tr>
+            <th style="width:32px"></th>
+            <th style="width:56px">Ora</th>
+            <th>Source</th>
+            <th>Details</th>
+            <th class="pg-r">Status</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for ev in events %}
+    <tr class="pg-data">
+        <td class="pg-c">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;
+                {% if ev.processed_status == 'completed' %}background:oklch(var(--su))
+                {% elif ev.processed_status == 'failed' %}background:oklch(var(--er))
+                {% elif ev.processed %}background:oklch(var(--bc)/0.2)
+                {% else %}background:oklch(var(--wa)){% endif %}"></span>
+        </td>
+        <td class="pg-date">{{ ev.ts[11:16] if ev.ts|length > 16 else ev.ts[:5] }}</td>
+        <td class="pg-mono pg-sm">{{ ev.source }}/{{ ev.stage }}</td>
+        <td class="pg-trunc" style="max-width:300px" title="{{ ev.account or '' }} {{ ev.rows or '' }} {{ ev.trigger or '' }}">
+            {% if ev.account %}{{ ev.account }}{% endif %}
+            {% if ev.rows %} ({{ ev.rows }} rows){% endif %}
+            {% if ev.trigger %} [{{ ev.trigger }}]{% endif %}
+        </td>
+        <td class="pg-r pg-dim">
+            {% if ev.processed_status %}{{ ev.processed_status }}
+            {% elif not ev.processed %}<span style="color:oklch(var(--wa))">pending</span>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="pg-dim" style="padding:16px;font-size:13px">No recent events.</p>
+{% endif %}

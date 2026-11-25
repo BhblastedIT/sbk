@@ -1,0 +1,280 @@
+{
+  "_help": "Copy this file to sbk.config.json (repo root or ~/.sbk-data/) and put YOUR data in it. It tells SBK who you are and how your sources are set up. Secrets do NOT go here: they live in .env or the Keychain. Empty values keep the built-in behaviour. Guide: docs/CONNECTING.md. Keys starting with _help are notes and are ignored.",
+
+  "owner": "Alex Demo",
+  "_help_owner": "Your full name, so SBK recognises you and leaves you out of your own contact lists. It is the only source of who you are: without it (and own_emails) SBK logs a warning and no stage can tell your messages, voice or meetings from other people's. AI prompts and the dashboard use this name, and your first name alone is accepted as a speaker label in transcripts. The clinical scripts use it, lower case, as the default --subject.",
+
+  "email_accounts": ["work", "personal"],
+  "_help_email_accounts": "One label per mailbox; the same labels as the keys of ~/.sbk-data/emails/accounts.json.",
+
+  "own_emails": [
+    "alex@personal.example",
+    "alex@yourcompany.example"
+  ],
+  "_help_own_emails": "Every address and alias that is you, lower or upper case. Mail, calendar, documents and meetings from these addresses count as yours.",
+
+  "own_names": ["alex demo"],
+  "_help_own_names": "How your name is written in messages and transcripts, lower case: nicknames, initials, other spellings (e.g. [\"alex demo\", \"alexd\", \"ad\"]). Your owner name is always included.",
+
+  "own_person_id": "",
+  "_help_own_person_id": "Your own id in the knowledge base (p_... in <data root>/knowledge/entities/person/), once the pipeline has built it. Empty = SBK finds you by name and email; set it to pin your own node in the relationship graph and scores.",
+
+  "nickname_aliases": {},
+  "_help_nickname_aliases": "{\"<nickname or handle>\": \"<full name>\"}, lower case, for people you call by a short name in messages, transcripts and Slack group-DM names, e.g. {\"sammy\": \"sam demo\", \"samd\": \"sam demo\"}. Name matching, the shadow-contact filter and the dashboard's Shadows page use them; aliases you add on that page are kept in shadow-filters.json. Built in are only generic rules that name nobody (bob -> robert, bill -> william, beppe -> giuseppe...), so \"bob smith\" can match a known \"robert smith\". Empty = no personal aliases.",
+
+  "enabled_sources": [],
+  "_help_enabled_sources": "The plugins you connected, e.g. [\"whatsapp\", \"email\", \"slack\"]. The pipeline (xs-pipeline-run.py --ingest) runs the L1 step only for these. Empty = every source that has data. Plugins that write the generic intake are filtered by their folder name under the data root (e.g. \"github\", \"zoom\", \"databases\"); listing \"microsoft365\" or \"imap-caldav\" also keeps the email and calendar steps that read their files.",
+
+  "slack": {
+    "_help": "Nothing is needed to connect: SBK reads the workspace your personal Slack app is installed in (the token's own workspace). These fields only leave things out or fix names.",
+    "exclude_channel_patterns": [],
+    "_help_exclude_channel_patterns": "Regular expressions on channel names that SBK must never download, e.g. [\"^client-\", \"-private$\"]. Run sl-l0-channel-index.py again after changing them.",
+    "exclude_channel_ids": [],
+    "_help_exclude_channel_ids": "Conversation ids never downloaded (channels C..., private channels, DMs D..., group DMs), e.g. [\"C0123456789\"].",
+    "user_names": {},
+    "_help_user_names": "{\"<user_id>\": \"<name>\"} for people Slack no longer resolves (deactivated accounts, guests from other organisations), e.g. {\"U0123456789\": \"Sam Demo\"}.",
+    "own_user_id": "",
+    "_help_own_user_id": "Optional. Your own Slack user id (U...), used to spot mentions of you and as the DM target of alerts. Empty = SBK asks Slack (auth.test on your user token)."
+  },
+
+  "attio": {
+    "_help": "The primary workspace reads ATTIO_API_KEY from .env and needs nothing here.",
+    "extra_workspaces": {},
+    "_help_extra_workspaces": "{\"<label>\": \"<name>\"} for more Attio workspaces; each one's key goes in the Keychain as sbk-attio/<label>, its data in <data root>/attio-<label>/."
+  },
+
+  "clickup": {
+    "teams": {},
+    "_help_teams": "{\"<workspace id>\": \"<name>\"}. Empty = every workspace your CLICKUP_API_KEY can see. The first is stored in clickup/backup/, the others in clickup/backup-<id>/."
+  },
+
+  "plaud": {
+    "api_base": "",
+    "_help_api_base": "API host of your Plaud account region. Empty = https://api-euc1.plaud.ai (EU). Env SBK_PLAUD_API_BASE wins."
+  },
+
+  "voice_memos": {
+    "language": "auto",
+    "_help_language": "Transcription language for whisper.cpp: \"auto\" to detect it, or a code like \"en\", \"it\", \"de\". Env SBK_VOICE_MEMOS_LANGUAGE wins.",
+    "people": [],
+    "_help_people": "Names to tag as people mentioned in your memos (vm-l1-enrich.py), whole words, any case, e.g. [\"Sam Demo\"]. Empty = no person tags.",
+    "companies": [],
+    "_help_companies": "Company names to tag in your memos, e.g. [\"Acme\"]. Empty = no company tags."
+  },
+
+  "gdrive": {
+    "large_shared_drives": [],
+    "_help_large_shared_drives": "Exact names of your shared drives whose files are heavier, e.g. [\"Design assets\"]. Their files may be up to the larger size of the pipeline settings (gd-l0-download.py --max-size-mb-large); the other drives keep the normal limit. Empty = one limit for every drive."
+  },
+
+  "organisations": {
+    "_help": "Your own companies and brands: the organisations you run or work for. SBK treats their people as your team, their domains as internal, and never reads their names as a person. Empty = nothing is treated as internal.",
+    "names": [],
+    "_help_names": "Their names as you write them, e.g. [\"Acme\", \"Acme Labs\"].",
+    "domains": [],
+    "_help_domains": "Their e-mail domains, e.g. [\"acme.example\"], or per organisation, e.g. {\"Acme\": [\"acme.example\", \"acme.co.example\"]}; the second form also feeds the dashboard's company pulse.",
+    "aliases": {},
+    "_help_aliases": "{\"<other spelling or abbreviation>\": \"<name>\"}, e.g. {\"Acme S.r.l.\": \"Acme\", \"acm\": \"Acme\"}. Used to merge spellings in the graph and the organisation profiles, and to expand one-word abbreviations in dashboard searches.",
+    "domain_aliases": {},
+    "_help_domain_aliases": "{\"<other domain>\": \"<domain>\"} for the same organisation under two domains, e.g. {\"acme.co.example\": \"acme.example\"}."
+  },
+
+  "calendar": {
+    "account": "",
+    "_help_account": "Label (as in emails/accounts.json) of the Google account whose calendars the monitor watches for pre-meeting briefs. Empty = the first mailbox in emails/accounts.json, then the first of email_accounts. It signs in through the calendar plugin: tools/calendar/ca-l0-download.py --account <label>.",
+    "exclude_addresses": [],
+    "_help_exclude_addresses": "Shared team or list addresses that are never a contact in your calendar, e.g. [\"team@yourcompany.example\"]."
+  },
+
+  "network_profiles": {
+    "_help": "People that tools/cross-source/xs-l2-network-profiles.py writes a profile for (sbk/network/<tier>/<id>.md). Empty = nothing is profiled. Copy the entry of _example_people into people and change it. Only name is needed; tier is tier_1, tier_2 or tier_3 (default tier_3); search_names and known_emails find the person in your data; the other fields are your own notes.",
+    "people": {},
+    "_example_people": {
+      "sam-demo": {
+        "name": "Sam Demo",
+        "tier": "tier_1",
+        "search_names": ["Sam Demo", "Sam"],
+        "known_emails": ["sam@yourcompany.example"],
+        "trust": "4/5",
+        "reliability": "4/5",
+        "strategic_value": "7/10",
+        "emotional_closeness": "5/10",
+        "momentum": "STABLE",
+        "role": "Operations lead",
+        "base": "Remote",
+        "relationship": "Close collaborator, joins the weekly sync",
+        "what_does": ["Coordinates day-to-day operations"],
+        "open_loops": ["Finalize the quarterly plan"],
+        "style": ["Analytical, numbers-first"],
+        "energy": "NEUTRAL",
+        "reciprocity": "Structured working relationship"
+      }
+    }
+  },
+
+  "chatgpt": {
+    "_help": "Only if you import a ChatGPT export. Names tagged in your conversations by chatgpt/cg-l1-enrich.py, whole words, any case; your organisations above are always tagged. Empty = only those.",
+    "people": [],
+    "_help_people": "e.g. [\"Sam Demo\"].",
+    "companies": [],
+    "_help_companies": "e.g. [\"Client Demo\"]."
+  },
+
+  "notion": {
+    "exclude_context_terms": [],
+    "_help_exclude_context_terms": "Text that marks your Notion template pages, e.g. a placeholder domain [\"template.example\"]. People and companies found only next to it are dropped. Empty = nothing dropped."
+  },
+
+  "inspiration": {
+    "projects": [],
+    "_help_projects": "Projects the Inspiration triage can tag a saved idea with, e.g. [\"Acme\", \"Side project\"]. Empty = your organisations' names. SBK, personal and other are always there.",
+    "clickup_lists": {},
+    "_help_clickup_lists": "Optional. Where the triage creates a ClickUp task, by list id: {\"main\": \"<list id of your backlog>\", \"groups\": {\"deal\": \"<id>\", \"fondi\": \"<id>\"}, \"projects\": {\"<Project>\": {\"*\": \"<id>\", \"marketing\": \"<id>\", \"roadmap\": \"<id>\"}}}. Activity keys are the codes the triage writes (marketing, vendite, prodotto...); \"*\" is the project's default list. Empty = no list, and the triage tells you the list is missing instead of creating a task."
+  },
+
+  "pipeline_status": {
+    "spreadsheet_id": "",
+    "_help_spreadsheet_id": "Optional. Id of a Google Sheet of yours (the part of its URL between /d/ and /edit) that tools/cross-source/xs-util-pipeline-status.py --push writes the status table to. Empty = the table stays in <data root>/pipeline-status.json."
+  },
+
+  "whatsapp": {
+    "_help": "Your own messages are recognised by \"owner\" and \"own_names\" above: put in own_names your name exactly as your chat exports show it, lower case. All three fields below are optional.",
+    "name_overrides": {},
+    "_help_name_overrides": "{\"<name as the export writes it>\": \"<real name>\"}, e.g. {\"Mom\": \"Maria Rossi\"}. Empty = names as exported.",
+    "group_name_exclusions": [],
+    "_help_group_name_exclusions": "Group names that appear as a sender in your exports and must never become a contact, e.g. [\"Book Club\"].",
+    "company_keywords": [],
+    "_help_company_keywords": "Company names to count in the per-chat analysis of wa-l0l3-full.py, e.g. [\"acme\"]. Empty = none."
+  },
+
+  "drafts": {
+    "_help": "The draft writer (tools/cross-source/xs-l3-draft.py) puts each recipient in one segment (investors, clients, partners, team, family, other) and follows that section of sbk/identity/communication-playbook.md. Both fields are optional.",
+    "family_names": [],
+    "_help_family_names": "Full names of family and close friends, lower case, as SBK knows them, e.g. [\"sam demo\"]. They get the \"Family / friends\" section.",
+    "client_domains": [],
+    "_help_client_domains": "E-mail domains of your clients, e.g. [\"client.example\"]. They get the \"Clients\" section; a CRM stage with \"client\" or \"customer\" in it counts too."
+  },
+
+  "microsoft365": {
+    "_help": "Your own Outlook mail, calendar and contacts through Microsoft Graph, written into the kernel's mail, calendar and address-book slots. Sign in once per mailbox with tools/microsoft365/ms-l0-auth.py --account <label>; the sign-in lives in the Keychain (sbk-microsoft365/<label>). Nothing secret goes here. Guide: docs/CONNECTING.md#microsoft365.",
+    "client_id": "",
+    "_help_client_id": "Application (client) ID of your own app registration (public client, no secret). Not a secret; env SBK_MS365_CLIENT_ID wins if both are set.",
+    "tenant": "common",
+    "_help_tenant": "Where you sign in: common (personal and work accounts, app registered for both), consumers (personal Microsoft accounts only), organizations (work or school only), or your tenant id for an app registered as single tenant. Env SBK_MS365_TENANT wins; ms-l0-auth.py --tenant overrides it for one sign-in, and the value used is stored with that sign-in.",
+    "accounts": [],
+    "_help_accounts": "Labels of the mailboxes you signed in, for ms-l0-download.py --all (the scheduled refresh uses --all), e.g. [\"outlook\", \"work365\"]. Each label becomes the folder name under emails/ and calendars/, so it must not be one of your Gmail labels in emails/accounts.json.",
+    "default_account": "outlook",
+    "_help_default_account": "Label used when ms-l0-download.py runs without --account or --all.",
+    "timezone": "",
+    "_help_timezone": "IANA zone (e.g. Europe/Rome) used to write event times and to read all-day dates. Empty = SBK_DISPLAY_TZ (UTC if that is unset).",
+    "mail_history_days": 365,
+    "_help_mail_history_days": "First download of each mail folder (or --full): read messages received in the last N days. Later runs read only the changes.",
+    "mail_headers": true,
+    "_help_mail_headers": "true = also ask for the Internet headers (In-Reply-To, List-Unsubscribe, List-Id, Precedence, Auto-Submitted), which the kernel uses to spot bulk mail. If the mailbox refuses them, the plugin goes on without and remembers it.",
+    "calendar_history_days": 365,
+    "_help_calendar_history_days": "First calendar download: how many days back.",
+    "calendar_future_days": 90,
+    "_help_calendar_future_days": "How many days ahead every calendar download reads.",
+    "calendar_overlap_days": 14,
+    "_help_calendar_overlap_days": "Later calendar downloads start this many days before the previous run, so moved or cancelled meetings are picked up.",
+    "page_size": 50,
+    "_help_page_size": "Items per Graph page for mail delta and calendar views. Lower it if Graph answers with gateway timeouts on large messages."
+  },
+
+  "imap_caldav": {
+    "_help": "Your own mailboxes over IMAP and calendars over CalDAV or a calendar link (ICS). One entry per account in \"accounts\"; the label becomes the folder name under emails/ and calendars/. Passwords, links and tokens never go here: store them with tools/imap-caldav/ic-l0-auth.py (Keychain) or in .env. Guide: docs/CONNECTING.md#imap-caldav.",
+    "accounts": {},
+    "_help_accounts": "{\"<label>\": {...}}, label = lower case letters, digits, _ ; it must not be a Gmail label already in emails/accounts.json. Per account: preset (icloud | fastmail | yahoo | outlook, or leave it out and set imap_host / imap_port / caldav_url), email (your address; also counts as you in the calendar), username (only if the login differs from email; the icloud preset uses the part before @), mail (true/false), folders (auto = Inbox + Sent, all = every folder except Trash, Junk, Drafts, All Mail, Flagged, or a list of folder names), mail_since (YYYY-MM-DD, first run only), max_message_mb (default 10), calendar (none | caldav | ics), caldav_url (empty = the preset's server), caldav_username, calendar_include / calendar_exclude (calendar names), auth (password, or xoauth2 which the outlook preset sets), oauth_client_id (Outlook.com only: the Application (client) ID of your own app registration). Copy the entries of _example_accounts into accounts and change them.",
+    "_example_accounts": {
+      "demo_fastmail": { "preset": "fastmail", "email": "demo@fastmail.example", "folders": "auto", "calendar": "caldav" },
+      "demo_icloud": { "preset": "icloud", "email": "demo@icloud.example", "calendar": "ics" },
+      "demo_outlook": { "preset": "outlook", "email": "demo@outlook.example", "oauth_client_id": "00000000-0000-0000-0000-000000000000", "calendar": "ics" }
+    },
+    "calendar_past_days": 730,
+    "_help_calendar_past_days": "Recurring events are expanded from this many days back (single events are always kept).",
+    "calendar_future_days": 365,
+    "_help_calendar_future_days": "...and up to this many days ahead."
+  },
+
+  "zoom": {
+    "_help": "Your own Zoom meetings, participants and cloud-recording transcripts. The login lives in the Keychain (sbk-zoom/default) after tools/zoom/zm-l0-auth.py; nothing secret goes here. Guide: docs/CONNECTING.md#zoom.",
+    "client_id": "",
+    "_help_client_id": "Public client ID of your own user-managed Zoom app (App Credentials, 'Use Public Client OAuth' on). Not a secret; env ZOOM_CLIENT_ID wins if both are set.",
+    "history_days": 90,
+    "_help_history_days": "First download only: how many days back to read. Later runs continue from the last completed day.",
+    "overlap_days": 7,
+    "_help_overlap_days": "Each later run re-reads this many days before the last completed day, because Zoom finishes transcripts and participant data after the meeting ends.",
+    "include_unrecorded": false,
+    "_help_include_unrecorded": "true = also read past scheduled meetings that have no cloud recording (participants only, no transcript). Needs the optional scope meeting:read:list_meetings; Zoom returns at most 6 months of them and never instant meetings."
+  },
+
+  "github": {
+    "_help": "Your own GitHub account, read with your personal access token (Keychain sbk-github/token or GITHUB_TOKEN in .env). Every field is optional. Guide: docs/CONNECTING.md#github.",
+    "since_days": 365,
+    "_help_since_days": "First download only: how many days back to search issues and pull requests (by last update). Later runs continue from the last run minus one day. --full ignores both.",
+    "trees": false,
+    "_help_trees": "true = gh-l0-download.py also reads the top-level folders and README of each repository (needs Contents: Read-only on a fine-grained token). gh-l0-inventory.py reads them unless --no-trees.",
+    "collaborator_affiliation": "direct",
+    "_help_collaborator_affiliation": "GitHub's 'affiliation' filter for the collaborators of your repositories: direct (default), all (everyone you can see, on organization repositories also members with access through teams or base permissions), outside (outside collaborators only).",
+    "skip_owners": [],
+    "_help_skip_owners": "Account or organization logins whose repositories are left out, e.g. [\"acme-demo\"].",
+    "max_profiles_per_run": 300,
+    "_help_max_profiles_per_run": "At most this many public profiles (name, public email, company) are read per run; the rest wait for the next run. Profiles are cached for 30 days.",
+    "max_reviews_per_run": 500,
+    "_help_max_reviews_per_run": "At most this many pull requests per run get their review list re-read (only those changed since the last read)."
+  },
+
+  "databases": {
+    "_help": "Your own databases, read-only, mapped to the generic intake (people and events). The connection string is NEVER written here (url, dsn, password and the like are refused): Keychain sbk-databases/<connection name>, or env SBK_DB_URL_<NAME>, or another env name given with \"env\". A SQLite file may be given as \"path\". PostgreSQL and MySQL need a driver you add yourself: uv add 'psycopg[binary]>=3.2' or uv add 'pymysql>=1.1', or \"driver\": \"duckdb\". Copy _example_connections and _example_sources into connections and sources and change them. Guide: docs/CONNECTING.md#databases.",
+    "connections": {},
+    "_help_connections": "{\"<name>\": {\"engine\": \"sqlite\" | \"postgres\" | \"mysql\", \"driver\": optional (postgres: psycopg | duckdb; mysql: pymysql | duckdb), \"path\": SQLite only, \"env\": optional env variable name}}. Name = lower case letters, digits, - or _.",
+    "sources": [],
+    "_help_sources": "One entry per query: id (lower case, used for the file name), connection, intake (contacts | interactions), query (one SELECT or WITH), columns (intake field -> result column; a list of columns is joined, with a space for names and ||| for participants). Contacts fields: name, email, phone, company, title, first_seen, last_seen, interactions, url (at least one of name, email, phone). Interactions fields: ts and title (required), text, participants, owner_role, due, url, kind, status. Optional: key (unique column(s)), cursor (a column that only grows, for incremental runs; needs key), url_template ({column} placeholders), kind / owner_role / status (fixed values for interactions), timezone for dates without one (default UTC), max_rows.",
+    "max_rows_per_source": 200000,
+    "_help_max_rows_per_source": "Default for max_rows: at most this many rows per source per run.",
+    "_example_connections": {
+      "crm": { "engine": "sqlite", "path": "~/Documents/demo-crm.sqlite" },
+      "shop": { "engine": "postgres" },
+      "legacy": { "engine": "mysql", "driver": "duckdb", "env": "LEGACY_DB_URL" }
+    },
+    "_example_sources": [
+      {
+        "id": "crm-people",
+        "connection": "crm",
+        "intake": "contacts",
+        "query": "SELECT p.id, p.first_name, p.last_name, p.email, p.phone, c.name AS company, p.role, p.created_at, p.updated_at FROM people p LEFT JOIN companies c ON c.id = p.company_id",
+        "columns": {
+          "name": ["first_name", "last_name"],
+          "email": "email",
+          "phone": "phone",
+          "company": "company",
+          "title": "role",
+          "first_seen": "created_at",
+          "last_seen": "updated_at"
+        },
+        "key": "id",
+        "cursor": "updated_at",
+        "url_template": "https://crm.example/people/{id}"
+      },
+      {
+        "id": "crm-notes",
+        "connection": "crm",
+        "intake": "interactions",
+        "query": "SELECT id, person_email, subject, body, created_at, due_at, CASE WHEN done = 1 THEN 'done' ELSE 'open' END AS status FROM notes",
+        "columns": {
+          "ts": "created_at",
+          "title": "subject",
+          "text": "body",
+          "participants": "person_email",
+          "due": "due_at",
+          "status": "status"
+        },
+        "kind": "record",
+        "owner_role": "author",
+        "key": "id"
+      }
+    ]
+  },
+
+  "_help_data_root": "To move the data folder (and the key files kept in its secrets/ folder) use the SBK_DATA_ROOT environment variable (default ~/.sbk-data)."
+}

@@ -1,0 +1,637 @@
+{% if error %}
+<div class="alert alert-warning shadow-sm">
+    <span>{{ error }}</span>
+</div>
+{% elif person %}
+<div class="card bg-base-100 shadow-lg">
+    <div class="card-body">
+        <!-- Header -->
+        <div class="flex items-start gap-4 mb-4">
+            <div class="avatar placeholder">
+                <div class="bg-primary text-primary-content rounded-full w-14">
+                    <span class="text-xl">{{ person.name[:2]|upper if person.name else "?" }}</span>
+                </div>
+            </div>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                    <h2 class="card-title text-xl">{{ person.name or "Unknown" }}</h2>
+                    {% if person.identity_incomplete %}
+                    <span class="badge badge-warning badge-sm">Incomplete identity</span>
+                    {% endif %}
+                </div>
+                <div class="text-sm text-base-content/60">
+                    {% if person.organization and person.organization != "nan" %}{{ person.organization }}{% endif %}
+                    {% if person.job_title and person.job_title != "nan" %}
+                        {% if person.organization and person.organization != "nan" %} &middot; {% endif %}{{ person.job_title }}
+                    {% endif %}
+                </div>
+                <div class="text-xs text-base-content/40 mt-0.5">
+                    {{ person.email }}
+                    {% if person.email_aliases %}
+                    <span class="text-base-content/30 ml-1">
+                        (alias: {% for a in person.email_aliases %}{{ a }}{% if not loop.last %}, {% endif %}{% endfor %})
+                    </span>
+                    {% endif %}
+                </div>
+                {% if person.linkedin_url %}
+                <a href="{{ person.linkedin_url }}" target="_blank" class="link link-primary text-xs">LinkedIn</a>
+                {% endif %}
+            </div>
+            <div class="text-right shrink-0">
+                {% if person.score %}
+                <div class="badge badge-lg badge-primary">Score: {{ "%.1f"|format(person.score) }}</div>
+                {% endif %}
+                {% if person.source_count %}
+                <div class="badge badge-ghost badge-sm mt-1">{{ person.source_count }} sources</div>
+                {% endif %}
+                {% if person.first_contact %}
+                <div class="text-xs text-base-content/40 mt-1">Dal {{ person.first_contact }}</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Source Badges -->
+        {% if person.source_flags %}
+        <div class="flex flex-wrap gap-1.5 mb-4">
+            {% for sf in person.source_flags %}
+            <span class="badge badge-sm {% if sf.active %}badge-primary{% else %}badge-ghost opacity-30{% endif %}">
+                {{ sf.label }}
+            </span>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Investor Momentum (F5) -->
+        {% if momentum %}
+        <div class="bg-base-200/50 rounded-lg p-3 mb-4">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="font-semibold text-sm">Investor Momentum</h3>
+                <div class="flex items-center gap-1.5">
+                    <span class="font-mono text-lg font-bold
+                        {% if momentum.score >= 70 %}text-success
+                        {% elif momentum.score >= 40 %}text-warning
+                        {% else %}text-error{% endif %}">
+                        {{ momentum.score }}
+                    </span>
+                    {% if momentum.trend == 'increasing' %}
+                        <svg class="w-4 h-4 text-success" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"/></svg>
+                    {% elif momentum.trend == 'decreasing' %}
+                        <svg class="w-4 h-4 text-error" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z"/></svg>
+                    {% elif momentum.trend == 'stable' %}
+                        <svg class="w-4 h-4 text-base-content/40" fill="currentColor" viewBox="0 0 20 20"><path d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/></svg>
+                    {% endif %}
+                </div>
+            </div>
+            {% if momentum.factors %}
+            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <div class="flex justify-between">
+                    <span class="text-base-content/60">Frequency</span>
+                    <span class="font-mono">{{ "%.0f"|format(momentum.factors.response_frequency * 100) }}%</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-base-content/60">Velocity</span>
+                    <span class="font-mono">{{ "%.0f"|format(momentum.factors.response_speed * 100) }}%</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-base-content/60">Sentiment</span>
+                    <span class="font-mono">{{ "%.0f"|format(momentum.factors.sentiment * 100) }}%</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-base-content/60">Depth</span>
+                    <span class="font-mono">{{ "%.0f"|format(momentum.factors.question_depth * 100) }}%</span>
+                </div>
+            </div>
+            {% endif %}
+            {% if momentum.history %}
+            <div class="flex items-center gap-2 mt-2 text-xs text-base-content/50">
+                <span>History:</span>
+                {% for h in momentum.history[-3:] %}
+                <span class="font-mono">{{ h.score }}</span>{% if not loop.last %}<span>→</span>{% endif %}
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if momentum.stage %}
+            <div class="text-xs text-base-content/40 mt-1">Stage: {{ momentum.stage }} | {{ momentum.emails_analyzed or 0 }} emails analyzed</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Relationship Quality (RQ-06) -->
+        {% include "partials/rq_profile_section.html" %}
+
+        <!-- Relational Context (F3) -->
+        {% if person.person_id %}
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_context?pid={{ person.person_id|urlencode }}"
+                   hx-target="#context-content-{{ person.person_id|replace('_','') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#context-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Relationship context
+                <span id="context-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="context-content-{{ person.person_id|replace('_','') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Knowledge Profile -->
+        {% if person.knowledge %}
+        <div class="mb-4">
+            <h3 class="font-semibold text-sm mb-2">Knowledge Profile</h3>
+            {% if person.knowledge.projects %}
+            <div class="mb-1.5">
+                <span class="text-xs text-base-content/60">Projects:</span>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                    {% for p in person.knowledge.projects %}
+                    <span class="badge badge-sm badge-primary">{{ p }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if person.knowledge.interests %}
+            <div class="mb-1.5">
+                <span class="text-xs text-base-content/60">Interests:</span>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                    {% for i in person.knowledge.interests %}
+                    <span class="badge badge-sm badge-secondary">{{ i }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if person.knowledge.background %}
+            <div class="mb-1.5">
+                <span class="text-xs text-base-content/60">Background:</span>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                    {% for b in person.knowledge.background %}
+                    <span class="badge badge-sm badge-ghost">{{ b }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if person.knowledge.challenges %}
+            <div class="mb-1.5">
+                <span class="text-xs text-base-content/60">Challenges:</span>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                    {% for c in person.knowledge.challenges %}
+                    <span class="badge badge-sm badge-warning">{{ c }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if person.knowledge.current_needs %}
+            <div class="mb-1.5">
+                <span class="text-xs text-base-content/60">Search:</span>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                    {% for n in person.knowledge.current_needs %}
+                    <span class="badge badge-sm badge-outline">{{ n }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if person.knowledge.investments %}
+            <div class="mb-1.5">
+                <span class="text-xs text-base-content/60">Investments:</span>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                    {% for inv in person.knowledge.investments %}
+                    <span class="badge badge-sm badge-accent">{{ inv }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if person.knowledge.family %}
+            <div class="mb-1.5">
+                <span class="text-xs text-base-content/60">Family:</span>
+                <span class="text-sm">{{ person.knowledge.family|join(", ") }}</span>
+            </div>
+            {% endif %}
+            {% if person.knowledge.tags %}
+            <div class="mb-1.5">
+                <span class="text-xs text-base-content/60">Tags:</span>
+                <div class="flex flex-wrap gap-1 mt-0.5">
+                    {% for t in person.knowledge.tags %}
+                    <span class="badge badge-sm badge-ghost">{{ t }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% if person.knowledge.birthday %}
+            <div class="text-sm"><span class="text-xs text-base-content/60">Birthday:</span> {{ person.knowledge.birthday }}</div>
+            {% endif %}
+            {% if person.knowledge.location %}
+            <div class="text-sm"><span class="text-xs text-base-content/60">Location:</span> {{ person.knowledge.location }}</div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Org Detail (Attio) -->
+        {% if person.org_detail %}
+        <div class="mb-4">
+            <h3 class="font-semibold text-sm mb-2">Organisation detail</h3>
+            {% if person.org_detail.description %}
+            <div class="text-sm mb-1">{{ person.org_detail.description }}</div>
+            {% endif %}
+            <div class="flex flex-wrap gap-2 text-xs">
+                {% if person.org_detail.investor_type %}<span class="badge badge-sm badge-info">{{ person.org_detail.investor_type }}</span>{% endif %}
+                {% if person.org_detail.tier %}<span class="badge badge-sm badge-warning">Tier: {{ person.org_detail.tier }}</span>{% endif %}
+                {% if person.org_detail.fund_size_aum %}<span class="badge badge-sm badge-ghost">AUM: {{ person.org_detail.fund_size_aum }}</span>{% endif %}
+                {% if person.org_detail.thesis_fit %}<span class="badge badge-sm badge-accent">Thesis: {{ person.org_detail.thesis_fit }}</span>{% endif %}
+                {% if person.org_detail.stage_fit %}<span class="badge badge-sm badge-ghost">Stage: {{ person.org_detail.stage_fit }}</span>{% endif %}
+                {% if person.org_detail.geographic_focus %}<span class="badge badge-sm badge-ghost">Geo: {{ person.org_detail.geographic_focus }}</span>{% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Deals & Lists (Attio) -->
+        {% if person.deals_lists %}
+        <div class="mb-4">
+            {% if person.deals_lists.deals %}
+            <h3 class="font-semibold text-sm mb-1">Pipeline</h3>
+            {% for d in person.deals_lists.deals %}
+            <div class="flex gap-2 text-sm items-center mb-1">
+                <span class="badge badge-sm badge-primary">{{ d.name }}</span>
+                {% if d.stage %}<span class="text-xs text-base-content/60">{{ d.stage }}</span>{% endif %}
+                {% if d.value and d.value != 'nan' %}<span class="text-xs">{{ d.value }}</span>{% endif %}
+            </div>
+            {% endfor %}
+            {% endif %}
+            {% if person.deals_lists.lists %}
+            <h3 class="font-semibold text-sm mb-1 {% if person.deals_lists.deals %}mt-2{% endif %}">Liste Attio</h3>
+            <div class="flex flex-wrap gap-1">
+                {% for l in person.deals_lists.lists %}
+                <span class="badge badge-sm badge-outline">{{ l }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="divider my-1"></div>
+
+        <!-- Interaction Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="stat bg-base-200 rounded-box p-3">
+                <div class="stat-title text-xs">Email</div>
+                <div class="stat-value text-lg">{{ person.email_total_msgs or 0 }}</div>
+                <div class="stat-desc text-xs">{% if person.email_last_seen and person.email_last_seen != "nan" %}Last: {{ person.email_last_seen[:10] }}{% endif %}</div>
+            </div>
+            <div class="stat bg-base-200 rounded-box p-3">
+                <div class="stat-title text-xs">Calendar</div>
+                <div class="stat-value text-lg">{{ person.cal_events or 0 }}</div>
+            </div>
+            <div class="stat bg-base-200 rounded-box p-3">
+                <div class="stat-title text-xs">Plaud</div>
+                <div class="stat-value text-lg">{{ person.plaud_meetings or 0 }}</div>
+            </div>
+            <div class="stat bg-base-200 rounded-box p-3">
+                <div class="stat-title text-xs">Tactiq</div>
+                <div class="stat-value text-lg">{{ person.tactiq_meetings or 0 }}</div>
+            </div>
+        </div>
+
+        <!-- CRM (Attio) -->
+        {% if person.attio_connection_strength or person.attio_sourcing_stage or person.attio_notes_count %}
+        <div class="mb-4">
+            <h3 class="font-semibold text-sm mb-2">CRM (Attio)</h3>
+            <div class="flex gap-4 text-sm">
+                {% if person.attio_connection_strength %}
+                <div>Connection: <span class="badge badge-sm">{{ person.attio_connection_strength }}</span></div>
+                {% endif %}
+                {% if person.attio_sourcing_stage %}
+                <div>Stage: <span class="badge badge-sm">{{ person.attio_sourcing_stage }}</span></div>
+                {% endif %}
+                {% if person.attio_notes_count %}
+                <div>Note: {{ person.attio_notes_count }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Decay -->
+        {% if person.decay %}
+        <div class="mb-4">
+            <h3 class="font-semibold text-sm mb-2">Decay</h3>
+            <div class="flex gap-4 text-sm flex-wrap">
+                <div>Tier:
+                    {% if person.decay.tier == "inner" %}
+                        <span class="badge badge-primary badge-sm">inner</span>
+                    {% elif person.decay.tier == "sympathy" %}
+                        <span class="badge badge-secondary badge-sm">sympathy</span>
+                    {% elif person.decay.tier == "affinity" %}
+                        <span class="badge badge-accent badge-sm">affinity</span>
+                    {% else %}
+                        <span class="badge badge-ghost badge-sm">{{ person.decay.tier }}</span>
+                    {% endif %}
+                </div>
+                <div>Baseline: {{ person.decay.baseline }}</div>
+                <div>Score: {{ person.decay.decayed_score }}</div>
+                <div>Days: {{ person.decay.days_since }}</div>
+                <div>Expected gap: {{ person.decay.expected_gap }}g</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Timeline first_contact → last_contact -->
+        {% if person.first_contact and person.last_contact and person.first_contact != person.last_contact %}
+        <div class="mb-4">
+            <h3 class="font-semibold text-sm mb-2">Timeline</h3>
+            <div class="flex items-center gap-2 text-xs">
+                <span class="text-base-content/60">{{ person.first_contact }}</span>
+                <progress class="progress progress-primary flex-1" value="100" max="100"></progress>
+                <span class="text-base-content/60">{{ person.last_contact[:10] if person.last_contact else "" }}</span>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Interaction Timeline (sparkline + decay forecast) -->
+        {% if person.person_id %}
+        <div hx-get="/partials/person_timeline?pid={{ person.person_id }}"
+             hx-trigger="load" hx-swap="innerHTML" class="mb-4">
+            <span class="loading loading-spinner loading-xs"></span>
+        </div>
+        {% endif %}
+
+        <!-- Collapsible sections (lazy-loaded via HTMX) -->
+
+        <!-- Recent emails -->
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_threads?email={{ person.email|urlencode }}"
+                   hx-target="#threads-content-{{ person.email|replace('@','_')|replace('.','_') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#threads-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Recent emails
+                <span id="threads-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="threads-content-{{ person.email|replace('@','_')|replace('.','_') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calendar events -->
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_events?email={{ person.email|urlencode }}"
+                   hx-target="#events-content-{{ person.email|replace('@','_')|replace('.','_') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#events-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Calendar events
+                <span id="events-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="events-content-{{ person.email|replace('@','_')|replace('.','_') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Meeting summaries (lazy-loaded) -->
+        {% if person.person_id %}
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_meetings?pid={{ person.person_id|urlencode }}"
+                   hx-target="#meetings-content-{{ person.person_id|replace('_','') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#meetings-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Meeting summaries
+                <span id="meetings-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="meetings-content-{{ person.person_id|replace('_','') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Full cross-source timeline (lazy-loaded) -->
+        {% if person.person_id %}
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_full_timeline?pid={{ person.person_id|urlencode }}"
+                   hx-target="#full-timeline-content-{{ person.person_id|replace('_','') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#full-timeline-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Full timeline
+                <span id="full-timeline-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="full-timeline-content-{{ person.person_id|replace('_','') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Related people -->
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_related?email={{ person.email|urlencode }}"
+                   hx-target="#related-content-{{ person.email|replace('@','_')|replace('.','_') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#related-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Related people
+                <span id="related-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="related-content-{{ person.email|replace('@','_')|replace('.','_') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- NLP -->
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_nlp?name={{ person.name|urlencode }}"
+                   hx-target="#nlp-content-{{ person.email|replace('@','_')|replace('.','_') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#nlp-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                NLP (decisions and actions)
+                <span id="nlp-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="nlp-content-{{ person.email|replace('@','_')|replace('.','_') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- All extracted facts (lazy-loaded) -->
+        {% if person.person_id %}
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_facts?pid={{ person.person_id|urlencode }}&amp;name={{ person.name|urlencode }}"
+                   hx-target="#facts-content-{{ person.person_id|replace('_','') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#facts-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                All extracted facts
+                <span id="facts-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="facts-content-{{ person.person_id|replace('_','') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Deep Intelligence (lazy-loaded) -->
+        {% if person.person_id %}
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_deep_facts?pid={{ person.person_id|urlencode }}"
+                   hx-target="#deep-facts-content-{{ person.person_id|replace('_','') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#deep-facts-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Deep Intelligence
+                <span id="deep-facts-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="deep-facts-content-{{ person.person_id|replace('_','') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Commitments (lazy-loaded) -->
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/person_commitments?name={{ person.name|urlencode }}"
+                   hx-target="#commitments-content-{{ person.email|replace('@','_')|replace('.','_') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#commitments-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Commitments
+                <span id="commitments-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="commitments-content-{{ person.email|replace('@','_')|replace('.','_') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Smart Intros -->
+        {% if person.person_id %}
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox"
+                   hx-get="/partials/smart_intros?pid={{ person.person_id }}&amp;limit=5"
+                   hx-target="#smart-intros-content-{{ person.person_id|replace('_','') }}"
+                   hx-swap="innerHTML"
+                   hx-trigger="change[this.checked]"
+                   hx-indicator="#smart-intros-loading">
+            <div class="collapse-title text-sm font-medium py-2">
+                Suggested introductions
+                <span id="smart-intros-loading" class="htmx-indicator loading loading-spinner loading-xs ml-2"></span>
+            </div>
+            <div class="collapse-content">
+                <div id="smart-intros-content-{{ person.person_id|replace('_','') }}">
+                    <span class="text-xs text-base-content/40">Expand to load...</span>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Network Profile -->
+        {% if person.network_profile %}
+        <div class="collapse collapse-arrow bg-base-200 mb-2">
+            <input type="checkbox">
+            <div class="collapse-title text-sm font-medium py-2">
+                Network Profile
+            </div>
+            <div class="collapse-content">
+                <div class="prose prose-sm max-w-none">
+                    {{ person.network_profile|markdown|safe }}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Notes -->
+        <div class="mt-4">
+            <h3 class="font-semibold text-sm mb-2">Notes</h3>
+            <div id="annotations-list">
+                {% if person.annotations %}
+                {% for ann in person.annotations %}
+                <div class="flex items-start gap-2 mb-2 text-sm bg-base-200 rounded-box p-2">
+                    <span class="badge badge-xs mt-1
+                        {% if ann.type == 'merge' %}badge-error
+                        {% elif ann.type == 'enrichment' %}badge-info
+                        {% else %}badge-ghost{% endif %}">
+                        {{ ann.type }}
+                    </span>
+                    <div class="flex-1">
+                        <div>{{ ann.text }}</div>
+                        {% if ann.details %}<div class="text-xs text-base-content/40">{{ ann.details }}</div>{% endif %}
+                        <div class="text-xs text-base-content/30">{{ ann.timestamp[:16] }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-xs text-base-content/40 mb-2">No annotations.</div>
+                {% endif %}
+            </div>
+
+            <!-- Annotation form -->
+            <div class="flex gap-2 mt-2">
+                <input type="text" id="annotation-text"
+                       placeholder="e.g. same person as udd6528@example.com, works at Company, generic note..."
+                       class="input input-bordered input-sm flex-1">
+                <button class="btn btn-sm btn-primary" onclick="submitAnnotation('{{ person.email }}')">Send</button>
+            </div>
+        </div>
+
+        <!-- Last Contact -->
+        {% if person.last_contact and person.last_contact != "nan" %}
+        <div class="text-xs text-base-content/40 mt-4 pt-2 border-t border-base-300">
+            Last contact: {{ person.last_contact[:10] }}
+            {% if person.last_thread_subject %} &middot; "{{ person.last_thread_subject }}"{% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% elif suggestions %}
+<!-- Autocomplete suggestions -->
+<div class="bg-base-100 rounded-box shadow-lg border border-base-300">
+    {% for s in suggestions %}
+    <div class="suggestion-item px-4 py-2 hover:bg-base-200 cursor-pointer flex justify-between"
+         data-email="{{ s.email }}" data-name="{{ s.name }}">
+        <div>
+            <span class="font-medium">{{ s.name }}</span>
+            <span class="text-xs text-base-content/50 ml-2">{{ s.email }}</span>
+        </div>
+        <div class="text-right">
+            {% if s.organization %}<span class="text-xs text-base-content/50">{{ s.organization }}</span>{% endif %}
+            {% if s.score %}<span class="badge badge-ghost badge-xs ml-1">{{ s.score }}</span>{% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

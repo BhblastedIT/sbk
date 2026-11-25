@@ -1,0 +1,37 @@
+{% if nlp.decisions or nlp.actions %}
+<div class="space-y-3">
+    {% if nlp.decisions %}
+    <div>
+        <h4 class="text-xs font-semibold text-base-content/60 mb-1">Decisions ({{ nlp.decisions|length }})</h4>
+        {% for d in nlp.decisions %}
+        <div class="bg-base-300 rounded p-2 mb-1.5 text-sm">
+            <div>{{ d.text }}</div>
+            <div class="text-xs text-base-content/40 mt-0.5">
+                {% if d.speaker %}{{ d.speaker }}{% endif %}
+                {% if d.source %} &middot; {{ d.source }}{% endif %}
+                {% if d.meeting_title %} &middot; {{ d.meeting_title[:50] }}{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if nlp.actions %}
+    <div>
+        <h4 class="text-xs font-semibold text-base-content/60 mb-1">Action Items ({{ nlp.actions|length }})</h4>
+        {% for a in nlp.actions %}
+        <div class="bg-base-300 rounded p-2 mb-1.5 text-sm">
+            <div>{{ a.text }}</div>
+            <div class="text-xs text-base-content/40 mt-0.5">
+                {% if a.speaker %}{{ a.speaker }}{% endif %}
+                {% if a.source %} &middot; {{ a.source }}{% endif %}
+                {% if a.meeting_title %} &middot; {{ a.meeting_title[:50] }}{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No decision or action found.</div>
+{% endif %}

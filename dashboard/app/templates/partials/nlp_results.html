@@ -1,0 +1,82 @@
+<div class="text-sm text-base-content/60 mb-3">
+    {{ "{:,}".format(nlp_data.total) }} results (page {{ nlp_data.page }}/{{ nlp_data.pages }})
+</div>
+
+<div class="overflow-x-auto">
+<table class="table table-sm table-zebra">
+    <thead>
+        <tr>
+            <th>Data</th>
+            <th>Speaker</th>
+            <th>Text</th>
+            <th>Source</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in nlp_data.results %}
+        <tr>
+            <td class="text-xs font-mono whitespace-nowrap">{{ item.date or item.get("timestamp", "") }}</td>
+            <td class="text-sm">{{ item.speaker or "" }}</td>
+            <td class="text-sm max-w-md">
+                <div class="collapse collapse-arrow bg-base-200 rounded-sm">
+                    <input type="checkbox">
+                    <div class="collapse-title text-sm p-1 min-h-0">
+                        {{ item.text[:120] }}{% if item.text|length > 120 %}...{% endif %}
+                    </div>
+                    <div class="collapse-content text-xs">
+                        <p>{{ item.text }}</p>
+                        {% if item.context %}
+                        <p class="mt-2 text-base-content/50">Context: {{ item.context }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="badge badge-ghost badge-xs">{{ item.source or "" }}</span>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+{% if nlp_data.results|length == 0 %}
+<div class="text-center text-base-content/40 py-8">No results.</div>
+{% endif %}
+
+<!-- Pagination -->
+{% if nlp_data.pages > 1 %}
+<div class="flex justify-center mt-4">
+    <div class="join">
+        {% if nlp_data.page > 1 %}
+        <button class="join-item btn btn-sm"
+                hx-get="/partials/nlp_results?tab={{ nlp_data.tab }}&page={{ nlp_data.page - 1 }}"
+                hx-target="#nlp-results-container" hx-swap="innerHTML">
+            &laquo;
+        </button>
+        {% endif %}
+
+        {% for p in range(1, nlp_data.pages + 1) %}
+            {% if p == nlp_data.page %}
+                <button class="join-item btn btn-sm btn-active">{{ p }}</button>
+            {% elif p <= 3 or p >= nlp_data.pages - 1 or (p >= nlp_data.page - 1 and p <= nlp_data.page + 1) %}
+                <button class="join-item btn btn-sm"
+                        hx-get="/partials/nlp_results?tab={{ nlp_data.tab }}&page={{ p }}"
+                        hx-target="#nlp-results-container" hx-swap="innerHTML">
+                    {{ p }}
+                </button>
+            {% elif p == 4 or p == nlp_data.pages - 2 %}
+                <button class="join-item btn btn-sm btn-disabled">...</button>
+            {% endif %}
+        {% endfor %}
+
+        {% if nlp_data.page < nlp_data.pages %}
+        <button class="join-item btn btn-sm"
+                hx-get="/partials/nlp_results?tab={{ nlp_data.tab }}&page={{ nlp_data.page + 1 }}"
+                hx-target="#nlp-results-container" hx-swap="innerHTML">
+            &raquo;
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}

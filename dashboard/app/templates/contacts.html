@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Contacts — SBK{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Contacts</h1>
+        <p class="text-sm text-base-content/60">{{ total }} contacts from all sources</p>
+    </div>
+    <a href="/api/contacts/export?search=&org=&min_score=0" class="btn btn-outline btn-sm">Export CSV</a>
+</div>
+
+<!-- Filters -->
+<div class="flex flex-wrap gap-3 mb-4">
+    <input id="ct-search" type="text" placeholder="Search name or email..." class="input input-bordered input-sm w-56">
+    <select id="ct-org" class="select select-bordered select-sm">
+        <option value="">All organizations</option>
+        {% for o in organizations %}
+        <option value="{{ o }}">{{ o }}</option>
+        {% endfor %}
+    </select>
+    <select id="ct-score" class="select select-bordered select-sm">
+        <option value="0">Minimum score: 0</option>
+        <option value="5">Score >= 5</option>
+        <option value="10">Score >= 10</option>
+        <option value="20">Score >= 20</option>
+        <option value="50">Score >= 50</option>
+    </select>
+    <select id="ct-sort" class="select select-bordered select-sm">
+        <option value="score">Sort by score</option>
+        <option value="name">Sort by name</option>
+        <option value="email_total">Sort by email</option>
+        <option value="last_contact">Last contact</option>
+    </select>
+    <button class="btn btn-primary btn-sm" onclick="loadContacts()">Filter</button>
+</div>
+
+<!-- Results -->
+<div id="contacts-results"
+     hx-get="/partials/contacts_table"
+     hx-trigger="load"
+     hx-vals='{"page": "1"}'>
+    <span class="loading loading-spinner loading-md"></span>
+</div>
+
+<script>
+function loadContacts(page) {
+    page = page || 1;
+    const search = document.getElementById('ct-search').value;
+    const org = document.getElementById('ct-org').value;
+    const min_score = document.getElementById('ct-score').value;
+    const sort = document.getElementById('ct-sort').value;
+    const params = new URLSearchParams({search, org, min_score, sort, page});
+    htmx.ajax('GET', '/partials/contacts_table?' + params.toString(), '#contacts-results');
+}
+</script>
+{% endblock %}

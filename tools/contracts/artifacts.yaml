@@ -1,0 +1,252 @@
+# artifacts.yaml — data artifact contract.
+#
+# Each artifact declares: schema (columns), sanity (min_rows / max_drop_pct /
+# sentinels), inventory_class, rebuild_class, tier, domain, path (relative to
+# DATA_ROOT). The validator (artifacts_contract.py) requires ALL sections:
+# a missing section is an error (no "half" contracts).
+#
+# Additive: descriptive, read-only. No script here overwrites data.
+# Further entries can be added additively by parser maintainers.
+
+version: 1
+
+artifacts:
+  relationship-facts:
+    # Path relative to sbk_config.DATA_ROOT
+    path: l3/nlp/relationship-facts.parquet
+    tier: 3
+    domain: knowledge
+    # inventory_class: nature of the artifact in the data inventory
+    #   curated    = curated data, not reproducible
+    #   derived    = derived from / rebuildable from lower levels
+    #   ephemeral  = ephemeral, regenerated on every run
+    inventory_class: derived
+    # rebuild_class: how it is rebuilt if lost
+    #   rebuildable = regenerable from the pipeline (from L2)
+    #   irreplaceable = single copy, cannot be rebuilt
+    rebuild_class: rebuildable
+    schema:
+      columns:
+        source_type: str
+        source_id: str
+        fact_type: str
+        subject: str
+        predicate: str
+        object: str
+        context: str
+        confidence: str
+        speaker: str
+    sanity:
+      # Minimum row count: below it the artifact is suspect/truncated.
+      min_rows: 1000
+      # Maximum allowed drop vs the previous count (percentage).
+      max_drop_pct: 20.0
+      # Sentinel quota: columns that must be populated above a threshold.
+      # If fewer than `min_present` sentinels pass, the sanity check fails.
+      sentinels:
+        - column: subject
+          min_non_null_pct: 90.0
+        - column: predicate
+          min_non_null_pct: 50.0
+        - column: source_type
+          min_non_null_pct: 95.0
+      quota:
+        min_present: 2
+
+  # --- Additional entries ---
+
+  bankco-ledger:
+    path: finance/bankco-ledger.parquet
+    tier: 1
+    domain: finance
+    inventory_class: curated
+    rebuild_class: rebuildable
+    schema:
+      columns:
+        message_id: str
+        account: str
+        date: datetime
+        direction: str
+        amount: float
+        currency: str
+        counterparty: str
+        description: str
+        subject: str
+        source_domain: str
+    sanity:
+      min_rows: 1
+      max_drop_pct: 20.0
+      sentinels:
+        - column: message_id
+          min_non_null_pct: 99.0
+        - column: date
+          min_non_null_pct: 90.0
+        - column: amount
+          min_non_null_pct: 40.0
+      quota:
+        min_present: 2
+
+  receipts-email:
+    path: finance/receipts.parquet
+    tier: 1
+    domain: finance
+    inventory_class: curated
+    rebuild_class: rebuildable
+    schema:
+      columns:
+        message_id: str
+        account: str
+        date: datetime
+        vendor: str
+        amount: float
+        currency: str
+        category: str
+        subject: str
+        source_domain: str
+    sanity:
+      min_rows: 1
+      max_drop_pct: 20.0
+      sentinels:
+        - column: message_id
+          min_non_null_pct: 99.0
+        - column: vendor
+          min_non_null_pct: 80.0
+        - column: date
+          min_non_null_pct: 90.0
+      quota:
+        min_present: 2
+
+  dataroomco-activity:
+    path: dealrooms/dataroomco-activity.parquet
+    tier: 1
+    domain: dealrooms
+    inventory_class: curated
+    rebuild_class: rebuildable
+    schema:
+      columns:
+        message_id: str
+        account: str
+        date: datetime
+        actor: str
+        action: str
+        room: str
+        document: str
+        subject: str
+        source_domain: str
+    sanity:
+      min_rows: 1
+      max_drop_pct: 20.0
+      sentinels:
+        - column: message_id
+          min_non_null_pct: 99.0
+        - column: action
+          min_non_null_pct: 95.0
+        - column: date
+          min_non_null_pct: 90.0
+      quota:
+        min_present: 2
+
+  interactions-leadsync:
+    # Additive, alongside interactions-linkedin.parquet (never touched).
+    path: linkedin/processed/interactions-leadsync.parquet
+    tier: 1
+    domain: linkedin
+    inventory_class: derived
+    rebuild_class: rebuildable
+    schema:
+      columns:
+        person_key: str
+        person_name: str
+        linkedin_url: str
+        interaction_type: str
+        direction: str
+        from_name: str
+        to_name: str
+        message_text: str
+        is_inmail: bool
+        subject: str
+        ts_utc: str
+        ts_raw: str
+        note_id: str
+        note_created_at: str
+        parent_object: str
+        parent_record_id: str
+        source: str
+    sanity:
+      # Production floor. Tests use a fixture contract with a low threshold
+      # (like the write-guard tests).
+      min_rows: 1000
+      max_drop_pct: 20.0
+      sentinels:
+        - column: person_key
+          min_non_null_pct: 99.0
+        - column: interaction_type
+          min_non_null_pct: 99.0
+        - column: source
+          min_non_null_pct: 100.0
+      quota:
+        min_present: 2
+
+  partner-docs:
+    # Path relative to sbk_config.DATA_ROOT
+    path: partner/docs.parquet
+    tier: 1
+    domain: partner
+    # filtered L0 copies + document extraction: rebuildable by re-harvesting the source folder
+    inventory_class: derived
+    rebuild_class: rebuildable
+    schema:
+      columns:
+        path: str
+        filename: str
+        ext: str
+        size_bytes: int
+        sha256: str
+        mtime: str
+        title: str
+        text: str
+        num_lines: int
+        num_chars: int
+        harvested_at: str
+    sanity:
+      # 1 = a real harvest has at least one doc; a legitimately empty harvest
+      # (no raw, no prior artifact) is short-circuited to empty_confirmed
+      # BEFORE the guard, so min_rows does not block it.
+      min_rows: 1
+      max_drop_pct: 50.0
+      sentinels:
+        - column: path
+          min_non_null_pct: 100.0
+        - column: sha256
+          min_non_null_pct: 100.0
+        - column: filename
+          min_non_null_pct: 100.0
+      quota:
+        min_present: 2
+
+  downloads-harvest-inventory:
+    # Inventory of idempotent copies harvested from the Downloads folder.
+    path: downloads-harvest/inventory.parquet
+    tier: 0
+    domain: infrastructure
+    inventory_class: derived      # rebuildable by re-scanning downloads-harvest/files/
+    rebuild_class: rebuildable
+    schema:
+      columns:
+        sha256: str
+        source_path: str
+        dest_path: str
+        size_bytes: int
+        mtime_utc: str
+        ext: str
+        harvested_at: str
+    sanity:
+      min_rows: 1
+      max_drop_pct: 0.0        # monotonic inventory (union): no drop allowed
+      sentinels:
+        - column: sha256
+          min_non_null_pct: 100.0
+        - column: dest_path
+          min_non_null_pct: 100.0
+      quota:
+        min_present: 2

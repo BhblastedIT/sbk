@@ -1,0 +1,97 @@
+{% if summary %}
+<h3 class="font-bold text-lg mb-4">Meeting of {{ summary.date }}
+    <span class="badge badge-sm {% if summary.source == 'plaud' %}badge-info{% elif summary.source == 'tactiq' %}badge-warning{% else %}badge-ghost{% endif %}">{{ summary.source }}</span>
+</h3>
+
+<!-- Summary -->
+{% if summary.summary %}
+<div class="bg-base-100 rounded-lg p-4 mb-4">
+    <h4 class="text-sm font-semibold mb-2">Summary</h4>
+    <p class="text-sm">{{ summary.summary }}</p>
+</div>
+{% endif %}
+
+<!-- Attendees -->
+{% if summary.attendees %}
+<div class="mb-4">
+    <h4 class="text-sm font-semibold mb-2">Participants ({{ summary.attendees | length }})</h4>
+    <div class="flex flex-wrap gap-2">
+        {% for a in summary.attendees %}
+        <div class="badge badge-lg gap-1">
+            {{ a.name }}
+            {% if a.entity_id %}<span class="badge badge-xs badge-success">resolved</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Key Points -->
+{% if summary.key_points %}
+<div class="mb-4">
+    <h4 class="text-sm font-semibold mb-2">Key points</h4>
+    <ul class="list-disc list-inside text-sm space-y-1">
+        {% for kp in summary.key_points %}
+        <li>{{ kp }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Decisions -->
+{% if summary.decisions %}
+<div class="mb-4">
+    <h4 class="text-sm font-semibold mb-2 text-primary">Decisions</h4>
+    <ul class="list-disc list-inside text-sm space-y-1">
+        {% for d in summary.decisions %}
+        <li>{{ d }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+<!-- Follow-ups -->
+{% if summary.follow_ups %}
+<div class="mb-4">
+    <h4 class="text-sm font-semibold mb-2 text-warning">Follow-up</h4>
+    <div class="overflow-x-auto">
+        <table class="table table-sm">
+            <thead>
+                <tr><th>Task</th><th>Owner</th><th>Deadline</th></tr>
+            </thead>
+            <tbody>
+                {% for fu in summary.follow_ups %}
+                <tr>
+                    <td class="text-sm">{{ fu.task }}</td>
+                    <td class="text-sm">{{ fu.owner or '-' }}</td>
+                    <td class="text-sm">{{ fu.deadline or '-' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+<!-- Topics & Sentiment -->
+<div class="flex items-center gap-4 text-xs text-base-content/50 mt-4">
+    {% if summary.topics %}
+    <div class="flex gap-1 flex-wrap">
+        {% for t in summary.topics %}
+        <span class="badge badge-xs badge-outline">{{ t }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if summary.sentiment %}
+    <span class="badge badge-sm {% if summary.sentiment == 'positivo' %}badge-success{% elif summary.sentiment == 'negativo' %}badge-error{% else %}badge-ghost{% endif %}">
+        {{ summary.sentiment }}
+    </span>
+    {% endif %}
+    {% if summary.captured_at %}
+    <span>Captured: {{ summary.captured_at[:16] }}</span>
+    {% endif %}
+</div>
+
+{% else %}
+<p class="text-base-content/50">Meeting summary not found.</p>
+{% endif %}

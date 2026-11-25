@@ -1,0 +1,2048 @@
+{% extends "base.html" %}
+
+{% block title %}SBK Network Graph{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold">Network Graph</h1>
+    <div class="flex items-center gap-3">
+        <div id="layout-status" class="flex items-center gap-1.5 text-sm">
+            <span class="loading loading-spinner loading-xs text-primary"></span>
+            <span class="text-base-content/60">Loading...</span>
+        </div>
+        <div class="text-sm text-base-content/60" id="graph-stats-text">
+            {{ "{:,}".format(graph_stats.nodes) }} nodes, {{ "{:,}".format(graph_stats.edges) }} edges, {{ graph_stats.communities }} communities
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="flex flex-wrap gap-3 mb-4 items-center bg-base-100 rounded-box p-3 shadow">
+    <select id="filter-tier" class="select select-sm select-bordered" onchange="loadGraph()">
+        <option value="all">All tiers</option>
+        <option value="inner">Inner circle</option>
+        <option value="sympathy">Key contacts</option>
+        <option value="affinity">Active network</option>
+        <option value="active">Occasional contacts</option>
+    </select>
+
+    <select id="filter-org" class="select select-sm select-bordered" onchange="loadGraph()">
+        <option value="all">All organizations</option>
+        {% for o in organizations %}
+        <option value="{{ o.name }}">{{ o.name }} ({{ o.count }})</option>
+        {% endfor %}
+    </select>
+
+    <select id="filter-community" class="select select-sm select-bordered" onchange="loadGraph()">
+        <option value="-99">All communities</option>
+        {% for c in communities %}
+        <option value="{{ c.id }}">{{ c.label|default('C' ~ c.id) }} ({{ c.size }})</option>
+        {% endfor %}
+    </select>
+
+    <div class="flex items-center gap-2">
+        <span class="text-xs text-base-content/60">Score min:</span>
+        <input type="range" id="filter-score" min="0" max="100" value="0"
+               class="range range-xs range-primary w-28"
+               oninput="document.getElementById('score-val').textContent=this.value"
+               onchange="loadGraph()">
+        <span id="score-val" class="text-xs font-mono w-6">0</span>
+    </div>
+
+    <select id="filter-maxnodes" class="select select-sm select-bordered" onchange="loadGraph()">
+        <option value="100">100 nodes</option>
+        <option value="200" selected>200 nodes</option>
+        <option value="500">500 nodes</option>
+        <option value="1000">1000 nodes</option>
+    </select>
+
+    <!-- Search with dropdown results -->
+    <div class="flex-1 min-w-[200px] relative" id="search-container">
+        <div class="relative">
+            <input type="text" id="graph-search" placeholder="Search all contacts..."
+                   class="input input-sm input-bordered w-full pr-16"
+                   autocomplete="off">
+            <!-- Search spinner (hidden by default) -->
+            <span id="search-spinner" class="absolute right-8 top-1/2 -translate-y-1/2 hidden">
+                <span class="loading loading-spinner loading-xs text-primary"></span>
+            </span>
+            <!-- Clear button (hidden by default) -->
+            <button id="search-clear" class="absolute right-2 top-1/2 -translate-y-1/2 btn btn-ghost btn-xs btn-circle hidden"
+                    onclick="clearSearch()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+        <!-- Dropdown results list -->
+        <div id="search-dropdown" class="absolute top-full left-0 right-0 mt-1 bg-base-100 border border-base-300 rounded-lg shadow-xl z-50 hidden max-h-64 overflow-y-auto"></div>
+    </div>
+
+    <!-- Shadow contacts toggle -->
+    <label class="flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" id="toggle-shadow" class="checkbox checkbox-xs" onchange="loadGraph()">
+        <span class="text-xs text-base-content/60">Shadow contacts</span>
+    </label>
+
+    <!-- Bridge nodes toggle -->
+    <label class="flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" id="toggle-bridge" class="checkbox checkbox-xs checkbox-warning" onchange="toggleBridgeHighlight()">
+        <span class="text-xs text-base-content/60">Bridge nodes</span>
+    </label>
+
+    <!-- FA2 layout toggle -->
+    <label class="flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" id="toggle-fa2" class="checkbox checkbox-xs checkbox-success" onchange="toggleFA2()">
+        <span class="text-xs text-base-content/60">FA2 live</span>
+    </label>
+
+    <!-- Warmth edges toggle -->
+    <label class="flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" id="toggle-warmth" class="checkbox checkbox-xs checkbox-info" onchange="toggleWarmthEdges()">
+        <span class="text-xs text-base-content/60">Warmth edges</span>
+    </label>
+
+    <!-- Structural holes toggle -->
+    <label class="flex items-center gap-1.5 cursor-pointer">
+        <input type="checkbox" id="toggle-structural" class="checkbox checkbox-xs checkbox-accent" onchange="toggleStructuralHoles()">
+        <span class="text-xs text-base-content/60">Structural holes</span>
+    </label>
+
+    <!-- Active filters indicator -->
+    <div id="filters-active" class="badge badge-outline badge-sm hidden">active filters</div>
+</div>
+
+<!-- Graph + Panel -->
+<style>
+#graph-container canvas { background: transparent !important; }
+#graph-container { background: oklch(var(--b1)); }
+</style>
+<div class="flex gap-4">
+    <!-- Graph container -->
+    <div class="flex-1 bg-base-100 rounded-box shadow overflow-hidden relative" style="min-height: 700px;">
+        <div id="graph-container" style="height: 700px; width: 100%;"></div>
+
+        <!-- Loading overlay -->
+        <div id="graph-loading" class="absolute inset-0 flex flex-col items-center justify-center bg-base-100/90 z-10">
+            <span class="loading loading-spinner loading-lg text-primary"></span>
+            <span class="text-sm text-base-content/60 mt-2" id="loading-text">Loading data...</span>
+        </div>
+
+        <!-- Zoom controls (top-right) -->
+        <div class="absolute top-3 right-3 flex flex-col gap-1 z-10">
+            <button class="btn btn-sm btn-square bg-base-200/90 border-0 hover:bg-base-300" onclick="zoomIn()" title="Zoom in">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v12m6-6H6"/>
+                </svg>
+            </button>
+            <button class="btn btn-sm btn-square bg-base-200/90 border-0 hover:bg-base-300" onclick="zoomOut()" title="Zoom out">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 12H6"/>
+                </svg>
+            </button>
+            <button class="btn btn-sm btn-square bg-base-200/90 border-0 hover:bg-base-300" onclick="resetView()" title="Fit all">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Legend (bottom-left) -->
+        <div class="absolute bottom-3 left-3 bg-base-200/90 rounded-lg p-2 text-xs z-10 max-w-[180px]" id="legend"></div>
+
+        <!-- Status bar (bottom-right) -->
+        <div class="absolute bottom-3 right-3 bg-base-200/90 rounded-lg px-3 py-1.5 text-xs z-10 flex items-center gap-2" id="status-bar">
+            <span id="status-text" class="text-base-content/60">Ready</span>
+        </div>
+    </div>
+
+    <!-- Person panel (hidden until click) -->
+    <div id="person-panel" class="w-80 bg-base-100 rounded-box shadow p-4 hidden overflow-y-auto transition-all duration-200" style="max-height: 700px;">
+        <div class="flex items-center justify-between mb-2">
+            <h3 class="font-bold">Details</h3>
+            <button class="btn btn-ghost btn-xs" onclick="hidePanel()">&#x2715;</button>
+        </div>
+        <div id="person-panel-content">
+            <p class="text-sm text-base-content/60">Click a node to see details.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Warm Intro -->
+<div class="mt-4 bg-base-100 rounded-box shadow p-4">
+    <div class="flex items-center gap-2 mb-2">
+        <h3 class="font-bold">Warm Intro</h3>
+        <div class="badge badge-ghost badge-sm">path finder</div>
+    </div>
+    <p class="text-xs text-base-content/60 mb-2">Find the shortest path from you to a person in the network.</p>
+    <div class="flex gap-2">
+        <div class="relative flex-1">
+            <input type="text" id="warm-intro-target" placeholder="Person name..."
+                   class="input input-sm input-bordered w-full"
+                   onkeydown="if(event.key==='Enter') findWarmIntro()">
+        </div>
+        <button id="warm-intro-btn" class="btn btn-sm btn-accent" onclick="findWarmIntro()">
+            <span id="warm-intro-btn-text">Find path</span>
+            <span id="warm-intro-btn-spinner" class="loading loading-spinner loading-xs hidden"></span>
+        </button>
+    </div>
+    <div id="warm-intro-result" class="mt-3"></div>
+</div>
+
+<!-- Smart Intro Matching -->
+<div class="mt-4 bg-base-100 rounded-box shadow">
+    <div class="collapse collapse-arrow">
+        <input type="checkbox" />
+        <div class="collapse-title font-bold flex items-center gap-2">
+            Suggested Introductions
+            <div class="badge badge-ghost badge-sm">needs/offers matching</div>
+        </div>
+        <div class="collapse-content"
+             hx-get="/partials/smart_intros?limit=10"
+             hx-trigger="revealed"
+             hx-swap="innerHTML">
+            <span class="loading loading-spinner loading-sm"></span>
+        </div>
+    </div>
+</div>
+
+<!-- Network Intelligence Panel -->
+<div class="mt-4 bg-base-100 rounded-box shadow">
+    <div class="collapse collapse-arrow" id="intelligence-panel">
+        <input type="checkbox" />
+        <div class="collapse-title font-bold flex items-center gap-2">
+            Network Intelligence
+            <div class="badge badge-ghost badge-sm">centrality + decay</div>
+        </div>
+        <div class="collapse-content" id="intelligence-content">
+            <div class="flex items-center gap-2 py-4">
+                <span class="loading loading-spinner loading-sm"></span>
+                <span class="text-sm text-base-content/60">Loading intelligence data...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sigma.js v3 + Graphology graph library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/3.0.0/sigma.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology@0.26.0/dist/graphology.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/graphology-library@0.8.0/dist/graphology-library.min.js"></script>
+
+<script>
+// ─── Globals ──────────────────────────────────────────────────
+var graph = null;       // Graphology graph instance
+var renderer = null;    // Sigma renderer instance
+var searchTimeout = null;
+var currentData = null;
+var searchIndex = [];
+var fa2Running = false;
+var fa2AnimId = null;
+
+// ─── State for Sigma reducers ─────────────────────────────────
+var state = {
+    hoveredNode: null,
+    hoveredNeighbors: new Set(),
+    selectedNode: null,
+    mode: 'default',          // default | neighbors | search | path | connection
+    neighborSet: new Set(),
+    searchMatchSet: new Set(),
+    pathNodeSet: new Set(),
+    pathEdgeSet: new Set(),
+    connNodeSet: new Set(),
+    connEdgeSet: new Set(),
+    bridgeGlow: false,
+    warmthEdges: false,
+    structuralHoles: new Set(),
+};
+
+// ─── Status helpers ───────────────────────────────────────────
+function setLayoutStatus(s, text) {
+    var el = document.getElementById('layout-status');
+    if (s === 'loading') {
+        el.innerHTML = '<span class="loading loading-spinner loading-xs text-primary"></span>' +
+            '<span class="text-base-content/60">' + text + '</span>';
+    } else if (s === 'ready') {
+        el.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-success"></span>' +
+            '<span class="text-success">' + text + '</span>';
+    } else if (s === 'error') {
+        el.innerHTML = '<span class="inline-block w-2 h-2 rounded-full bg-error"></span>' +
+            '<span class="text-error">' + text + '</span>';
+    }
+}
+
+function setStatusBar(text) {
+    document.getElementById('status-text').textContent = text;
+}
+
+function updateFiltersIndicator() {
+    var tier = document.getElementById('filter-tier').value;
+    var org = document.getElementById('filter-org').value;
+    var comm = document.getElementById('filter-community').value;
+    var score = document.getElementById('filter-score').value;
+    var maxNodes = document.getElementById('filter-maxnodes').value;
+    var active = tier !== 'all' || org !== 'all' || comm !== '-99' || score !== '0' || maxNodes !== '200';
+    var badge = document.getElementById('filters-active');
+    if (active) {
+        var parts = [];
+        var tierLabels = {inner:'Inner circle', sympathy:'Key', affinity:'Active network', active:'Occasional'};
+        if (tier !== 'all') parts.push(tierLabels[tier] || tier);
+        if (org !== 'all') parts.push(org);
+        if (comm !== '-99') parts.push('C' + comm);
+        if (score !== '0') parts.push('score>=' + score);
+        if (maxNodes !== '200') parts.push(maxNodes + ' nodes');
+        badge.textContent = parts.join(', ');
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+function escHtml(s) {
+    var d = document.createElement('div');
+    d.textContent = s || '';
+    return d.innerHTML;
+}
+
+// ─── Helper utilities ─────────────────────────────────────────
+function mapSize(cySize) {
+    // Cytoscape sizes 15-80 → Sigma sizes 4-20
+    return Math.max(4, (cySize || 15) * 0.25);
+}
+
+function warmthColor(weight) {
+    var w = Math.min(weight || 0, 200);
+    var t = w / 200;
+    var r = Math.round(34 + 221 * t);
+    var g = Math.round(197 - 147 * t);
+    var b = Math.round(94 - 44 * t);
+    return 'rgb(' + r + ',' + g + ',' + b + ')';
+}
+
+var COMMUNITY_PALETTE = [
+    '#6366f1','#ec4899','#14b8a6','#f59e0b','#8b5cf6',
+    '#ef4444','#06b6d4','#84cc16','#f97316','#a855f7',
+    '#10b981','#e11d48','#0ea5e9','#eab308','#d946ef',
+    '#22c55e','#f43f5e','#3b82f6','#facc15','#c084fc'
+];
+
+function communityColor(communityId) {
+    if (communityId == null || communityId < 0) return '#6366f1';
+    return COMMUNITY_PALETTE[communityId % COMMUNITY_PALETTE.length];
+}
+
+function getNodeData(nodeId) {
+    if (!graph || !graph.hasNode(nodeId)) return {id: nodeId, label: nodeId};
+    var d = Object.assign({}, graph.getNodeAttributes(nodeId));
+    d.id = nodeId;
+    return d;
+}
+
+// ─── Graph loading ───────────────────────────────────────────
+async function loadGraph() {
+    var tier = document.getElementById('filter-tier').value;
+    var org = document.getElementById('filter-org').value;
+    var community = document.getElementById('filter-community').value;
+    var minScore = document.getElementById('filter-score').value;
+    var maxNodes = document.getElementById('filter-maxnodes').value;
+    var includeShadow = document.getElementById('toggle-shadow').checked;
+
+    updateFiltersIndicator();
+
+    document.getElementById('graph-loading').classList.remove('hidden');
+    document.getElementById('loading-text').textContent = 'Loading data...';
+    setLayoutStatus('loading', 'Loading...');
+
+    try {
+        var params = new URLSearchParams({
+            min_score: minScore,
+            community: community,
+            max_nodes: maxNodes,
+            tier: tier,
+            org: org,
+            include_shadow: includeShadow,
+            max_shadow: 50,
+        });
+        var resp = await fetch('/api/graph/data?' + params);
+        var data = await resp.json();
+        currentData = data;
+        searchIndex = data.search_index || [];
+
+        document.getElementById('loading-text').textContent = 'Computing layout (' + data.nodes.length + ' nodes)...';
+        setLayoutStatus('loading', 'Computing layout...');
+
+        await new Promise(function(r) { setTimeout(r, 50); });
+
+        renderGraph(data);
+
+        var s = data.stats;
+        document.getElementById('graph-stats-text').textContent =
+            s.filtered_nodes + ' nodes, ' + s.filtered_edges + ' edges (of ' + s.total_nodes + ' total)';
+
+        buildLegend(data.communities);
+    } catch (err) {
+        console.error('Graph load failed:', err);
+        setLayoutStatus('error', 'Loading error');
+        setStatusBar('Error: ' + err.message);
+        document.getElementById('graph-loading').classList.add('hidden');
+    }
+}
+
+// ─── Legend builder ──────────────────────────────────────────
+function buildLegend(communities) {
+    var el = document.getElementById('legend');
+    var html = '<div class="font-semibold mb-1 text-base-content/80">Nodes</div>';
+    html += '<div class="flex items-center gap-1.5 mb-0.5 px-1 -mx-1">' +
+        '<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background:#6366f1"></span>' +
+        '<span class="truncate">People</span></div>';
+    html += '<div class="flex items-center gap-1.5 mb-0.5 px-1 -mx-1">' +
+        '<span class="inline-block w-2.5 h-2.5 shrink-0 rotate-45" style="background:#fbbf24"></span>' +
+        '<span class="truncate text-amber-400">Companies</span></div>';
+    html += '<div class="flex items-center gap-1.5 mb-0.5 px-1 -mx-1">' +
+        '<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 border border-dashed border-gray-500" style="background:#374151"></span>' +
+        '<span class="truncate text-gray-400">Shadow contacts</span></div>';
+    html += '<div class="flex items-center gap-1.5 mb-0.5 px-1 -mx-1">' +
+        '<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 border-2 border-dashed" style="border-color:#f87171;background:transparent"></span>' +
+        '<span class="truncate text-red-400">Decay &gt;40%</span></div>';
+    html += '<div class="flex items-center gap-1.5 mb-0.5 px-1 -mx-1">' +
+        '<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 border-2" style="border-color:#facc15;background:transparent"></span>' +
+        '<span class="truncate text-yellow-400">Bridge node</span></div>';
+    html += '<div class="font-semibold mb-1 mt-2 text-base-content/80">Connections</div>';
+    html += '<div class="flex items-center gap-1.5 mb-0.5 px-1 -mx-1">' +
+        '<span class="inline-block w-4 h-0 shrink-0 border-t-2 border-base-content/40"></span>' +
+        '<span class="truncate text-base-content/60">Email/Meeting</span></div>';
+    html += '<div class="flex items-center gap-1.5 mb-0.5 px-1 -mx-1">' +
+        '<span class="inline-block w-4 h-0 shrink-0 border-t border-dashed border-amber-400/60"></span>' +
+        '<span class="truncate text-base-content/60">Works at</span></div>';
+    html += '<div class="flex items-center gap-1.5 mb-0.5 px-1 -mx-1">' +
+        '<span class="inline-block w-4 h-0 shrink-0 border-t border-dotted border-gray-500/60"></span>' +
+        '<span class="truncate text-base-content/60">Mentioned by</span></div>';
+    var tierItems = [
+        {key:'inner', label:'Inner circle', color:'#e6194b'},
+        {key:'sympathy', label:'Key contacts', color:'#f58231'},
+        {key:'affinity', label:'Active network', color:'#4363d8'},
+        {key:'active', label:'Occasional contacts', color:'#3cb44b'}
+    ];
+    html += '<div class="font-semibold mb-1 mt-2 text-base-content/80">Tier</div>';
+    for (var ti = 0; ti < tierItems.length; ti++) {
+        var t = tierItems[ti];
+        html += '<div class="flex items-center gap-1.5 mb-0.5 cursor-pointer hover:bg-base-300/50 rounded px-1 -mx-1" ' +
+            'onclick="filterTier(\'' + t.key + '\')" title="Filter by ' + t.label + '">' +
+            '<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background:' + t.color + '"></span>' +
+            '<span class="truncate">' + t.label + '</span></div>';
+    }
+    if (communities && communities.length > 0) {
+        html += '<div class="font-semibold mb-1 mt-2 text-base-content/80">Community</div>';
+        for (var i = 0; i < communities.length; i++) {
+            var c = communities[i];
+            var label = c.label || ('C' + c.id);
+            if (label.length > 28) label = label.substring(0, 26) + '...';
+            var title = (c.top_members || []).join(', ') + ' (' + c.size + ' nodes)';
+            html += '<div class="flex items-center gap-1.5 mb-0.5 cursor-pointer hover:bg-base-300/50 rounded px-1 -mx-1" ' +
+                'onclick="filterCommunity(' + c.id + ')" title="' + title + '">' +
+                '<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background:' + c.color + '"></span>' +
+                '<span class="truncate">' + label + ' <span class="text-base-content/40">(' + c.size + ')</span></span></div>';
+        }
+    }
+    el.innerHTML = html;
+}
+
+function filterTier(tierKey) {
+    var sel = document.getElementById('filter-tier');
+    sel.value = tierKey;
+    loadGraph();
+}
+
+function filterCommunity(cid) {
+    var sel = document.getElementById('filter-community');
+    sel.value = String(cid);
+    loadGraph();
+}
+
+// ─── Graph rendering (Sigma + Graphology) ────────────────────
+function renderGraph(data) {
+    stopFA2();
+    if (renderer) { renderer.kill(); renderer = null; }
+    graph = new graphology.Graph({type: 'undirected', multi: false});
+    clearAllState();
+
+    // Unwrap Cytoscape format → Graphology nodes
+    for (var i = 0; i < data.nodes.length; i++) {
+        var d = data.nodes[i].data;
+        graph.addNode(d.id, {
+            label: d.label || d.id,
+            x: Math.random() * 1000,
+            y: Math.random() * 1000,
+            size: mapSize(d.size),
+            color: d.color || communityColor(d.community),
+            node_type: d.node_type || 'person',
+            type: 'circle',
+            score: d.score || 0,
+            community: d.community,
+            centrality: d.centrality || 0,
+            tier: d.tier || '',
+            organization: d.organization || '',
+            email: d.email || '',
+            days_since: d.days_since || 0,
+            decay_pct: d.decay_pct || 0,
+            is_bridge: d.is_bridge || false,
+            hidden_neighbors: d.hidden_neighbors || 0,
+            member_count: d.member_count || 0,
+            shadow_score: d.shadow_score || 0,
+            inferred_company: d.inferred_company || '',
+            inferred_role: d.inferred_role || '',
+            mention_count: d.mention_count || 0,
+            confidence_score: d.confidence_score || 0,
+            source_diversity: d.source_diversity || 0,
+            first_seen: d.first_seen || '',
+            last_seen: d.last_seen || '',
+            intro_via_name: d.intro_via_name || '',
+            intro_via_pid: d.intro_via_pid || '',
+            facts_json: d.facts_json || '[]',
+            meetings_json: d.meetings_json || '[]',
+            investor_type: d.investor_type || '',
+            description: d.description || '',
+            fund_size_aum: d.fund_size_aum || '',
+            thesis_fit: d.thesis_fit || '',
+            stage_fit: d.stage_fit || '',
+            geographic_focus: d.geographic_focus || '',
+            top_members: d.top_members || [],
+        });
+    }
+
+    // Unwrap Cytoscape format → Graphology edges
+    for (var j = 0; j < data.edges.length; j++) {
+        var e = data.edges[j].data;
+        if (graph.hasNode(e.source) && graph.hasNode(e.target)) {
+            try {
+                graph.addEdge(e.source, e.target, {
+                    weight: e.weight || 1,
+                    deep_weight: e.deep_weight || e.weight || 1,
+                    size: Math.max(0.1, (e.width || 1) * 0.12),
+                    color: '#555555',
+                    edge_type: e.edge_type || 'interaction',
+                    width: e.width || 1,
+                });
+            } catch (err) {
+                // Skip duplicate edges in undirected graph
+            }
+        }
+    }
+
+    // Org node visual: larger size + amber, diamond shape via nodeReducer
+    graph.forEachNode(function(node, attrs) {
+        if (attrs.node_type === 'organization') {
+            graph.setNodeAttribute(node, 'size', Math.max(attrs.size * 1.3, 8));
+            graph.setNodeAttribute(node, 'color', '#fbbf24');
+        } else if (attrs.node_type === 'shadow_person') {
+            graph.setNodeAttribute(node, 'color', '#6b7280');
+            graph.setNodeAttribute(node, 'size', Math.max(attrs.size * 0.8, 2));
+        }
+    });
+
+    // Edge type styling
+    graph.forEachEdge(function(edge, attrs) {
+        if (attrs.edge_type === 'works_at') {
+            graph.setEdgeAttribute(edge, 'color', '#8b7520');
+            graph.setEdgeAttribute(edge, 'size', 0.1);
+        } else if (attrs.edge_type === 'mentioned_by') {
+            graph.setEdgeAttribute(edge, 'color', '#4b4b4b');
+            graph.setEdgeAttribute(edge, 'size', 0.1);
+        }
+    });
+
+    // Create Sigma renderer with reducers
+    renderer = new Sigma(graph, document.getElementById('graph-container'), {
+        nodeReducer: sigmaNodeReducer,
+        edgeReducer: sigmaEdgeReducer,
+        labelFont: 'Inter, system-ui, sans-serif',
+        labelSize: 11,
+        labelColor: {color: '#d4d4d4'},
+        defaultEdgeColor: '#555555',
+        zIndex: true,
+        labelRenderedSizeThreshold: 8,
+        renderLabels: true,
+        defaultNodeColor: '#6366f1',
+        minCameraRatio: 0.02,
+        maxCameraRatio: 10,
+    });
+
+    // Run ForceAtlas2 layout (chunked, non-blocking)
+    runFA2Chunked(500, 50, function() {
+        document.getElementById('graph-loading').classList.add('hidden');
+        setLayoutStatus('ready', 'Ready');
+        setStatusBar(data.nodes.length + ' nodes, ' + data.edges.length + ' edges');
+        // Fit graph to viewport after layout converges (like Cytoscape's fit: true)
+        if (renderer) renderer.getCamera().animatedReset({duration: 400});
+    });
+
+    // Safety timeout
+    setTimeout(function() {
+        if (!document.getElementById('graph-loading').classList.contains('hidden')) {
+            document.getElementById('graph-loading').classList.add('hidden');
+            setLayoutStatus('ready', 'Ready');
+            setStatusBar(data.nodes.length + ' nodes, ' + data.edges.length + ' edges');
+            console.warn('Layout timed out after 15s');
+        }
+    }, 15000);
+
+    setupInteractions(data);
+}
+
+// ─── Sigma node reducer ──────────────────────────────────────
+function sigmaNodeReducer(node, data) {
+    var res = Object.assign({}, data);
+
+    // Mode-based fading
+    if (state.mode !== 'default') {
+        var isVisible = false;
+        switch (state.mode) {
+            case 'neighbors':
+                isVisible = (node === state.selectedNode) || state.neighborSet.has(node);
+                break;
+            case 'search':
+                isVisible = state.searchMatchSet.has(node);
+                break;
+            case 'path':
+                isVisible = state.pathNodeSet.has(node);
+                break;
+            case 'connection':
+                isVisible = state.connNodeSet.has(node) || state.neighborSet.has(node);
+                break;
+        }
+        if (!isVisible) {
+            res.color = '#334155';
+            res.label = null;
+            res.size = Math.max(res.size * 0.4, 1);
+            res.zIndex = -1;
+        } else {
+            if (node === state.selectedNode) res.highlighted = true;
+            if (state.pathNodeSet.has(node)) { res.highlighted = true; res.color = '#34d399'; }
+            if (state.connNodeSet.has(node)) { res.highlighted = true; res.color = '#38bdf8'; }
+        }
+    }
+
+    // Hover effect (only in default mode)
+    if (state.hoveredNode && state.mode === 'default') {
+        if (node !== state.hoveredNode && !state.hoveredNeighbors.has(node)) {
+            res.color = '#334155';
+            res.label = null;
+            res.size = Math.max(res.size * 0.5, 1);
+        }
+    }
+
+    // Bridge glow overlay
+    if (state.bridgeGlow && data.is_bridge) {
+        res.highlighted = true;
+    }
+
+    // Structural holes overlay
+    if (state.structuralHoles.size > 0 && state.structuralHoles.has(node)) {
+        res.highlighted = true;
+        if (state.mode === 'default' && !state.hoveredNode) {
+            res.color = '#f97316';
+        }
+    }
+
+    return res;
+}
+
+// ─── Sigma edge reducer ──────────────────────────────────────
+function sigmaEdgeReducer(edge, data) {
+    var res = Object.assign({}, data);
+    var src = graph.source(edge);
+    var tgt = graph.target(edge);
+
+    // Mode-based hiding
+    if (state.mode !== 'default') {
+        var isVisible = false;
+        switch (state.mode) {
+            case 'neighbors':
+                isVisible = (src === state.selectedNode || tgt === state.selectedNode);
+                break;
+            case 'path':
+                isVisible = state.pathEdgeSet.has(edge);
+                break;
+            case 'connection':
+                isVisible = state.connEdgeSet.has(edge) ||
+                    (state.connNodeSet.has(src) && state.neighborSet.has(tgt)) ||
+                    (state.connNodeSet.has(tgt) && state.neighborSet.has(src));
+                break;
+            case 'search':
+                isVisible = state.searchMatchSet.has(src) && state.searchMatchSet.has(tgt);
+                break;
+        }
+        if (!isVisible) {
+            res.hidden = true;
+        } else {
+            if (state.pathEdgeSet.has(edge)) { res.color = '#34d399'; res.size = 3; }
+            if (state.connEdgeSet.has(edge)) { res.color = '#38bdf8'; res.size = 4; }
+        }
+    }
+
+    // Hover effect: show connected edges at full opacity, hide others
+    if (state.hoveredNode && state.mode === 'default') {
+        if (src !== state.hoveredNode && tgt !== state.hoveredNode) {
+            res.hidden = true;
+        } else {
+            res.size = Math.max(res.size, 1.5);
+            res.color = '#888888';
+        }
+    }
+
+    // Warmth edge coloring (weight-based, since deep_weight is often 0)
+    if (state.warmthEdges && !res.hidden) {
+        var w = data.deep_weight || data.weight || 0;
+        res.color = warmthColor(w);
+    }
+
+    return res;
+}
+
+// ─── ForceAtlas2 layout (chunked, non-blocking) ─────────────
+function runFA2Chunked(iterations, batchSize, onDone) {
+    var done = 0;
+    var FA2 = graphologyLibrary.layoutForceAtlas2;
+    var settings = {
+        barnesHutOptimize: true,
+        scalingRatio: 10,
+        gravity: 0.15,
+        slowDown: 5,
+        strongGravityMode: false,
+        adjustSizes: true,
+    };
+
+    function batch() {
+        var thisRun = Math.min(batchSize, iterations - done);
+        FA2.assign(graph, {iterations: thisRun, settings: settings});
+        done += thisRun;
+        if (renderer) renderer.refresh();
+        if (done < iterations) {
+            fa2AnimId = requestAnimationFrame(batch);
+        } else {
+            fa2AnimId = null;
+            if (onDone) onDone();
+        }
+    }
+    batch();
+}
+
+function stopFA2() {
+    if (fa2AnimId) {
+        cancelAnimationFrame(fa2AnimId);
+        fa2AnimId = null;
+    }
+    fa2Running = false;
+}
+
+// ─── Interaction setup ───────────────────────────────────────
+function setupInteractions(data) {
+    // Click node
+    renderer.on('clickNode', function(event) {
+        var nodeId = event.node;
+        var d = getNodeData(nodeId);
+
+        // If already selected and this is different → connection analysis
+        if (state.selectedNode && state.selectedNode !== nodeId &&
+            graph.getNodeAttribute(state.selectedNode, 'node_type') !== 'organization' &&
+            d.node_type !== 'organization') {
+            showConnection(state.selectedNode, nodeId);
+            return;
+        }
+
+        // Single node selection
+        selectNode(nodeId);
+
+        if (d.node_type === 'organization') {
+            setStatusBar(d.label + ' | ' + d.member_count + ' connected people');
+            showOrgPanel(d, nodeId);
+        } else if (d.node_type === 'shadow_person') {
+            setStatusBar(d.label + ' (shadow contact, score ' + d.shadow_score + ')');
+            showShadowPanel(d);
+        } else {
+            setStatusBar(d.label + ' (score ' + d.score + ') | Click a neighbor to see the connection');
+            showPanel(d);
+        }
+    });
+
+    // Click background: reset
+    renderer.on('clickStage', function() {
+        clearAllState();
+        renderer.refresh();
+        setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+        hidePanel();
+    });
+
+    // Hover enter
+    renderer.on('enterNode', function(event) {
+        document.getElementById('graph-container').style.cursor = 'pointer';
+        state.hoveredNode = event.node;
+        state.hoveredNeighbors = new Set(graph.neighbors(event.node));
+        renderer.refresh();
+
+        var d = getNodeData(event.node);
+        var tip;
+        if (d.node_type === 'organization') {
+            tip = d.label + ' | Company | ' + d.member_count + ' people';
+        } else {
+            tip = d.label + ' | Score: ' + d.score + ' | C' + d.community;
+            if (d.tier) tip += ' | ' + d.tier;
+            if (d.organization) tip += ' | ' + d.organization;
+            if (d.days_since > 0) tip += ' | ' + d.days_since + 'd silence';
+            if (d.is_bridge) tip += ' | BRIDGE';
+            if (state.selectedNode && state.selectedNode !== event.node) {
+                tip += ' | Click to connect with ' + graph.getNodeAttribute(state.selectedNode, 'label');
+            }
+        }
+        setStatusBar(tip);
+    });
+
+    // Hover leave
+    renderer.on('leaveNode', function() {
+        document.getElementById('graph-container').style.cursor = 'default';
+        state.hoveredNode = null;
+        state.hoveredNeighbors = new Set();
+        renderer.refresh();
+        if (state.mode === 'default') {
+            setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+        }
+    });
+}
+
+// ─── Camera helpers ──────────────────────────────────────────
+function fitToNodes(nodeIds, padding) {
+    if (!renderer || !graph || nodeIds.length === 0) return;
+
+    if (nodeIds.length === 1 && graph.hasNode(nodeIds[0])) {
+        var pos = renderer.getNodeDisplayData(nodeIds[0]);
+        if (pos) renderer.getCamera().animate({x: pos.x, y: pos.y, ratio: 0.15}, {duration: 400});
+        return;
+    }
+
+    var sumX = 0, sumY = 0, n = 0;
+    var minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (var i = 0; i < nodeIds.length; i++) {
+        if (!graph.hasNode(nodeIds[i])) continue;
+        var pos = renderer.getNodeDisplayData(nodeIds[i]);
+        if (!pos) continue;
+        sumX += pos.x; sumY += pos.y; n++;
+        minX = Math.min(minX, pos.x);
+        maxX = Math.max(maxX, pos.x);
+        minY = Math.min(minY, pos.y);
+        maxY = Math.max(maxY, pos.y);
+    }
+    if (n === 0) return;
+
+    var cx = sumX / n;
+    var cy = sumY / n;
+    var span = Math.max(maxX - minX, maxY - minY, 0.01);
+    var ratio = span * 1.3;
+
+    renderer.getCamera().animate({x: cx, y: cy, ratio: Math.max(ratio, 0.05)}, {duration: 400});
+}
+
+function zoomIn() {
+    if (renderer) renderer.getCamera().animatedZoom({duration: 200});
+}
+
+function zoomOut() {
+    if (renderer) renderer.getCamera().animatedUnzoom({duration: 200});
+}
+
+function resetView() {
+    if (renderer) {
+        clearAllState();
+        renderer.refresh();
+        renderer.getCamera().animatedReset({duration: 400});
+        if (graph) setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+    }
+}
+
+// ─── State management ────────────────────────────────────────
+function clearAllState() {
+    state.hoveredNode = null;
+    state.hoveredNeighbors = new Set();
+    state.selectedNode = null;
+    state.mode = 'default';
+    state.neighborSet = new Set();
+    state.searchMatchSet = new Set();
+    state.pathNodeSet = new Set();
+    state.pathEdgeSet = new Set();
+    state.connNodeSet = new Set();
+    state.connEdgeSet = new Set();
+}
+
+function selectNode(nodeId) {
+    clearAllState();
+    state.selectedNode = nodeId;
+    state.mode = 'neighbors';
+    state.neighborSet = new Set(graph.neighbors(nodeId));
+    renderer.refresh();
+}
+
+// ─── Person panel ────────────────────────────────────────────
+function showPanel(d) {
+    var panel = document.getElementById('person-panel');
+    var content = document.getElementById('person-panel-content');
+    panel.classList.remove('hidden');
+
+    var tierBadge = '';
+    if (d.tier) {
+        var tierColors = {inner:'badge-error', sympathy:'badge-warning', affinity:'badge-info', active:'badge-ghost'};
+        tierBadge = '<span class="badge badge-sm ' + (tierColors[d.tier] || 'badge-ghost') + '">' + d.tier + '</span>';
+    }
+
+    var neighborCount = graph ? graph.neighbors(d.id).length : 0;
+
+    content.innerHTML =
+        '<div class="space-y-3">' +
+            '<div>' +
+                '<div class="font-bold text-lg">' + escHtml(d.label) + '</div>' +
+                (d.email ? '<div class="text-sm text-base-content/60">' + escHtml(d.email) + '</div>' : '') +
+                (d.organization ? '<div class="text-sm">' + escHtml(d.organization) + '</div>' : '') +
+            '</div>' +
+            '<div class="grid grid-cols-2 gap-2 text-sm">' +
+                '<div class="bg-base-200 rounded p-2">' +
+                    '<div class="text-xs text-base-content/60">Score</div>' +
+                    '<div class="font-bold text-primary">' + d.score + '</div>' +
+                '</div>' +
+                '<div class="bg-base-200 rounded p-2">' +
+                    '<div class="text-xs text-base-content/60">Community</div>' +
+                    '<div class="font-bold" style="color:' + d.color + '">C' + d.community + '</div>' +
+                '</div>' +
+                '<div class="bg-base-200 rounded p-2">' +
+                    '<div class="text-xs text-base-content/60">Centrality</div>' +
+                    '<div class="font-bold">' + d.centrality + '</div>' +
+                '</div>' +
+                '<div class="bg-base-200 rounded p-2">' +
+                    '<div class="text-xs text-base-content/60">Tier</div>' +
+                    '<div class="font-bold">' + (tierBadge || '<span class="text-base-content/40">N/A</span>') + '</div>' +
+                '</div>' +
+            '</div>' +
+            (d.days_since > 0 ?
+                '<div class="flex flex-wrap gap-1.5 mt-1">' +
+                    '<div class="badge badge-sm badge-warning gap-1">+' + d.days_since + ' days of silence</div>' +
+                    (d.decay_pct > 40 ? '<div class="badge badge-sm badge-error gap-1">decay ' + Math.round(d.decay_pct) + '%</div>' : '') +
+                '</div>' : '') +
+            (d.is_bridge ? '<div class="badge badge-sm badge-warning gap-1 mt-1">BRIDGE connector</div>' : '') +
+            (d.hidden_neighbors > 0 ?
+                '<div class="mt-2 text-xs text-base-content/60 flex items-center justify-between">' +
+                    '<span>' + neighborCount + ' visible connections, ' + d.hidden_neighbors + ' hidden</span>' +
+                    '<button onclick="expandNode(\'' + d.id + '\')" class="btn btn-xs btn-ghost text-primary">' +
+                        'Expand (+' + d.hidden_neighbors + ')' +
+                    '</button>' +
+                '</div>' : '') +
+            '<a href="/person?auto=' + encodeURIComponent(d.email || d.label) + '" class="btn btn-sm btn-primary w-full mt-2">Open profile</a>' +
+            '<div id="person-detail-htmx" class="border-t border-base-300 pt-3">' +
+                '<div class="flex items-center gap-2"><span class="loading loading-dots loading-sm"></span><span class="text-xs text-base-content/60">Loading profile...</span></div>' +
+            '</div>' +
+        '</div>';
+
+    var q = d.email || d.label;
+    fetch('/partials/person_card?q=' + encodeURIComponent(q))
+        .then(function(r) { return r.text(); })
+        .then(function(html) {
+            var el = document.getElementById('person-detail-htmx');
+            if (el) el.innerHTML = html;
+        })
+        .catch(function() {
+            var el = document.getElementById('person-detail-htmx');
+            if (el) el.innerHTML = '<p class="text-sm text-error">Error loading profile</p>';
+        });
+}
+
+// ─── Organization panel ──────────────────────────────────────
+function showOrgPanel(d, nodeId) {
+    var panel = document.getElementById('person-panel');
+    var content = document.getElementById('person-panel-content');
+    panel.classList.remove('hidden');
+
+    var members = [];
+    if (graph && graph.hasNode(nodeId)) {
+        graph.neighbors(nodeId).forEach(function(nid) {
+            var nd = getNodeData(nid);
+            if (nd.node_type !== 'organization') {
+                members.push(nd);
+            }
+        });
+    }
+    members.sort(function(a, b) { return (b.score || 0) - (a.score || 0); });
+
+    var html = '<div class="space-y-3">' +
+        '<div>' +
+            '<div class="flex items-center gap-2">' +
+                '<span class="text-2xl">&#x1F3E2;</span>' +
+                '<div class="font-bold text-lg">' + escHtml(d.label) + '</div>' +
+            '</div>' +
+            '<div class="badge badge-sm badge-warning mt-1">' + d.member_count + ' people</div>' +
+            (d.investor_type ? '<span class="badge badge-sm badge-info ml-1">' + escHtml(d.investor_type) + '</span>' : '') +
+            (d.tier ? '<span class="badge badge-sm badge-accent ml-1">Tier: ' + escHtml(d.tier) + '</span>' : '') +
+        '</div>';
+
+    if (d.description) {
+        html += '<div class="text-sm text-base-content/80 border-t border-base-300 pt-2">' + escHtml(d.description) + '</div>';
+    }
+    var attioTags = '';
+    if (d.fund_size_aum) attioTags += '<span class="badge badge-xs badge-ghost">AUM: ' + escHtml(d.fund_size_aum) + '</span> ';
+    if (d.thesis_fit) attioTags += '<span class="badge badge-xs badge-ghost">Thesis: ' + escHtml(d.thesis_fit) + '</span> ';
+    if (d.stage_fit) attioTags += '<span class="badge badge-xs badge-ghost">Stage: ' + escHtml(d.stage_fit) + '</span> ';
+    if (d.geographic_focus) attioTags += '<span class="badge badge-xs badge-ghost">Geo: ' + escHtml(d.geographic_focus) + '</span> ';
+    if (attioTags) {
+        html += '<div class="flex flex-wrap gap-1">' + attioTags + '</div>';
+    }
+
+    if (members.length > 0) {
+        html += '<div class="border-t border-base-300 pt-2">' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-2">Members in graph (' + members.length + ')</div>';
+        var showMax = Math.min(members.length, 20);
+        for (var i = 0; i < showMax; i++) {
+            var m = members[i];
+            html += '<div class="flex items-center gap-2 py-1 cursor-pointer hover:bg-base-200 rounded px-1 -mx-1" ' +
+                'onclick="highlightNode(\'' + m.id + '\')">' +
+                '<span class="inline-block w-2 h-2 rounded-full shrink-0" style="background:' + (m.color || '#999') + '"></span>' +
+                '<span class="text-sm truncate flex-1">' + escHtml(m.label) + '</span>' +
+                '<span class="text-xs font-mono text-primary">' + (m.score || 0) + '</span>' +
+                '</div>';
+        }
+        if (members.length > 20) {
+            html += '<div class="text-xs text-base-content/50 mt-1">... and ' + (members.length - 20) + ' more</div>';
+        }
+        html += '</div>';
+    }
+
+    if (d.top_members && d.top_members.length > 0) {
+        html += '<div class="border-t border-base-300 pt-2">' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-1">Top members (by score)</div>' +
+            '<div class="flex flex-wrap gap-1">';
+        for (var j = 0; j < d.top_members.length; j++) {
+            html += '<span class="badge badge-xs badge-outline">' + escHtml(d.top_members[j]) + '</span>';
+        }
+        html += '</div></div>';
+    }
+
+    html += '</div>';
+    content.innerHTML = html;
+}
+
+// ─── Shadow panel ────────────────────────────────────────────
+function showShadowPanel(d) {
+    var panel = document.getElementById('person-panel');
+    var content = document.getElementById('person-panel-content');
+    panel.classList.remove('hidden');
+
+    var facts = [];
+    try { facts = JSON.parse(d.facts_json || '[]'); } catch(e) {}
+    var meetings = [];
+    try { meetings = JSON.parse(d.meetings_json || '[]'); } catch(e) {}
+
+    var html = '<div class="space-y-3">' +
+        '<div>' +
+            '<div class="badge badge-sm badge-ghost mb-1">Shadow contact</div>' +
+            '<div class="font-bold text-lg">' + escHtml(d.label) + '</div>' +
+            (d.inferred_company ? '<div class="text-sm">' + escHtml(d.inferred_company) + '</div>' : '') +
+            (d.inferred_role ? '<div class="text-sm text-base-content/60">' + escHtml(d.inferred_role) + '</div>' : '') +
+        '</div>' +
+        '<div class="grid grid-cols-3 gap-2 text-sm">' +
+            '<div class="bg-base-200 rounded p-2 text-center">' +
+                '<div class="text-xs text-base-content/60">Mentions</div>' +
+                '<div class="font-bold">' + (d.mention_count || 0) + '</div>' +
+            '</div>' +
+            '<div class="bg-base-200 rounded p-2 text-center">' +
+                '<div class="text-xs text-base-content/60">Confidence</div>' +
+                '<div class="font-bold">' + Math.round((d.confidence_score || 0) * 100) + '%</div>' +
+            '</div>' +
+            '<div class="bg-base-200 rounded p-2 text-center">' +
+                '<div class="text-xs text-base-content/60">Sources</div>' +
+                '<div class="font-bold">' + (d.source_diversity || 0) + '</div>' +
+            '</div>' +
+        '</div>';
+
+    if (d.first_seen || d.last_seen) {
+        html += '<div class="text-xs text-base-content/60">' +
+            (d.first_seen ? 'From ' + String(d.first_seen).substring(0, 10) : '') +
+            (d.last_seen ? ' to ' + String(d.last_seen).substring(0, 10) : '') + '</div>';
+    }
+
+    if (d.intro_via_name) {
+        html += '<div class="bg-accent/10 border border-accent/30 rounded p-2 text-sm">' +
+            '<div class="text-xs font-semibold text-accent mb-0.5">Possible intro via</div>' +
+            '<span class="font-medium cursor-pointer hover:underline" ' +
+                (d.intro_via_pid ? 'onclick="highlightNode(\'' + d.intro_via_pid + '\')"' : '') + '>' +
+                escHtml(d.intro_via_name) + '</span></div>';
+    }
+
+    if (facts.length > 0) {
+        html += '<div class="border-t border-base-300 pt-2">' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-1">What we know</div>';
+        var maxFacts = Math.min(facts.length, 8);
+        for (var i = 0; i < maxFacts; i++) {
+            var f = facts[i];
+            var pred = (f.predicate || '').replace(/_/g, ' ').toLowerCase();
+            var obj = f.object || '';
+            var ctx = f.context || '';
+            html += '<div class="text-sm py-1 border-b border-base-300/50">' +
+                '<span class="text-base-content/50 text-xs">' + escHtml(pred) + ':</span> ' +
+                escHtml(obj) +
+                (ctx ? '<div class="text-xs text-base-content/40 mt-0.5">' + escHtml(ctx) + '</div>' : '') +
+                '</div>';
+        }
+        if (facts.length > 8) {
+            html += '<div class="text-xs text-base-content/50 mt-1">... and ' + (facts.length - 8) + ' more facts</div>';
+        }
+        html += '</div>';
+    }
+
+    if (meetings.length > 0) {
+        html += '<div class="border-t border-base-300 pt-2">' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-1">Mentioned in</div>';
+        var maxMeetings = Math.min(meetings.length, 5);
+        for (var j = 0; j < maxMeetings; j++) {
+            var m = meetings[j];
+            html += '<div class="text-sm py-1">' +
+                '<div class="font-medium">' + escHtml(m.title || 'Meeting') + '</div>' +
+                '<div class="text-xs text-base-content/50">' + (m.date || '').substring(0, 10) + '</div>' +
+                '</div>';
+        }
+        if (meetings.length > 5) {
+            html += '<div class="text-xs text-base-content/50 mt-1">... and ' + (meetings.length - 5) + ' more</div>';
+        }
+        html += '</div>';
+    }
+
+    html += '</div>';
+    content.innerHTML = html;
+}
+
+function hidePanel() {
+    document.getElementById('person-panel').classList.add('hidden');
+}
+
+// ─── Connection between two nodes ────────────────────────────
+function showConnection(nodeIdA, nodeIdB) {
+    var dA = getNodeData(nodeIdA);
+    var dB = getNodeData(nodeIdB);
+
+    clearAllState();
+    state.mode = 'connection';
+    state.connNodeSet = new Set([nodeIdA, nodeIdB]);
+
+    // Direct edge
+    if (graph.hasEdge(nodeIdA, nodeIdB)) {
+        state.connEdgeSet.add(graph.edge(nodeIdA, nodeIdB));
+    }
+
+    // Mutual neighbors
+    var neighborsA = new Set(graph.neighbors(nodeIdA));
+    var neighborsB = new Set(graph.neighbors(nodeIdB));
+    var mutual = [];
+    neighborsA.forEach(function(n) {
+        if (neighborsB.has(n)) {
+            mutual.push(n);
+            state.neighborSet.add(n);
+        }
+    });
+
+    renderer.refresh();
+
+    // Fit camera
+    var fitIds = [nodeIdA, nodeIdB].concat(mutual);
+    fitToNodes(fitIds, 80);
+
+    setStatusBar('Connection analysis: ' + dA.label + ' \u2194 ' + dB.label + '...');
+
+    // Show loading panel
+    var panel = document.getElementById('person-panel');
+    var content = document.getElementById('person-panel-content');
+    panel.classList.remove('hidden');
+    content.innerHTML = '<div class="flex flex-col items-center gap-2 py-6">' +
+        '<span class="loading loading-spinner loading-md text-primary"></span>' +
+        '<span class="text-sm text-base-content/60">Connection analysis...</span></div>';
+
+    fetch('/api/graph/connection?a=' + encodeURIComponent(nodeIdA) + '&b=' + encodeURIComponent(nodeIdB))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            renderConnectionPanel(data, dA, dB);
+            var s = data.strength || 'N/A';
+            setStatusBar(dA.label + ' \u2194 ' + dB.label + ' | Relationship: ' + s + ' | ' + (data.structural || {}).mutual_count + ' mutual contacts');
+        })
+        .catch(function(err) {
+            content.innerHTML = '<p class="text-sm text-error">Connection analysis error</p>';
+            console.error('Connection analysis failed:', err);
+        });
+}
+
+// ─── Relationship summary ────────────────────────────────────
+function buildRelationshipSummary(data, dA, dB) {
+    var nameA = dA.label.split(' ')[0];
+    var nameB = dB.label.split(' ')[0];
+    var ix = data.interactions || {};
+    var tl = data.timeline || {};
+    var st = data.structural || {};
+    var parts = [];
+
+    if (data.has_direct_edge) {
+        var channels = [];
+        if (ix.email_msgs > 0) channels.push(ix.email_msgs + ' email' + (ix.email_threads > 1 ? ' in ' + ix.email_threads + ' thread' : ''));
+        if (ix.cal_events > 0) channels.push(ix.cal_events + ' meeting');
+        if (ix.tactiq_meetings > 0) channels.push(ix.tactiq_meetings + ' recorded call' + (ix.tactiq_meetings > 1 ? 's' : ''));
+        if (ix.slack_msgs > 0) channels.push(ix.slack_msgs + ' msg Slack');
+        if (channels.length > 0) {
+            parts.push('<b>' + nameA + '</b> and <b>' + nameB + '</b> had ' + channels.join(', '));
+        }
+        var firstDate = tl.email_first || tl.cal_first || '';
+        var lastDate = tl.email_last || tl.cal_last || '';
+        if (firstDate && lastDate && firstDate !== lastDate) {
+            parts[parts.length - 1] += ' (from ' + firstDate + ' to ' + lastDate + ')';
+        } else if (lastDate) {
+            parts[parts.length - 1] += ' (last: ' + lastDate + ')';
+        }
+    } else {
+        parts.push('<b>' + nameA + '</b> and <b>' + nameB + '</b> have no direct interactions');
+    }
+
+    var mutuals = data.mutual || [];
+    if (st.mutual_count > 0) {
+        var topNames = mutuals.slice(0, 3).map(function(m) { return m.name.split(' ')[0]; }).join(', ');
+        var mutualText = st.mutual_count + ' mutual contact' + (st.mutual_count === 1 ? '' : 's');
+        if (topNames) mutualText += ' including ' + topNames;
+        parts.push(mutualText);
+    }
+
+    if (st.shared_orgs && st.shared_orgs.length > 0) {
+        parts.push('both connected to ' + st.shared_orgs.join(', '));
+    } else if (st.same_community) {
+        parts.push('in the same network community');
+    }
+
+    if (parts.length === 0) return '';
+    return parts.map(function(p, i) {
+        return i === 0 ? p : p.charAt(0).toUpperCase() + p.slice(1);
+    }).join('. ') + '.';
+}
+
+// ─── Connection panel ────────────────────────────────────────
+function renderConnectionPanel(data, dA, dB) {
+    var content = document.getElementById('person-panel-content');
+    var ix = data.interactions || {};
+    var tl = data.timeline || {};
+    var st = data.structural || {};
+    var inten = data.intensity || {};
+
+    var strengthColors = {forte:'badge-success', media:'badge-warning', debole:'badge-error', minima:'badge-ghost', indiretta:'badge-ghost'};
+    var strengthLabels = {forte:'strong', media:'medium', debole:'weak', minima:'minimal', indiretta:'indirect'};
+    var strengthBadge = '<span class="badge badge-sm ' + (strengthColors[data.strength] || 'badge-ghost') + '">' + (strengthLabels[data.strength] || data.strength || 'N/A') + '</span>';
+
+    var html = '<div class="space-y-3">' +
+        '<div class="text-center">' +
+            '<div class="flex items-center justify-center gap-3 mb-2">' +
+                '<div class="text-center">' +
+                    '<div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style="background:' + dA.color + '">' + escHtml(dA.label.charAt(0)) + '</div>' +
+                    '<div class="text-xs font-medium mt-1 max-w-[90px] truncate">' + escHtml(dA.label) + '</div>' +
+                '</div>' +
+                '<div class="flex flex-col items-center gap-0.5">' +
+                    strengthBadge +
+                    '<div class="text-xs text-base-content/50">' + (data.channels || 0) + ' channels</div>' +
+                '</div>' +
+                '<div class="text-center">' +
+                    '<div class="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm" style="background:' + dB.color + '">' + escHtml(dB.label.charAt(0)) + '</div>' +
+                    '<div class="text-xs font-medium mt-1 max-w-[90px] truncate">' + escHtml(dB.label) + '</div>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+
+    var summary = buildRelationshipSummary(data, dA, dB);
+    if (summary) {
+        html += '<div class="bg-base-200 rounded-lg p-3 text-sm leading-relaxed">' + summary + '</div>';
+    }
+
+    var signals = [];
+    if (st.same_organization) signals.push('<span class="badge badge-xs badge-info">Same company</span>');
+    if (st.same_community) signals.push('<span class="badge badge-xs badge-accent">Same community</span>');
+    if (!data.has_direct_edge) signals.push('<span class="badge badge-xs badge-warning">Mutual contacts only</span>');
+    if (signals.length > 0) {
+        html += '<div class="flex flex-wrap gap-1 justify-center">' + signals.join('') + '</div>';
+    }
+
+    if (data.has_direct_edge) {
+        html += '<div class="border-t border-base-300 pt-2">' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-2">Interactions</div>' +
+            '<div class="grid grid-cols-2 gap-1.5 text-sm">';
+
+        if (ix.email_msgs > 0) {
+            html += '<div class="bg-base-200 rounded p-2">' +
+                '<div class="text-xs text-base-content/50">Email</div>' +
+                '<div class="font-bold text-primary">' + ix.email_msgs + '</div>' +
+                '<div class="text-xs text-base-content/40">' + ix.email_threads + ' thread</div></div>';
+        }
+        if (ix.cal_events > 0) {
+            html += '<div class="bg-base-200 rounded p-2">' +
+                '<div class="text-xs text-base-content/50">Meeting</div>' +
+                '<div class="font-bold text-accent">' + ix.cal_events + '</div>' +
+                '<div class="text-xs text-base-content/40">calendar</div></div>';
+        }
+        if (ix.tactiq_meetings > 0) {
+            html += '<div class="bg-base-200 rounded p-2">' +
+                '<div class="text-xs text-base-content/50">Tactiq</div>' +
+                '<div class="font-bold text-secondary">' + ix.tactiq_meetings + '</div>' +
+                '<div class="text-xs text-base-content/40">transcripts</div></div>';
+        }
+        html += '<div class="bg-base-200 rounded p-2">' +
+            '<div class="text-xs text-base-content/50">Total weight</div>' +
+            '<div class="font-bold">' + ix.weight + '</div>' +
+            '<div class="text-xs text-base-content/40">composite</div></div>';
+
+        html += '</div></div>';
+
+        var hasTimeline = tl.email_first || tl.cal_first;
+        if (hasTimeline) {
+            html += '<div class="border-t border-base-300 pt-2">' +
+                '<div class="text-xs font-semibold text-base-content/60 mb-1">Timeline</div>' +
+                '<div class="text-xs space-y-1">';
+            if (tl.email_first) {
+                html += '<div class="flex justify-between"><span class="text-base-content/50">First email</span><span>' + tl.email_first + '</span></div>';
+            }
+            if (tl.email_last) {
+                html += '<div class="flex justify-between"><span class="text-base-content/50">Last email</span><span>' + tl.email_last + '</span></div>';
+            }
+            if (tl.cal_first) {
+                html += '<div class="flex justify-between"><span class="text-base-content/50">First meeting</span><span>' + tl.cal_first + '</span></div>';
+            }
+            if (tl.cal_last) {
+                html += '<div class="flex justify-between"><span class="text-base-content/50">Last meeting</span><span>' + tl.cal_last + '</span></div>';
+            }
+            if (data.duration_months > 0) {
+                html += '<div class="flex justify-between font-medium"><span class="text-base-content/50">Duration</span><span>' + data.duration_months + ' months</span></div>';
+            }
+            html += '</div></div>';
+        }
+
+        if (inten.emails_per_month > 0 || inten.events_per_month > 0) {
+            html += '<div class="border-t border-base-300 pt-2">' +
+                '<div class="text-xs font-semibold text-base-content/60 mb-1">Intensity</div>' +
+                '<div class="text-xs space-y-1">';
+            if (inten.emails_per_month > 0) {
+                html += '<div class="flex justify-between"><span class="text-base-content/50">Email/month</span><span class="font-medium">' + inten.emails_per_month + '</span></div>';
+            }
+            if (inten.events_per_month > 0) {
+                html += '<div class="flex justify-between"><span class="text-base-content/50">Meetings/month</span><span class="font-medium">' + inten.events_per_month + '</span></div>';
+            }
+            html += '</div></div>';
+        }
+    } else {
+        html += '<div class="border-t border-base-300 pt-2 text-center">' +
+            '<div class="text-sm text-warning py-2">No direct interaction</div>' +
+            '<div class="text-xs text-base-content/50">Connected only through ' + st.mutual_count + ' mutual contacts</div></div>';
+    }
+
+    var mutuals = data.mutual || [];
+    if (mutuals.length > 0) {
+        html += '<div class="border-t border-base-300 pt-2">' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-1">Mutual contacts (' + st.mutual_count + ')</div>';
+        var showMax = Math.min(mutuals.length, 10);
+        for (var i = 0; i < showMax; i++) {
+            var m = mutuals[i];
+            var orgTag = m.organization ? '<span class="text-xs text-base-content/40 truncate max-w-[80px]">' + escHtml(m.organization) + '</span>' : '';
+            html += '<div class="flex items-center gap-2 py-1 cursor-pointer hover:bg-base-200 rounded px-1 -mx-1" ' +
+                'onclick="highlightNode(\'' + m.person_id + '\')">' +
+                '<span class="text-sm truncate flex-1">' + escHtml(m.name) + '</span>' +
+                orgTag +
+                '<span class="text-xs font-mono text-base-content/50">' + m.score + '</span></div>';
+        }
+        if (st.mutual_count > 10) {
+            html += '<div class="text-xs text-base-content/50 mt-1">... and ' + (st.mutual_count - 10) + ' more</div>';
+        }
+        html += '</div>';
+    }
+
+    if (st.shared_orgs && st.shared_orgs.length > 0) {
+        html += '<div class="border-t border-base-300 pt-2">' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-1">Shared organizations</div>' +
+            '<div class="flex flex-wrap gap-1">';
+        for (var oi = 0; oi < st.shared_orgs.length; oi++) {
+            html += '<span class="badge badge-xs badge-outline">' + escHtml(st.shared_orgs[oi]) + '</span>';
+        }
+        html += '</div></div>';
+    }
+
+    html += '<div class="flex gap-2 mt-3">' +
+        '<a href="/person?auto=' + encodeURIComponent(dA.email || dA.label) + '" class="btn btn-sm btn-outline flex-1 text-xs">' + escHtml(dA.label.split(' ')[0]) + '</a>' +
+        '<a href="/person?auto=' + encodeURIComponent(dB.email || dB.label) + '" class="btn btn-sm btn-outline flex-1 text-xs">' + escHtml(dB.label.split(' ')[0]) + '</a>' +
+        '</div>';
+
+    html += '</div>';
+    content.innerHTML = html;
+}
+
+// ─── Search with dropdown results ────────────────────────────
+var searchInput = document.getElementById('graph-search');
+var searchSpinner = document.getElementById('search-spinner');
+var searchClear = document.getElementById('search-clear');
+var searchDropdown = document.getElementById('search-dropdown');
+
+searchInput.addEventListener('input', function(e) {
+    var q = (e.target.value || '').trim();
+
+    if (q.length > 0) {
+        searchClear.classList.remove('hidden');
+    } else {
+        searchClear.classList.add('hidden');
+        closeDropdown();
+        if (graph && renderer) {
+            clearAllState();
+            renderer.refresh();
+            setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+        }
+        return;
+    }
+
+    searchSpinner.classList.remove('hidden');
+
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(function() {
+        executeSearch(q);
+    }, 250);
+});
+
+function executeSearch(q) {
+    searchSpinner.classList.add('hidden');
+    if (!q) { closeDropdown(); return; }
+
+    var qLower = q.toLowerCase();
+
+    // Clear previous search state
+    clearAllState();
+
+    // Search full index
+    var matches = searchIndex.filter(function(item) {
+        return item.name.toLowerCase().indexOf(qLower) >= 0 ||
+               (item.email && item.email.toLowerCase().indexOf(qLower) >= 0) ||
+               (item.org && item.org.toLowerCase().indexOf(qLower) >= 0);
+    });
+
+    // Also search org nodes in graph
+    var orgMatches = [];
+    if (graph) {
+        graph.forEachNode(function(node, attrs) {
+            if (attrs.node_type === 'organization' &&
+                attrs.label.toLowerCase().indexOf(qLower) >= 0) {
+                orgMatches.push({
+                    id: node, name: attrs.label, isOrg: true,
+                    memberCount: attrs.member_count || 0,
+                    inGraph: true
+                });
+            }
+        });
+    }
+
+    if (matches.length === 0 && orgMatches.length === 0) {
+        showDropdown('<div class="px-3 py-2 text-sm text-warning">No results for "' + escHtml(q) + '"</div>');
+        setStatusBar('Search: no results for "' + q + '"');
+        return;
+    }
+
+    // Sort: in-graph first, then by score
+    matches.sort(function(a, b) {
+        var aInGraph = (graph && graph.hasNode(a.id)) ? 1 : 0;
+        var bInGraph = (graph && graph.hasNode(b.id)) ? 1 : 0;
+        if (aInGraph !== bInGraph) return bInGraph - aInGraph;
+        return (b.score || 0) - (a.score || 0);
+    });
+
+    // Auto-select if exactly 1 match in graph
+    if (matches.length === 1 && orgMatches.length === 0 && graph && graph.hasNode(matches[0].id)) {
+        closeDropdown();
+        selectSearchResult(matches[0].id);
+        return;
+    }
+
+    // Highlight in-graph matches
+    if (graph) {
+        state.mode = 'search';
+        matches.forEach(function(m) {
+            if (graph.hasNode(m.id)) state.searchMatchSet.add(m.id);
+        });
+        if (state.searchMatchSet.size > 0 && renderer) renderer.refresh();
+    }
+
+    var total = matches.length + orgMatches.length;
+    var shown = matches.slice(0, 20);
+
+    var html = '<div class="px-3 py-1.5 text-xs text-base-content/60 border-b border-base-300 flex justify-between">' +
+        '<span>' + total + ' result' + (total > 1 ? 's' : '') + ' (all contacts)</span>' +
+        '<span>Click to explore</span></div>';
+
+    for (var oi = 0; oi < orgMatches.length; oi++) {
+        var om = orgMatches[oi];
+        html += '<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer flex items-center gap-2 text-sm border-b border-base-300/50 bg-amber-900/10" ' +
+            'onclick="selectSearchResultById(\'' + om.id + '\')">' +
+            '<span class="text-amber-400 shrink-0">&#x1F3E2;</span>' +
+            '<span class="font-medium truncate flex-1">' + escHtml(om.name) + '</span>' +
+            '<span class="badge badge-xs badge-warning">Company</span>' +
+            '<span class="text-xs font-mono text-base-content/50">' + om.memberCount + ' people</span>' +
+            '</div>';
+    }
+
+    for (var i = 0; i < shown.length; i++) {
+        var s = shown[i];
+        var inGraph = graph && graph.hasNode(s.id);
+
+        if (inGraph) {
+            var nodeColor = graph.getNodeAttribute(s.id, 'color') || '#999';
+            html += '<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer flex items-center gap-2 text-sm border-b border-base-300/50" ' +
+                'onclick="selectSearchResultById(\'' + s.id + '\')">' +
+                '<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0" style="background:' + nodeColor + '"></span>' +
+                '<span class="font-medium truncate flex-1">' + escHtml(s.name) + '</span>' +
+                (s.org ? '<span class="text-xs text-base-content/50 truncate max-w-[120px]">' + escHtml(s.org) + '</span>' : '') +
+                '<span class="text-xs font-mono text-primary">' + s.score + '</span>' +
+                '</div>';
+        } else {
+            html += '<div class="px-3 py-1.5 hover:bg-base-200 cursor-pointer flex items-center gap-2 text-sm border-b border-base-300/50 opacity-70" ' +
+                'onclick="addEgoToGraph(\'' + s.id + '\')">' +
+                '<span class="inline-block w-2.5 h-2.5 rounded-full shrink-0 border border-dashed border-gray-500"></span>' +
+                '<span class="font-medium truncate flex-1">' + escHtml(s.name) + '</span>' +
+                (s.org ? '<span class="text-xs text-base-content/50 truncate max-w-[120px]">' + escHtml(s.org) + '</span>' : '') +
+                '<span class="text-xs font-mono">' + s.score + '</span>' +
+                '<span class="badge badge-xs badge-ghost">+ add</span>' +
+                '</div>';
+        }
+    }
+    if (matches.length > 20) {
+        html += '<div class="px-3 py-1.5 text-xs text-base-content/50 text-center">... and ' + (matches.length - 20) + ' more</div>';
+    }
+    showDropdown(html);
+    setStatusBar('Search: ' + total + ' result' + (total > 1 ? 's' : '') + ' for "' + q + '"');
+}
+
+function selectSearchResultById(nodeId) {
+    if (!graph || !graph.hasNode(nodeId)) return;
+    closeDropdown();
+    selectSearchResult(nodeId);
+}
+
+function selectSearchResult(nodeId) {
+    selectNode(nodeId);
+
+    var neighbors = graph.neighbors(nodeId);
+    var fitIds = [nodeId].concat(neighbors.slice(0, 20));
+    fitToNodes(fitIds, 60);
+
+    var d = getNodeData(nodeId);
+    setStatusBar(d.label + ' | ' + (neighbors.length + 1) + ' connections | Click a neighbor to see the connection');
+    if (d.node_type === 'shadow_person') {
+        showShadowPanel(d);
+    } else if (d.node_type === 'organization') {
+        showOrgPanel(d, nodeId);
+    } else {
+        showPanel(d);
+    }
+}
+
+function showDropdown(html) {
+    searchDropdown.innerHTML = html;
+    searchDropdown.classList.remove('hidden');
+}
+
+function closeDropdown() {
+    searchDropdown.classList.add('hidden');
+    searchDropdown.innerHTML = '';
+}
+
+function clearSearch() {
+    searchInput.value = '';
+    searchClear.classList.add('hidden');
+    searchSpinner.classList.add('hidden');
+    closeDropdown();
+    clearTimeout(searchTimeout);
+    if (graph && renderer) {
+        clearAllState();
+        renderer.refresh();
+        setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+    }
+    searchInput.focus();
+}
+
+// Close dropdown on outside click
+document.addEventListener('click', function(e) {
+    var container = document.getElementById('search-container');
+    if (container && !container.contains(e.target)) {
+        closeDropdown();
+    }
+});
+
+// ─── Warm intro ──────────────────────────────────────────────
+async function findWarmIntro() {
+    var target = document.getElementById('warm-intro-target').value.trim();
+    if (!target) return;
+
+    var resultDiv = document.getElementById('warm-intro-result');
+    var btnText = document.getElementById('warm-intro-btn-text');
+    var btnSpinner = document.getElementById('warm-intro-btn-spinner');
+    var btn = document.getElementById('warm-intro-btn');
+
+    btn.disabled = true;
+    btnText.textContent = 'Searching...';
+    btnSpinner.classList.remove('hidden');
+    resultDiv.innerHTML = '<div class="flex items-center gap-2"><span class="loading loading-dots loading-sm"></span><span class="text-sm text-base-content/60">Finding path to "' + escHtml(target) + '"...</span></div>';
+
+    try {
+        var resp = await fetch('/api/graph/warm-intro?target=' + encodeURIComponent(target));
+        var data = await resp.json();
+
+        if (!data.paths || data.paths.length === 0) {
+            resultDiv.innerHTML = '<div class="alert alert-warning py-2 text-sm"><svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>No path found for "' + escHtml(target) + '". Try a different name.</div>';
+            return;
+        }
+
+        var html = '<div class="text-xs text-base-content/60 mb-2">' + data.paths.length + ' path' + (data.paths.length > 1 ? 's' : '') + ' found</div>';
+        for (var pi = 0; pi < data.paths.length; pi++) {
+            var path = data.paths[pi];
+            html += '<div class="flex items-center gap-1.5 text-sm mb-2 flex-wrap p-2 bg-base-200 rounded">';
+            for (var i = 0; i < path.steps.length; i++) {
+                var step = path.steps[i];
+                if (i > 0) {
+                    html += '<span class="text-base-content/40">&rarr;</span>';
+                    if (step.edge_weight > 0) {
+                        html += '<span class="badge badge-xs badge-ghost font-mono">' + step.edge_weight + '</span>';
+                        html += '<span class="text-base-content/40">&rarr;</span>';
+                    }
+                }
+                var isFirst = i === 0;
+                var isLast = i === path.steps.length - 1;
+                var cls = isFirst ? 'badge-primary' : (isLast ? 'badge-accent' : 'badge-ghost');
+                html += '<span class="badge ' + cls + ' cursor-pointer hover:brightness-110" onclick="highlightNode(\'' + step.person_id + '\')">' + escHtml(step.name) + '</span>';
+            }
+            html += '<span class="text-xs text-base-content/40 ml-auto">(' + path.hops + ' hop' + (path.hops > 1 ? 's' : '') + ')</span>';
+            html += '</div>';
+        }
+        resultDiv.innerHTML = html;
+
+        // Highlight first path in graph
+        if (graph && renderer && data.paths.length > 0) {
+            clearAllState();
+            state.mode = 'path';
+            var first = data.paths[0];
+            for (var si = 0; si < first.steps.length; si++) {
+                var pid = first.steps[si].person_id;
+                if (graph.hasNode(pid)) state.pathNodeSet.add(pid);
+            }
+            for (var ei = 0; ei < first.steps.length - 1; ei++) {
+                var s = first.steps[ei].person_id;
+                var t = first.steps[ei + 1].person_id;
+                if (graph.hasNode(s) && graph.hasNode(t) && graph.hasEdge(s, t)) {
+                    state.pathEdgeSet.add(graph.edge(s, t));
+                }
+            }
+            renderer.refresh();
+
+            // Fit to path nodes
+            var pathIds = [];
+            for (var zi = 0; zi < first.steps.length; zi++) {
+                if (graph.hasNode(first.steps[zi].person_id)) {
+                    pathIds.push(first.steps[zi].person_id);
+                }
+            }
+            fitToNodes(pathIds, 100);
+        }
+    } catch (err) {
+        resultDiv.innerHTML = '<div class="alert alert-error py-2 text-sm">Search error: ' + escHtml(err.message) + '</div>';
+    } finally {
+        btn.disabled = false;
+        btnText.textContent = 'Find path';
+        btnSpinner.classList.add('hidden');
+    }
+}
+
+// ─── Highlight node ──────────────────────────────────────────
+function highlightNode(personId) {
+    if (!graph || !graph.hasNode(personId)) return;
+
+    selectNode(personId);
+
+    var neighbors = graph.neighbors(personId);
+    var fitIds = [personId].concat(neighbors.slice(0, 20));
+    fitToNodes(fitIds, 60);
+
+    var d = getNodeData(personId);
+    setStatusBar(d.label + ' | ' + (neighbors.length + 1) + ' connections | Click a neighbor to see the connection');
+    if (d.node_type === 'shadow_person') {
+        showShadowPanel(d);
+    } else {
+        showPanel(d);
+    }
+}
+
+// ─── Ego network: inject + expand ────────────────────────────
+async function addEgoToGraph(pid) {
+    if (!graph || !renderer) return;
+    closeDropdown();
+    setStatusBar('Loading neighborhood of ' + pid + '...');
+
+    var existingPids = [];
+    graph.forEachNode(function(n) { existingPids.push(n); });
+
+    try {
+        var params = new URLSearchParams({
+            pid: pid,
+            max_neighbors: '15',
+            exclude: existingPids.join(','),
+        });
+        var resp = await fetch('/api/graph/ego?' + params);
+        var data = await resp.json();
+
+        if (!data.nodes || data.nodes.length === 0) {
+            setStatusBar('No neighbors found for ' + pid);
+            return;
+        }
+
+        // Add nodes to Graphology
+        for (var i = 0; i < data.nodes.length; i++) {
+            var nd = data.nodes[i].data;
+            if (!graph.hasNode(nd.id)) {
+                graph.addNode(nd.id, {
+                    label: nd.label || nd.id,
+                    x: Math.random() * 100,
+                    y: Math.random() * 100,
+                    size: mapSize(nd.size),
+                    color: nd.color || communityColor(nd.community),
+                    node_type: nd.node_type || 'person',
+                    type: nd.node_type || 'person',
+                    score: nd.score || 0,
+                    community: nd.community,
+                    email: nd.email || '',
+                    organization: nd.organization || '',
+                    tier: nd.tier || '',
+                    centrality: nd.centrality || 0,
+                    days_since: nd.days_since || 0,
+                    decay_pct: nd.decay_pct || 0,
+                    is_bridge: nd.is_bridge || false,
+                    hidden_neighbors: nd.hidden_neighbors || 0,
+                });
+            }
+        }
+
+        // Add edges
+        if (data.edges) {
+            for (var j = 0; j < data.edges.length; j++) {
+                var ed = data.edges[j].data;
+                if (graph.hasNode(ed.source) && graph.hasNode(ed.target) && !graph.hasEdge(ed.source, ed.target)) {
+                    try {
+                        graph.addEdge(ed.source, ed.target, {
+                            weight: ed.weight || 1,
+                            size: Math.max(0.5, Math.log2((ed.weight || 1) + 1) * 0.5),
+                            color: '#64748b',
+                            edge_type: ed.edge_type || 'interaction',
+                        });
+                    } catch(err) {}
+                }
+            }
+        }
+
+        // Position new nodes around anchor
+        layoutNewNodes(pid, data.nodes);
+
+        // Select center node
+        if (graph.hasNode(pid)) {
+            selectSearchResult(pid);
+        }
+        setStatusBar(data.nodes.length + ' nodes added for ' + (graph.hasNode(pid) ? graph.getNodeAttribute(pid, 'label') : pid));
+    } catch (err) {
+        console.error('Ego network fetch failed:', err);
+        setStatusBar('Error loading neighborhood: ' + err.message);
+    }
+}
+
+function layoutNewNodes(anchorId, newNodes) {
+    if (!graph || !graph.hasNode(anchorId)) return;
+
+    var posX = graph.getNodeAttribute(anchorId, 'x');
+    var posY = graph.getNodeAttribute(anchorId, 'y');
+    var r = 100;
+    var n = newNodes.length;
+
+    for (var i = 0; i < newNodes.length; i++) {
+        var angle = (2 * Math.PI * i) / n;
+        var nid = newNodes[i].data.id;
+        if (graph.hasNode(nid)) {
+            graph.setNodeAttribute(nid, 'x', posX + r * Math.cos(angle));
+            graph.setNodeAttribute(nid, 'y', posY + r * Math.sin(angle));
+        }
+    }
+    if (renderer) renderer.refresh();
+}
+
+async function expandNode(pid) {
+    if (!graph || !renderer) return;
+    setStatusBar('Expanding neighborhood...');
+
+    var existingPids = [];
+    graph.forEachNode(function(n) { existingPids.push(n); });
+
+    try {
+        var params = new URLSearchParams({
+            pid: pid,
+            max_neighbors: '20',
+            exclude: existingPids.join(','),
+        });
+        var resp = await fetch('/api/graph/ego?' + params);
+        var data = await resp.json();
+
+        if (!data.nodes || data.nodes.length === 0) {
+            setStatusBar('No hidden neighbors to expand');
+            return;
+        }
+
+        var newOnly = data.nodes.filter(function(n) {
+            return !graph.hasNode(n.data.id);
+        });
+
+        if (newOnly.length === 0) {
+            setStatusBar('All neighbors are already in the graph');
+            return;
+        }
+
+        for (var i = 0; i < newOnly.length; i++) {
+            var nd = newOnly[i].data;
+            graph.addNode(nd.id, {
+                label: nd.label || nd.id,
+                x: Math.random() * 100,
+                y: Math.random() * 100,
+                size: mapSize(nd.size),
+                color: nd.color || communityColor(nd.community),
+                node_type: nd.node_type || 'person',
+                type: nd.node_type || 'person',
+                score: nd.score || 0,
+                community: nd.community,
+                email: nd.email || '',
+                organization: nd.organization || '',
+            });
+        }
+
+        var newEdges = (data.edges || []).filter(function(e) {
+            return graph.hasNode(e.data.source) && graph.hasNode(e.data.target) &&
+                   !graph.hasEdge(e.data.source, e.data.target);
+        });
+        for (var j = 0; j < newEdges.length; j++) {
+            var ed = newEdges[j].data;
+            try {
+                graph.addEdge(ed.source, ed.target, {
+                    weight: ed.weight || 1,
+                    size: Math.max(0.5, Math.log2((ed.weight || 1) + 1) * 0.5),
+                    color: '#64748b',
+                });
+            } catch(err) {}
+        }
+
+        layoutNewNodes(pid, newOnly);
+        setStatusBar(newOnly.length + ' new nodes added');
+    } catch (err) {
+        console.error('Expand failed:', err);
+        setStatusBar('Expansion error: ' + err.message);
+    }
+}
+
+// ─── Keyboard shortcuts ──────────────────────────────────────
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        if (!searchDropdown.classList.contains('hidden')) {
+            closeDropdown();
+            if (graph && renderer) {
+                clearAllState();
+                renderer.refresh();
+            }
+        } else if (searchInput.value) {
+            clearSearch();
+        } else if (graph && renderer) {
+            clearAllState();
+            renderer.refresh();
+            hidePanel();
+            setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+        }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault();
+        searchInput.focus();
+        searchInput.select();
+    }
+});
+
+// ─── Toggle: bridge highlight ────────────────────────────────
+function toggleBridgeHighlight() {
+    if (!graph || !renderer) return;
+    state.bridgeGlow = document.getElementById('toggle-bridge').checked;
+    renderer.refresh();
+    if (state.bridgeGlow) {
+        var count = 0;
+        graph.forEachNode(function(node, attrs) {
+            if (attrs.is_bridge) count++;
+        });
+        setStatusBar(count + ' bridge nodes highlighted');
+    } else {
+        setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+    }
+}
+
+// ─── Toggle: FA2 live layout ─────────────────────────────────
+function toggleFA2() {
+    if (!graph || !renderer) return;
+    var isOn = document.getElementById('toggle-fa2').checked;
+    if (isOn) {
+        fa2Running = true;
+        runFA2Live();
+        setStatusBar('ForceAtlas2 live active');
+    } else {
+        stopFA2();
+        setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+    }
+}
+
+function runFA2Live() {
+    if (!fa2Running || !graph || !renderer) return;
+    var FA2 = graphologyLibrary.layoutForceAtlas2;
+    FA2.assign(graph, {
+        iterations: 5,
+        settings: {
+            barnesHutOptimize: true,
+            scalingRatio: 2,
+            gravity: 0.5,
+            slowDown: 10,
+        }
+    });
+    renderer.refresh();
+    fa2AnimId = requestAnimationFrame(runFA2Live);
+}
+
+// ─── Toggle: warmth edges ────────────────────────────────────
+function toggleWarmthEdges() {
+    if (!renderer) return;
+    state.warmthEdges = document.getElementById('toggle-warmth').checked;
+    renderer.refresh();
+    if (state.warmthEdges) {
+        setStatusBar('Warmth edges active (color based on deep_weight)');
+    } else if (graph) {
+        setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+    }
+}
+
+// ─── Toggle: structural holes ────────────────────────────────
+function toggleStructuralHoles() {
+    if (!graph || !renderer) return;
+    var show = document.getElementById('toggle-structural').checked;
+    if (show) {
+        try {
+            var betweenness = graphologyLibrary.metrics.centrality.betweenness(graph);
+            var entries = [];
+            for (var node in betweenness) {
+                entries.push({node: node, value: betweenness[node]});
+            }
+            entries.sort(function(a, b) { return b.value - a.value; });
+
+            state.structuralHoles = new Set();
+            var top = Math.min(30, entries.length);
+            for (var i = 0; i < top; i++) {
+                var neighborCommunities = new Set();
+                graph.neighbors(entries[i].node).forEach(function(n) {
+                    var c = graph.getNodeAttribute(n, 'community');
+                    if (c != null) neighborCommunities.add(c);
+                });
+                // Structural hole: high betweenness + connects multiple communities
+                if (neighborCommunities.size >= 2) {
+                    state.structuralHoles.add(entries[i].node);
+                }
+            }
+            renderer.refresh();
+            setStatusBar(state.structuralHoles.size + ' structural holes identified (betweenness + multi-community)');
+        } catch(err) {
+            console.error('Betweenness calculation failed:', err);
+            setStatusBar('Error computing structural holes');
+        }
+    } else {
+        state.structuralHoles = new Set();
+        renderer.refresh();
+        setStatusBar(graph.order + ' nodes, ' + graph.size + ' edges');
+    }
+}
+
+// ─── Network Intelligence ────────────────────────────────────
+var intelligenceLoaded = false;
+
+document.getElementById('intelligence-panel').addEventListener('change', function(e) {
+    if (e.target.checked && !intelligenceLoaded) {
+        loadNetworkIntelligence();
+    }
+});
+
+async function loadNetworkIntelligence() {
+    var content = document.getElementById('intelligence-content');
+    try {
+        var resp = await fetch('/api/graph/intelligence');
+        var data = await resp.json();
+        intelligenceLoaded = true;
+
+        var html = '<div class="grid grid-cols-1 md:grid-cols-3 gap-4">';
+
+        // Top PageRank
+        html += '<div>' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-2">Top Influence (PageRank)</div>';
+        for (var i = 0; i < data.top_pagerank.length; i++) {
+            var p = data.top_pagerank[i];
+            html += '<div class="flex items-center gap-2 py-1 cursor-pointer hover:bg-base-200 rounded px-1 -mx-1" ' +
+                'onclick="focusNodeInGraph(\'' + p.person_id + '\')">' +
+                '<span class="text-xs font-mono text-base-content/40 w-4">' + (i + 1) + '</span>' +
+                '<span class="text-sm truncate flex-1">' + escHtml(p.name) + '</span>' +
+                (p.org ? '<span class="text-xs text-base-content/40 truncate max-w-[80px]">' + escHtml(p.org) + '</span>' : '') +
+                '<span class="text-xs font-mono text-primary">' + p.pagerank.toFixed(4) + '</span>' +
+                '</div>';
+        }
+        html += '</div>';
+
+        // Top Betweenness
+        html += '<div>' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-2">Top Bridge (Betweenness)</div>';
+        for (var j = 0; j < data.top_betweenness.length; j++) {
+            var b = data.top_betweenness[j];
+            html += '<div class="flex items-center gap-2 py-1 cursor-pointer hover:bg-base-200 rounded px-1 -mx-1" ' +
+                'onclick="focusNodeInGraph(\'' + b.person_id + '\')">' +
+                '<span class="text-xs font-mono text-base-content/40 w-4">' + (j + 1) + '</span>' +
+                '<span class="text-sm truncate flex-1">' + escHtml(b.name) + '</span>' +
+                (b.org ? '<span class="text-xs text-base-content/40 truncate max-w-[80px]">' + escHtml(b.org) + '</span>' : '') +
+                '<span class="text-xs font-mono text-warning">' + b.betweenness.toFixed(4) + '</span>' +
+                '</div>';
+        }
+        html += '</div>';
+
+        // Decay alerts
+        html += '<div>' +
+            '<div class="text-xs font-semibold text-base-content/60 mb-2">Decay Alert</div>';
+        if (data.top_decay.length === 0) {
+            html += '<div class="text-sm text-base-content/40 py-2">No alerts</div>';
+        }
+        for (var k = 0; k < data.top_decay.length; k++) {
+            var dd = data.top_decay[k];
+            html += '<div class="flex items-center gap-2 py-1 cursor-pointer hover:bg-base-200 rounded px-1 -mx-1" ' +
+                'onclick="focusNodeInGraph(\'' + dd.person_id + '\')">' +
+                '<span class="text-sm truncate flex-1">' + escHtml(dd.name) + '</span>' +
+                '<span class="badge badge-xs badge-warning">+' + dd.days_since + 'd</span>' +
+                '<span class="badge badge-xs badge-error">' + Math.round(dd.decay_pct) + '%</span>' +
+                '</div>';
+        }
+        html += '</div>';
+
+        html += '</div>';
+        content.innerHTML = html;
+    } catch (err) {
+        content.innerHTML = '<div class="text-sm text-error py-2">Loading error: ' + escHtml(err.message) + '</div>';
+    }
+}
+
+function focusNodeInGraph(pid) {
+    if (!graph) return;
+    if (graph.hasNode(pid)) {
+        selectSearchResult(pid);
+    } else {
+        addEgoToGraph(pid);
+    }
+}
+
+// ─── Initial load ────────────────────────────────────────────
+loadGraph();
+</script>
+{% endblock %}

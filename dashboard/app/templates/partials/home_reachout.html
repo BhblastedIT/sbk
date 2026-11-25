@@ -1,0 +1,65 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-lg">People to get in touch with</h2>
+            {% if people %}
+                <span class="badge badge-ghost badge-sm">{{ people|length }}</span>
+            {% endif %}
+        </div>
+        <p class="widget-description text-xs text-base-content/40 mb-2">People you haven't talked to in a while</p>
+
+        {% if people %}
+            <div class="space-y-2">
+                {% for person in people[:10] %}
+                <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50">
+                    <div class="flex items-center gap-3">
+                        <a href="/person?auto={{ person.name|urlencode }}" class="link link-hover font-medium text-sm">
+                            {{ person.name|sanitize_nan }}
+                        </a>
+                        {% if person.tier %}
+                            {% if person.tier == "inner" %}
+                                <span class="badge badge-primary badge-xs">inner</span>
+                            {% elif person.tier == "sympathy" %}
+                                <span class="badge badge-secondary badge-xs">sympathy</span>
+                            {% elif person.tier == "affinity" %}
+                                <span class="badge badge-accent badge-xs">affinity</span>
+                            {% elif person.tier == "active" %}
+                                <span class="badge badge-ghost badge-xs">active</span>
+                            {% else %}
+                                <span class="badge badge-ghost badge-xs">{{ person.tier }}</span>
+                            {% endif %}
+                        {% endif %}
+                        {% if person.reason %}
+                            <span class="text-xs text-base-content/40">{{ person.reason }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-3 text-sm">
+                        {% if person.org %}
+                            <span class="text-xs text-base-content/40">{{ person.org }}</span>
+                        {% endif %}
+                        {% if person.days_since %}
+                            <span class="text-base-content/60">{{ person.days_since }}g</span>
+                        {% endif %}
+                        {% if person.decay_pct is defined %}
+                            {% set dpct = person.decay_pct|float %}
+                            {% if dpct > 50 %}
+                                <span class="text-error font-semibold">{{ "%.0f"|format(dpct) }}%</span>
+                            {% elif dpct > 30 %}
+                                <span class="text-warning font-semibold">{{ "%.0f"|format(dpct) }}%</span>
+                            {% else %}
+                                <span class="text-success">{{ "%.0f"|format(dpct) }}%</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-base-content/50 text-sm">No contact to reach out to.</p>
+        {% endif %}
+
+        <div class="card-actions justify-end mt-3">
+            <a href="/decay" class="link link-hover text-xs text-primary">See all ({{ people|length }})</a>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,47 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-lg">Inbox</h2>
+            <p class="widget-description text-xs text-base-content/40">Email status by account</p>
+            {% if total > 0 %}
+                <span class="badge badge-info badge-sm">{{ total }} new</span>
+            {% endif %}
+            {% if date %}
+                <span class="badge badge-ghost badge-sm">{{ date }}</span>
+            {% endif %}
+        </div>
+
+        {% if accounts %}
+            <div class="space-y-1">
+                {% for acc in accounts %}
+                <details class="collapse collapse-arrow bg-base-200/50 rounded-lg">
+                    <summary class="collapse-title text-sm font-medium py-2 min-h-0">
+                        <span class="font-mono text-primary">[{{ acc.name }}]</span>
+                        <span class="badge badge-sm ml-2">{{ acc.count }} new</span>
+                    </summary>
+                    <div class="collapse-content px-4 pb-2">
+                        {% if acc.emails %}
+                        <ul class="text-xs space-y-1">
+                            {% for email in acc.emails[:5] %}
+                            <li class="text-base-content/70">
+                                <span class="font-medium">{{ email.sender }}</span>:
+                                {{ email.subject }}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% endif %}
+                    </div>
+                </details>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-base-content/50 text-sm">No inbox data available.</p>
+        {% endif %}
+
+        {% if filename %}
+            <div class="card-actions justify-end mt-3">
+                <a href="/search" class="btn btn-ghost btn-xs">Search briefs</a>
+            </div>
+        {% endif %}
+    </div>
+</div>

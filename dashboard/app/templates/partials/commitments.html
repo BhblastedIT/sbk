@@ -1,0 +1,64 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-4">
+        <div class="flex items-center justify-between mb-3">
+            <a href="/commitments" class="font-bold text-sm hover:underline">Commitment Radar</a>
+            <p class="widget-description text-xs text-base-content/40">Commitments with an upcoming deadline</p>
+            <div class="flex gap-1">
+                {% if stats.get('BROKEN', 0) > 0 or overdue_count > 0 %}
+                <span class="badge badge-error badge-sm">{{ stats.get('BROKEN', 0) + overdue_count }} overdue</span>
+                {% endif %}
+                {% if stats.get('PENDING', 0) > 0 %}
+                <span class="badge badge-warning badge-sm">{{ stats.get('PENDING', 0) }} pending</span>
+                {% endif %}
+                {% if stats.get('KEPT', 0) > 0 %}
+                <span class="badge badge-success badge-sm">{{ stats.get('KEPT', 0) }} kept</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if upcoming %}
+        <div class="text-xs font-medium text-base-content/60 mb-1">Due in the next 7 days</div>
+        <div class="space-y-2 max-h-60 overflow-y-auto">
+            {% for c in upcoming %}
+            <div class="flex items-start gap-2 text-xs bg-base-200 rounded-box p-2 group">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-1 mb-0.5">
+                        <span class="badge badge-warning badge-xs">{{ c.deadline }}</span>
+                        <span class="text-base-content/40">{{ c.source_type }}</span>
+                    </div>
+                    <div class="truncate" title="{{ c.what }}">
+                        <span class="font-medium">{{ (c.who or '?')|sanitize_nan }}</span>
+                        <span class="text-base-content/40">&rarr;</span>
+                        <span class="font-medium">{{ (c.to_whom or '?')|sanitize_nan }}</span>:
+                        {{ (c.what or '')[:120] }}
+                    </div>
+                </div>
+                <div class="dropdown dropdown-end">
+                    <label tabindex="0" class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100">...</label>
+                    <ul tabindex="0" class="dropdown-content z-50 menu p-1 shadow bg-base-100 rounded-box text-xs w-32">
+                        <li><a hx-put="/api/commitments/{{ c.commitment_id }}/status"
+                               hx-vals='{"status": "KEPT"}'
+                               hx-headers='{"Content-Type": "application/json"}'
+                               hx-swap="none"
+                               hx-on::after-request="htmx.ajax('GET', '/partials/home_commitments', '#commitments-container')">Kept</a></li>
+                        <li><a hx-put="/api/commitments/{{ c.commitment_id }}/status"
+                               hx-vals='{"status": "DISMISSED"}'
+                               hx-headers='{"Content-Type": "application/json"}'
+                               hx-swap="none"
+                               hx-on::after-request="htmx.ajax('GET', '/partials/home_commitments', '#commitments-container')">Ignore</a></li>
+                    </ul>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="text-xs text-base-content/40 text-center py-4">
+            No commitments due in the next 7 days.
+        </div>
+        {% endif %}
+
+        <div class="text-xs text-base-content/40 mt-2 text-center">
+            <a href="/commitments" class="link">{{ total }} due soon</a>
+        </div>
+    </div>
+</div>

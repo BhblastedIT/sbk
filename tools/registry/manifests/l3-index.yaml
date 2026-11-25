@@ -1,0 +1,19 @@
+# Manifest job registro — l3-index
+# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+job_id: l3-index
+cmd: python3
+args:
+- tools/cross-source/xs-l3-index.py
+timeout_s: 1800
+lock: pipeline-run
+paid: false
+cadence_minutes: 0
+night_ok: true
+cascade: true
+state: 'off'
+owner_area: L3-retrieval
+backend: subprocess
+fragile: false
+artifact_refs: []
+forbidden_adapter_types: []
+description: L3 index (vector). Ricostruibile da L2.

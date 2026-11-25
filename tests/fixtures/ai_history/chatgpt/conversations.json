@@ -1,0 +1,283 @@
+[
+ {
+  "title": "Demo plan",
+  "create_time": 1772442000.0,
+  "update_time": 1772442600.0,
+  "conversation_id": "cg-conv-1",
+  "id": "cg-conv-1",
+  "gizmo_id": null,
+  "current_node": "n6",
+  "mapping": {
+   "root": {
+    "id": "root",
+    "message": null,
+    "parent": null,
+    "children": [
+     "n0"
+    ]
+   },
+   "n0": {
+    "id": "n0",
+    "parent": "root",
+    "children": [
+     "n1"
+    ],
+    "message": {
+     "id": "n0",
+     "author": {
+      "role": "system",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": null,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       ""
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {
+      "is_visually_hidden_from_conversation": true
+     },
+     "recipient": "all"
+    }
+   },
+   "n1": {
+    "id": "n1",
+    "parent": "n0",
+    "children": [
+     "n2",
+     "n3"
+    ],
+    "message": {
+     "id": "n1",
+     "author": {
+      "role": "user",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772442060.0,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Draft a plan for the demo launch. My key is {{OPENAI_KEY}}"
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {},
+     "recipient": "all"
+    }
+   },
+   "n2": {
+    "id": "n2",
+    "parent": "n1",
+    "children": [],
+    "message": {
+     "id": "n2",
+     "author": {
+      "role": "assistant",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772442070.0,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Here is a plan."
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {},
+     "recipient": "all"
+    }
+   },
+   "n3": {
+    "id": "n3",
+    "parent": "n1",
+    "children": [
+     "n4"
+    ],
+    "message": {
+     "id": "n3",
+     "author": {
+      "role": "user",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772442120.0,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Draft a shorter plan for the demo launch."
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {},
+     "recipient": "all"
+    }
+   },
+   "n4": {
+    "id": "n4",
+    "parent": "n3",
+    "children": [
+     "n5"
+    ],
+    "message": {
+     "id": "n4",
+     "author": {
+      "role": "tool",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772442130.0,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "search results"
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {},
+     "recipient": "all"
+    }
+   },
+   "n5": {
+    "id": "n5",
+    "parent": "n4",
+    "children": [
+     "n6"
+    ],
+    "message": {
+     "id": "n5",
+     "author": {
+      "role": "user",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772442140.0,
+     "content": {
+      "content_type": "user_editable_context"
+     },
+     "status": "finished_successfully",
+     "metadata": {},
+     "recipient": "all"
+    }
+   },
+   "n6": {
+    "id": "n6",
+    "parent": "n5",
+    "children": [
+     "n7"
+    ],
+    "message": {
+     "id": "n6",
+     "author": {
+      "role": "user",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772442200.0,
+     "content": {
+      "content_type": "multimodal_text",
+      "parts": [
+       {
+        "content_type": "image_asset_pointer",
+        "asset_pointer": "file-demo"
+       },
+       "What is in this picture?",
+       {
+        "content_type": "audio_transcription",
+        "text": "and say it out loud"
+       }
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {},
+     "recipient": "all"
+    }
+   },
+   "n7": {
+    "id": "n7",
+    "parent": "n6",
+    "children": [],
+    "message": {
+     "id": "n7",
+     "author": {
+      "role": "user",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772442210.0,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "hidden helper text"
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {
+      "is_visually_hidden_from_conversation": true
+     },
+     "recipient": "all"
+    }
+   }
+  }
+ },
+ {
+  "title": "Project chat",
+  "create_time": 1772528400.0,
+  "conversation_id": "cg-conv-2",
+  "gizmo_id": "g-p-demo123",
+  "mapping": {
+   "m1": {
+    "id": "m1",
+    "parent": null,
+    "children": [
+     "m2"
+    ],
+    "message": {
+     "id": "m1",
+     "author": {
+      "role": "user",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772528460.0,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "Summarise the notes in three bullets."
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {},
+     "recipient": "all"
+    }
+   },
+   "m2": {
+    "id": "m2",
+    "parent": "m1",
+    "children": [],
+    "message": {
+     "id": "m2",
+     "author": {
+      "role": "assistant",
+      "name": null,
+      "metadata": {}
+     },
+     "create_time": 1772528470.0,
+     "content": {
+      "content_type": "text",
+      "parts": [
+       "- one\n- two\n- three"
+      ]
+     },
+     "status": "finished_successfully",
+     "metadata": {},
+     "recipient": "all"
+    }
+   }
+  }
+ }
+]

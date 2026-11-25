@@ -1,0 +1,63 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-lg">Actions</h2>
+            <p class="widget-description text-xs text-base-content/40">Tasks extracted from your conversations</p>
+            <div class="flex items-center gap-2">
+                {% if stats.overdue > 0 %}
+                    <span class="badge badge-error badge-sm">{{ stats.overdue }} overdue</span>
+                {% endif %}
+                {% if stats.today > 0 %}
+                    <span class="badge badge-warning badge-sm">{{ stats.today }} today</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if items %}
+            <div class="space-y-2">
+                {% for item in items[:5] %}
+                <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2">
+                            {% if item.urgency == "OVERDUE" %}
+                                <span class="badge badge-error badge-xs">OVERDUE</span>
+                            {% elif item.urgency == "TODAY" %}
+                                <span class="badge badge-warning badge-xs">TODAY</span>
+                            {% elif item.urgency == "URGENT" %}
+                                <span class="badge badge-info badge-xs">URGENT</span>
+                            {% elif item.urgency == "PENDING_EVENT" %}
+                                <span class="badge badge-info badge-xs">EVENT</span>
+                            {% else %}
+                                <span class="badge badge-ghost badge-xs">UPCOMING</span>
+                            {% endif %}
+                            <span class="text-sm truncate">{{ (item.action_text or item.text)|sanitize_nan }}</span>
+                        </div>
+                        <div class="flex items-center gap-3 mt-1 text-xs text-base-content/50">
+                            {% if item.assignee %}
+                                <a href="/person?auto={{ item.assignee|urlencode }}" class="link link-hover">{{ item.assignee|sanitize_nan }}</a>
+                            {% endif %}
+                            {% if item.deadline_parsed %}
+                                <span>{{ item.deadline_parsed }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-xs opacity-40 hover:opacity-100"
+                            onclick="fetch('/api/followup/complete', {method:'POST', body:JSON.stringify({hash:'{{ item.hash|default("") }}'}), headers:{'Content-Type':'application/json'}}).then(()=>this.closest('.bg-base-200\\/50').remove())">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+
+            {% if total > 5 %}
+                <div class="text-right mt-2">
+                    <a href="/nlp" class="link link-hover text-xs text-primary">See all ({{ total }})</a>
+                </div>
+            {% endif %}
+        {% else %}
+            <p class="text-base-content/50 text-sm">No action due.</p>
+        {% endif %}
+    </div>
+</div>

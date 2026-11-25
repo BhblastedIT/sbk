@@ -1,0 +1,133 @@
+<!-- Observability: External Connections (INF-OBS-V2) -->
+
+{% set ok_count = data.connections | selectattr('status', 'equalto', 'ok') | list | length %}
+{% set total_count = data.connections | length %}
+{% set error_count = data.connections | selectattr('status', 'equalto', 'error') | list | length %}
+{% set degraded_count = data.connections | selectattr('status', 'equalto', 'degraded') | list | length %}
+
+<!-- Summary -->
+<div class="stats shadow w-full mb-6">
+    <div class="stat">
+        <div class="stat-title">Services OK</div>
+        <div class="stat-value text-success">{{ ok_count }}</div>
+        <div class="stat-desc">of {{ total_count }} services</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Degraded</div>
+        <div class="stat-value {% if degraded_count > 0 %}text-warning{% endif %}">{{ degraded_count }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Errors</div>
+        <div class="stat-value {% if error_count > 0 %}text-error{% endif %}">{{ error_count }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Last Check</div>
+        <div class="stat-value text-sm">{{ data.checked_at[:19] if data.checked_at else '-' }}</div>
+    </div>
+</div>
+
+<!-- Billing API services (with credits) -->
+{% set billing = data.connections | selectattr('category', 'equalto', 'billing') | list %}
+{% if billing %}
+<div class="card bg-base-200 shadow-sm mb-6">
+    <div class="card-body">
+        <h3 class="card-title text-lg mb-4">Billing API Services</h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {% for conn in billing %}
+            <div class="card bg-base-100 shadow-sm">
+                <div class="card-body p-4">
+                    <div class="flex items-center justify-between">
+                        <span class="font-bold">{{ conn.service }}</span>
+                        {% if conn.status == 'ok' %}
+                            <span class="badge badge-success badge-sm">OK</span>
+                        {% elif conn.status == 'degraded' %}
+                            <span class="badge badge-warning badge-sm">Degraded</span>
+                        {% else %}
+                            <span class="badge badge-error badge-sm">Error</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-sm text-base-content/60 mt-1">{{ conn.detail }}</div>
+                    {% if conn.credits is not none %}
+                    <div class="text-xs text-base-content/40 mt-1">Credits: {{ conn.credits }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Health check services -->
+{% set health = data.connections | selectattr('category', 'equalto', 'health') | list %}
+{% if health %}
+<div class="card bg-base-200 shadow-sm mb-6">
+    <div class="card-body">
+        <h3 class="card-title text-lg mb-4">Health Check Services</h3>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Status</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for conn in health %}
+                    <tr>
+                        <td class="font-bold">{{ conn.service }}</td>
+                        <td>
+                            {% if conn.status == 'ok' %}
+                                <span class="badge badge-success badge-sm">OK</span>
+                            {% elif conn.status == 'degraded' %}
+                                <span class="badge badge-warning badge-sm">Degraded</span>
+                            {% else %}
+                                <span class="badge badge-error badge-sm">Error</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-sm text-base-content/60">{{ conn.detail }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Config-only services -->
+{% set config = data.connections | selectattr('category', 'equalto', 'config') | list %}
+{% if config %}
+<div class="card bg-base-200 shadow-sm mb-6">
+    <div class="card-body">
+        <h3 class="card-title text-lg mb-4">Config-Only Services</h3>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Status</th>
+                        <th>Detail</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for conn in config %}
+                    <tr>
+                        <td class="font-bold">{{ conn.service }}</td>
+                        <td>
+                            {% if conn.status == 'ok' %}
+                                <span class="badge badge-success badge-sm">OK</span>
+                            {% else %}
+                                <span class="badge badge-error badge-sm">Missing</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-sm text-base-content/60">{{ conn.detail }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endif %}

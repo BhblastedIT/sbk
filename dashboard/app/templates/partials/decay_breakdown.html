@@ -1,0 +1,21 @@
+{% if channels %}
+<div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+    {% set channel_icons = {"email": "&#9993;", "slack": "&#128172;", "meeting": "&#128101;", "call": "&#128222;"} %}
+    {% set channel_names = {"email": "Email", "slack": "Slack", "meeting": "Meeting", "call": "Chiamate"} %}
+    {% for key, info in channels.items() %}
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-3 text-center">
+            <div class="text-2xl">{{ channel_icons.get(key, "&#128196;") }}</div>
+            <div class="text-xs font-medium">{{ channel_names.get(key, key) }}</div>
+            {% if info.last_contact %}
+            <div class="text-sm font-bold text-primary">{{ info.last_contact }}</div>
+            {% else %}
+            <div class="text-xs text-base-content/40">{{ info.message or 'no data' }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No contact data available.</div>
+{% endif %}

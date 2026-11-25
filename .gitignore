@@ -1,0 +1,55 @@
+# SBK — .gitignore
+# Only the template CODE goes in the repo. Data lives in ~/.sbk-data (outside the repo).
+
+# === SECRETS & CREDENTIALS ===
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+secrets/
+credentials/
+*credentials*.json
+client_secret*.json
+# code, not a secret: the Keychain/env adapter every connector imports. Kept explicit
+# because a global ignore such as *secret* would otherwise leave it out of the repo.
+!tools/secrets_adapter.py
+
+# === LOCAL CONFIG & BUILD ===
+sbk.config.json
+.sbk-build/
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+*.egg-info/
+.ruff_cache/
+.mypy_cache/
+node_modules/
+.build/
+*.log
+
+# === LOCAL DATA (never in git) ===
+/data/
+/work/
+# your identity files (written by tools/ai-history/ai-l3-how-you-work.py or by hand)
+/sbk/identity/
+# your AI history, if SBK_DATA_ROOT or --input/--stats-out ever point inside the repo
+/ai-history/
+**/ai-history/messages.jsonl
+**/ai-history/how-you-work-*
+*.parquet
+*.duckdb
+# measures of your own knowledge base, written by tools/util/sb-ratchet.py, sb-sei-numeri.py,
+# sb-artefatti.py, sb-incremento-vivo.py and sb-provenienza.py when you run them
+/docs/sbk/audits/*.json
+
+# === SYSTEM ===
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

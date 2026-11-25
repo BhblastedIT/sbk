@@ -1,0 +1,74 @@
+<div class="overflow-x-auto">
+<table class="table table-sm table-zebra">
+    <thead>
+        <tr>
+            <th class="cursor-pointer hover:text-primary" onclick="sortDecayTable('name')">Person <span class="sort-arrow text-xs opacity-40" data-col="name"></span></th>
+            <th class="cursor-pointer hover:text-primary" onclick="sortDecayTable('tier')">Tier <span class="sort-arrow text-xs opacity-40" data-col="tier"></span></th>
+            <th class="cursor-pointer hover:text-primary" onclick="sortDecayTable('days')">Last contact <span class="sort-arrow text-xs opacity-40" data-col="days"></span></th>
+            <th class="cursor-pointer hover:text-primary" onclick="sortDecayTable('decay')">Decay <span class="sort-arrow text-xs opacity-40" data-col="decay"></span></th>
+            <th class="cursor-pointer hover:text-primary" onclick="sortDecayTable('score')">Strength <span class="sort-arrow text-xs opacity-40" data-col="score"></span></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for item in decay_items %}
+        <tr data-name="{{ item.name }}" data-tier="{{ item.tier }}" data-baseline="{{ item.baseline }}" data-score="{{ item.score }}" data-days="{{ item.days_since }}" data-gap="{{ item.expected_gap }}" data-decay="{{ item.decay_pct }}">
+            <td>
+                <div class="flex flex-col">
+                    <a href="/person?auto={{ item.name|urlencode }}" class="link link-hover link-primary font-medium text-sm">{{ item.name }}</a>
+                    {% if item.email %}
+                        <span class="text-xs text-base-content/40">{{ item.email }}</span>
+                    {% endif %}
+                </div>
+            </td>
+            <td>
+                {% if item.tier == "inner" %}
+                    <span class="badge badge-primary badge-sm">inner</span>
+                {% elif item.tier == "sympathy" %}
+                    <span class="badge badge-secondary badge-sm">sympathy</span>
+                {% elif item.tier == "affinity" %}
+                    <span class="badge badge-accent badge-sm">affinity</span>
+                {% else %}
+                    <span class="badge badge-ghost badge-sm">{{ item.tier }}</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if item.days_since > item.expected_gap * 2 %}
+                    <span class="text-error font-semibold">{{ item.days_since }}g</span>
+                {% elif item.days_since > item.expected_gap %}
+                    <span class="text-warning">{{ item.days_since }}g</span>
+                {% else %}
+                    <span class="text-base-content/70">{{ item.days_since }}g</span>
+                {% endif %}
+                <span class="text-xs text-base-content/30 ml-1">(ogni ~{{ item.expected_gap|int }}g)</span>
+            </td>
+            <td>
+                {% if item.decay_pct > 30 %}
+                    <div class="flex items-center gap-1">
+                        <div class="radial-progress text-error text-xs" style="--value:{{ item.decay_pct }}; --size:1.5rem; --thickness:3px;" role="progressbar">
+                        </div>
+                        <span class="text-error font-bold text-sm">{{ item.decay_pct }}%</span>
+                    </div>
+                {% elif item.decay_pct > 15 %}
+                    <div class="flex items-center gap-1">
+                        <div class="radial-progress text-warning text-xs" style="--value:{{ item.decay_pct }}; --size:1.5rem; --thickness:3px;" role="progressbar">
+                        </div>
+                        <span class="text-warning text-sm">{{ item.decay_pct }}%</span>
+                    </div>
+                {% else %}
+                    <span class="text-success text-sm">{{ item.decay_pct }}%</span>
+                {% endif %}
+            </td>
+            <td>
+                <div class="flex items-center gap-1">
+                    <progress class="progress w-12 {% if item.score > 50 %}progress-primary{% elif item.score > 25 %}progress-warning{% else %}progress-error{% endif %}" value="{{ item.score }}" max="{{ item.baseline }}"></progress>
+                    <span class="text-xs text-base-content/60">{{ item.score }}/{{ item.baseline }}</span>
+                </div>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% if not decay_items %}
+<div class="text-center text-base-content/40 py-8">No decay data available.</div>
+{% endif %}

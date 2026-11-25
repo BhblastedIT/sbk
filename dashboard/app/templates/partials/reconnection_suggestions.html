@@ -1,0 +1,39 @@
+{% if suggestions %}
+<p class="widget-description text-xs text-base-content/40 mb-2">Strategic contacts to reactivate</p>
+<div class="space-y-2">
+    {% for s in suggestions[:10] %}
+    <div class="flex items-center gap-3 p-2 bg-base-200 rounded-box hover:bg-base-300 cursor-pointer"
+         hx-get="/partials/person_card?q={{ s.name|urlencode }}"
+         hx-target="#person-detail"
+         hx-swap="innerHTML">
+        <div class="avatar placeholder">
+            <div class="bg-warning text-warning-content rounded-full w-8">
+                <span class="text-xs">{{ s.name[:2]|upper if s.name else "?" }}</span>
+            </div>
+        </div>
+        <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm truncate">{{ s.name|sanitize_nan }}</div>
+            <div class="text-xs text-base-content/50">
+                {{ s.organization }}
+                {% if s.last_topic %} &middot; {{ s.last_topic[:40] }}{% endif %}
+            </div>
+        </div>
+        <div class="text-right shrink-0">
+            <div class="badge badge-sm {% if s.tier == 'inner' %}badge-error{% elif s.tier == 'sympathy' %}badge-warning{% else %}badge-ghost{% endif %}">
+                {{ s.tier }}
+            </div>
+            <div class="text-xs text-base-content/40 mt-0.5">
+                {{ s.days_since }}d (expected {{ s.expected_gap|int }}d)
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% if suggestions|length > 10 %}
+<div class="text-right mt-2">
+    <a href="/decay" class="link link-hover text-xs text-primary">See all ({{ suggestions|length }})</a>
+</div>
+{% endif %}
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No urgent reconnection.</div>
+{% endif %}

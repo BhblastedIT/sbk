@@ -1,0 +1,122 @@
+{# Health source cards — HTMX partial, auto-refreshed #}
+
+{% set SOURCE_ICONS = {
+    "Email (Gmail)": "M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    "Attio (CRM)": "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+    "Slack": "M14.5 10c-.83 0-1.5-.67-1.5-1.5v-5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5zm0 0H12m0 0H9.5C8.67 10 8 9.33 8 8.5S8.67 7 9.5 7h5",
+    "Calendar": "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+    "WhatsApp": "M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z",
+    "LinkedIn": "M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-2-2 2 2 0 00-2 2v7h-4v-7a6 6 0 016-6zM2 9h4v12H2z",
+    "Plaud": "M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z",
+    "Tactiq": "M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z",
+    "Notion": "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z",
+    "ChatGPT": "M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z",
+    "Google Drive": "M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z",
+    "DocuSign": "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
+    "Personio (HR)": "M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z",
+    "iPhone Contacts": "M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z",
+    "Voice Memos": "M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z",
+} %}
+
+<!-- Summary bar -->
+<div class="flex items-center gap-4 mb-6 p-3 bg-base-100 rounded-box shadow-sm">
+    <div class="flex gap-2">
+        <span class="badge badge-success gap-1">{{ summary.ok }} OK</span>
+        {% if summary.stale > 0 %}
+        <span class="badge badge-warning gap-1">{{ summary.stale }} Stale</span>
+        {% endif %}
+        {% if summary.critical > 0 %}
+        <span class="badge badge-error gap-1">{{ summary.critical }} Critical</span>
+        {% endif %}
+        {% if summary.missing > 0 %}
+        <span class="badge badge-ghost gap-1">{{ summary.missing }} N/D</span>
+        {% endif %}
+    </div>
+    <span class="text-xs text-base-content/40 ml-auto">{{ summary.total }} total sources</span>
+</div>
+
+<!-- Live sources -->
+<h2 class="text-lg font-semibold mb-3">Live Sources</h2>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mb-8">
+{% for s in sources if s.category == "live" %}
+    {% set status_class = "border-success/30" if s.status == "OK" else "border-warning/50" if s.status == "STALE" else "border-error/50" if s.status == "CRITICO" else "border-base-300" %}
+    {% set bg_class = "" if s.status == "OK" else "bg-warning/5" if s.status == "STALE" else "bg-error/5" if s.status == "CRITICO" else "" %}
+    <div class="card bg-base-100 shadow-sm border-2 {{ status_class }} {{ bg_class }}">
+        <div class="card-body p-4">
+            <div class="flex items-center gap-3">
+                <!-- Icon -->
+                <div class="w-10 h-10 rounded-lg bg-base-200 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-base-content/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ SOURCE_ICONS.get(s.source, 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4') }}"/>
+                    </svg>
+                </div>
+                <!-- Name + status -->
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-sm truncate">{{ s.source }}</div>
+                    <div class="text-xs text-base-content/50">{{ s.elapsed }}</div>
+                </div>
+                <!-- Badge -->
+                {% if s.status == "OK" %}
+                    <span class="badge badge-success badge-sm">OK</span>
+                {% elif s.status == "STALE" %}
+                    <span class="badge badge-warning badge-sm">Stale</span>
+                {% elif s.status == "CRITICO" %}
+                    <span class="badge badge-error badge-sm animate-pulse">Critical</span>
+                {% else %}
+                    <span class="badge badge-ghost badge-sm">N/D</span>
+                {% endif %}
+            </div>
+            <!-- Records + method -->
+            <div class="flex items-center justify-between mt-2 text-xs text-base-content/50">
+                <span>{% if s.records %}{{ "{:,}".format(s.records) }} {{ s.record_label }}{% else %}—{% endif %}</span>
+                <span>{{ s.method }}</span>
+            </div>
+            <!-- Refresh button -->
+            <div class="mt-2">
+                <button class="btn btn-ghost btn-xs w-full"
+                        onclick="fetch('/api/pipeline/run-grid', {method:'POST', headers:{'Content-Type':'application/json','X-SBK-CSRF':'1'}, body:JSON.stringify({script:'{{ s.get("_refresh_script", "") }}',args:''})}).then(r=>r.json()).then(d=>{if(d.job_id)showToast('Refresh {{ s.source }} started','info');else showToast('Error','error')}).catch(()=>showToast('Error','error'))"
+                        {% if not s.get("_refresh_script") %}disabled{% endif %}>
+                    Refresh now
+                </button>
+            </div>
+        </div>
+    </div>
+{% endfor %}
+</div>
+
+<!-- Offline/archive sources -->
+<h2 class="text-lg font-semibold mb-3">Offline / Import Sources</h2>
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+{% for s in sources if s.category != "live" %}
+    {% set status_class = "border-success/30" if s.status == "OK" else "border-warning/50" if s.status == "STALE" else "border-error/50" if s.status == "CRITICO" else "border-base-300" %}
+    {% set bg_class = "" if s.status == "OK" else "bg-warning/5" if s.status == "STALE" else "bg-error/5" if s.status == "CRITICO" else "" %}
+    <div class="card bg-base-100 shadow-sm border-2 {{ status_class }} {{ bg_class }}">
+        <div class="card-body p-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-base-200 flex items-center justify-center shrink-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-base-content/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ SOURCE_ICONS.get(s.source, 'M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4') }}"/>
+                    </svg>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-semibold text-sm truncate">{{ s.source }}</div>
+                    <div class="text-xs text-base-content/50">{{ s.elapsed }}</div>
+                </div>
+                {% if s.status == "OK" %}
+                    <span class="badge badge-success badge-sm">OK</span>
+                {% elif s.status == "STALE" %}
+                    <span class="badge badge-warning badge-sm">Stale</span>
+                {% elif s.status == "CRITICO" %}
+                    <span class="badge badge-error badge-sm animate-pulse">Critical</span>
+                {% else %}
+                    <span class="badge badge-ghost badge-sm">N/D</span>
+                {% endif %}
+            </div>
+            <div class="flex items-center justify-between mt-2 text-xs text-base-content/50">
+                <span>{% if s.records %}{{ "{:,}".format(s.records) }} {{ s.record_label }}{% else %}—{% endif %}</span>
+                <span>{{ s.method }}</span>
+            </div>
+        </div>
+    </div>
+{% endfor %}
+</div>

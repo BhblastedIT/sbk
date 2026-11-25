@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekly L3 cleanup (run-l3-compact.sh), Sundays at 04:00. No model call.
+  Template, not active. To turn it on, run from the repo folder (fills in your paths):
+    sed -e "s|__SBK_REPO__|$PWD|g" -e "s|__SBK_DATA__|${SBK_DATA_ROOT:-$HOME/.sbk-data}|g" \
+        -e "s|__UV__|$(command -v uv)|g" -e "s|__UV_DIR__|$(dirname "$(command -v uv)")|g" \
+        tools/cross-source/com.sbk.l3-compact.plist > ~/Library/LaunchAgents/com.sbk.l3-compact.plist
+    launchctl load ~/Library/LaunchAgents/com.sbk.l3-compact.plist
+  To turn it off: launchctl unload ~/Library/LaunchAgents/com.sbk.l3-compact.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sbk.l3-compact</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__SBK_REPO__/tools/cross-source/run-l3-compact.sh</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key>
+        <integer>0</integer>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>__SBK_DATA__/l3/logs/compact-cron-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__SBK_DATA__/l3/logs/compact-cron-stderr.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

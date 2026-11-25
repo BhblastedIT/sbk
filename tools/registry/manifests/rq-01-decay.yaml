@@ -1,0 +1,20 @@
+# Manifest job registro — rq-01-decay
+# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+job_id: rq-01-decay
+cmd: python3
+args:
+- tools/cross-source/rq-01-decay-engine.py
+timeout_s: 900
+lock: pipeline-run
+paid: false
+cadence_minutes: 0
+night_ok: true
+cascade: false
+state: 'off'
+owner_area: L2-knowledge
+backend: subprocess
+fragile: false
+artifact_refs:
+- relationship-facts.parquet
+forbidden_adapter_types: []
+description: RQ-01 motore di decadimento.

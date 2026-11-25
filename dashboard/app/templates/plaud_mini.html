@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Plaud Superpowers</title>
+    <link href="/static/dist/tailwind.min.css" rel="stylesheet">
+    <script>
+    // CSRF: inject the header on every mutating fetch (like base.html).
+    (function(){
+        var _f=window.fetch;
+        window.fetch=function(u,o){
+            o=o||{};
+            if(o.method&&/^(POST|PUT|DELETE|PATCH)$/i.test(o.method)){
+                o.headers=new Headers(o.headers||{});
+                o.headers.set('X-SBK-CSRF','1');
+            }
+            return _f.call(this,u,o);
+        };
+    })();
+    </script>
+    <style>
+        html,body { background: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+        .app-shell { width: 420px; margin: 0 auto; }
+        .rec-body { max-height: 320px; overflow-y: auto; }
+        .rec-cockpit { max-height: 420px; overflow-y: auto; }
+    </style>
+</head>
+<body class="p-3">
+<div class="app-shell">
+    <div class="card bg-base-100 shadow-xl border border-base-300">
+        <div class="card-body p-4">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-1">
+                <div class="flex items-center gap-2">
+                    <span class="text-xl">⚡</span>
+                    <span class="font-bold">Plaud Superpowers</span>
+                </div>
+                <button id="refresh-btn" class="btn btn-ghost btn-xs" title="Reload">↻</button>
+            </div>
+            <div class="text-xs opacity-60 mb-3">
+                {{ stats.reviewed if stats.reviewed is defined else 0 }} reviewed ·
+                writes to your real Plaud
+            </div>
+
+            <div class="text-xs font-semibold opacity-70 mb-2">Recent recordings</div>
+
+            <!-- Recordings list -->
+            <div class="rec-body space-y-1">
+                {% for r in recordings %}
+                <div class="rec-item">
+                    <button class="btn btn-ghost btn-sm w-full justify-start font-normal text-left h-auto py-2"
+                            data-src="{{ r.source_file }}" onclick="toggleRec(this)">
+                        <span class="flex-1 min-w-0">
+                            <span class="block text-xs opacity-50">{{ r.date }}</span>
+                            <span class="block text-sm truncate">{{ r.title }}</span>
+                        </span>
+                        <span class="badge badge-sm
+                            {% if r.reviewed %}badge-success{% else %}badge-warning{% endif %}"
+                            title="{{ r.speaker_count }} speaker">{{ r.speaker_count }}</span>
+                    </button>
+                    <div class="rec-cockpit hidden px-2 pb-2"></div>
+                </div>
+                {% endfor %}
+            </div>
+
+        </div>
+    </div>
+    <div class="text-center text-xs opacity-40 mt-2">SBK engine · Knowledge Layer + calendar + voices</div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast toast-end hidden"><div id="toast-msg" class="alert"></div></div>
+
+<script>
+var LANE_BADGE = {AUTO: 'badge-success', CONFERMA: 'badge-warning', CONTESTO: 'badge-error'};
+var COCKPIT_PAYLOADS = {};
+var OPEN_SRC = null;
+
+function toast(msg, kind) {
+    var t = document.getElementById('toast');
+    var m = document.getElementById('toast-msg');
+    m.className = 'alert alert-' + (kind || 'info');
+    m.textContent = msg;
+    t.classList.remove('hidden');
+    setTimeout(function(){ t.classList.add('hidden'); }, 3500);
+}
+
+function toggleRec(btn) {
+    var src = btn.dataset.src;
+    var box = btn.parentElement.querySelector('.rec-cockpit');
+    // close the others
+    document.querySelectorAll('.rec-cockpit').forEach(function(b){ if (b !== box) b.classList.add('hidden'); });
+    if (!box.classList.contains('hidden')) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    if (COCKPIT_PAYLOADS[src]) { renderCockpit(COCKPIT_PAYLOADS[src], box, src); return; }
+    box.innerHTML = '<div class="text-xs opacity-60 py-2">Analyzing… (the first file takes ~30-60s: it builds the name index)</div>';
+    fetch('/api/plaud/cockpit/' + encodeURIComponent(src))
+        .then(function(r){ return r.json(); })
+        .then(function(p){ COCKPIT_PAYLOADS[src] = p; renderCockpit(p, box, src); })
+        .catch(function(){ box.innerHTML = '<div class="text-xs text-error py-2">Error loading proposals.</div>'; });
+}
+
+function collectRenames(payload) {
+    // Uses proposed_name (2-match rule): only corroborated, writable names.
+    var r = {};
+    (payload.lane_order || []).forEach(function(lane){
+        ((payload.lanes && payload.lanes[lane]) || []).forEach(function(sp){
+            if (sp.proposed_name && sp.speaker_id) r[sp.speaker_id] = sp.proposed_name;
+        });
+    });
+    return r;
+}
+
+function renderCockpit(payload, box, src) {
+    if (!payload || !payload.n_speakers) {
+        box.innerHTML = '<div class="text-xs opacity-60 py-2">No resolvable speaker.</div>';
+        return;
+    }
+    var html = '';
+    // recording audio (proxied via token): enables per-clip listening
+    html += '<audio preload="none" src="/api/plaud/audio/' + encodeURIComponent(src) + '"></audio>';
+    if (payload.plaud_file_id) {
+        html += '<a class="text-xs text-info" target="_blank" href="https://web.plaud.ai/file/' +
+            encodeURIComponent(payload.plaud_file_id) + '">↗ open in Plaud (to listen to the full audio)</a>';
+    }
+    if (payload.n_disagree > 0) {
+        html += '<div class="badge badge-error badge-sm mb-2">' + payload.n_disagree + ' wrong matches</div>';
+    }
+    var all = [];
+    (payload.lane_order || []).forEach(function(lane){
+        ((payload.lanes && payload.lanes[lane]) || []).forEach(function(sp){ all.push(sp); });
+    });
+    all.forEach(function(sp){ html += renderSpeaker(sp, src); });
+    box.innerHTML = html;
+    var aud = box.querySelector('audio');
+    // "it's them" (write), toggle excerpts, ▶ listen to clip
+    box.querySelectorAll('[data-apply]').forEach(function(btn){
+        btn.onclick = function(){ applyOne(src, btn.getAttribute('data-spk'), btn.getAttribute('data-name'), btn); };
+    });
+    box.querySelectorAll('[data-toggle]').forEach(function(btn){
+        btn.onclick = function(){ var e = box.querySelector('#' + btn.getAttribute('data-toggle')); if (e) e.classList.toggle('hidden'); };
+    });
+    box.querySelectorAll('[data-play]').forEach(function(btn){
+        btn.onclick = function(e){ e.stopPropagation(); playSeg(aud, +btn.getAttribute('data-play'), +btn.getAttribute('data-end')); };
+    });
+}
+
+// Plays the clip [startMs, endMs] of the recording audio (seek + auto-stop).
+function playSeg(aud, startMs, endMs) {
+    if (!aud || startMs == null) return;
+    try {
+        aud.currentTime = startMs / 1000;
+        var p = aud.play();
+        if (p && p.catch) p.catch(function(){ toast('audio not ready, try again in a moment', 'warning'); });
+        if (aud._stopT) clearTimeout(aud._stopT);
+        aud._stopT = setTimeout(function(){ aud.pause(); }, Math.max(600, endMs - startMs));
+    } catch (err) { /* seek before audio is loaded: ignore */ }
+}
+
+// Card for ONE speaker: what they said (excerpts) + candidates with WHY + "it's them".
+function renderSpeaker(sp, src) {
+    var confirmed = sp.corroborated && !sp.proposed_name; // already correct on Plaud (no-op)
+    var h = '<div class="py-2 border-b border-base-200">';
+    h += '<div class="flex items-center justify-between">';
+    h += '<span class="font-mono text-xs opacity-50">' + escapeHtml(sp.speaker_id) + '</span>';
+    if (sp.proposed_name) {
+        h += '<span class="badge badge-success badge-sm">propone: ' + escapeHtml(sp.proposed_name) + '</span>';
+    } else if (confirmed) {
+        h += '<span class="badge badge-ghost badge-sm">✓ ' + escapeHtml(sp.plaud_label || sp.best_name || '') + '</span>';
+    } else {
+        h += '<span class="badge badge-warning badge-sm">to review</span>';
+    }
+    h += '</div>';
+    // excerpts: what they said (to recognize them by reading)
+    var ex = sp.extracts || [];
+    if (ex.length) {
+        var eid = 'ex-' + (src.length % 97) + '-' + sp.speaker_id.replace(/\W/g, '');
+        h += '<button class="text-xs text-info mt-1" data-toggle="' + eid + '">▸ what they said (listen) (' + ex.length + ')</button>';
+        h += '<div id="' + eid + '" class="hidden mt-1 space-y-1">';
+        ex.forEach(function(q){
+            var t = (q && q.text != null) ? q.text : q;
+            var play = (q && q.start != null)
+                ? '<button class="text-info mr-1" data-play="' + q.start + '" data-end="' + q.end + '" title="listen to this clip">▶</button>'
+                : '';
+            h += '<div class="text-xs opacity-80 bg-base-200 rounded px-2 py-1">' + play + '« ' + escapeHtml(t) + ' »</div>';
+        });
+        h += '</div>';
+    }
+    // candidates with WHY + "it's them" button (only where a decision is needed).
+    // RELIABLE only: voice/calendar, or a person resolved in the KB. Pure text noise
+    // (affiliate/infinite/non-KB example) stays out.
+    if (!confirmed) {
+        var cands = (sp.candidates || []).filter(function(c){
+            if (!c.name) return false;
+            var srcs = c.sources || [];
+            var reliable = srcs.indexOf('voice_embedding') >= 0 || srcs.indexOf('calendar') >= 0;
+            return reliable || c.entity_id;
+        }).slice(0, 3);
+        cands.forEach(function(c){
+            var why = (c.why || []).join(' · ');
+            h += '<div class="flex items-start justify-between gap-2 mt-1">';
+            h += '<span class="flex-1 text-sm">' + escapeHtml(c.name) +
+                 '<span class="block text-xs opacity-50">' + escapeHtml(why || 'guess') + '</span></span>';
+            h += '<button class="btn btn-xs btn-primary" data-apply data-spk="' + escapeHtml(sp.speaker_id) +
+                 '" data-name="' + escapeHtml(c.name) + '">it\'s them</button>';
+            h += '</div>';
+        });
+        if (!cands.length) {
+            h += '<div class="text-xs opacity-40 mt-1">no reliable candidate — read the excerpts or type the name manually</div>';
+        }
+    }
+    h += '</div>';
+    return h;
+}
+
+// Apply a SINGLE speaker->name (you picked the candidate): dry-run -> confirm -> write.
+function applyOne(src, spk, name, btn) {
+    var r = {}; r[spk] = name;
+    btn.classList.add('loading');
+    postApply(src, r, false).then(function(dry){
+        if (dry._error) { btn.classList.remove('loading'); toast(dry._error, 'error'); return; }
+        if (!window.confirm('Write to Plaud: ' + spk + ' → ' + name + ' ?\n\n' + dry.changed + ' segments. Automatic backup.')) {
+            btn.classList.remove('loading'); return;
+        }
+        postApply(src, r, true).then(function(res){
+            btn.classList.remove('loading');
+            if (res._error) { toast(res._error, 'error'); return; }
+            toast('Written to Plaud: ' + name, 'success');
+            btn.textContent = '✓ written'; btn.disabled = true;
+        });
+    });
+}
+
+function postApply(src, renames, doApply) {
+    return fetch('/api/plaud/apply-renames', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({source_file: src, renames: renames, apply: doApply})
+    }).then(function(r){
+        return r.json().then(function(j){ if (!r.ok) j._error = j.detail || j.error || ('HTTP ' + r.status); return j; });
+    }).catch(function(){ return {_error: 'Network error'}; });
+}
+
+function applyToPlaud(src, renames) {
+    if (!Object.keys(renames).length) { toast('No proposal', 'warning'); return; }
+    var btn = document.getElementById('apply-mini-btn');
+    if (btn) { btn.classList.add('loading'); btn.disabled = true; }
+    postApply(src, renames, false).then(function(dry){
+        if (dry._error) { if (btn){btn.classList.remove('loading');btn.disabled=false;} toast(dry._error, 'error'); return; }
+        var lines = Object.keys(renames).map(function(k){ return '  ' + k + ' → ' + renames[k]; }).join('\n');
+        var msg = 'Write to Plaud (PERMANENT)?\n\n' + lines + '\n\n' + dry.changed + ' segments. Automatic backup.';
+        if (!window.confirm(msg)) { if (btn){btn.classList.remove('loading');btn.disabled=false;} return; }
+        postApply(src, renames, true).then(function(res){
+            if (btn) { btn.classList.remove('loading'); btn.disabled = false; }
+            if (res._error) { toast(res._error, 'error'); return; }
+            toast('Written to Plaud: ' + res.changed + ' segments', 'success');
+        });
+    });
+}
+
+function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+        return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+}
+
+document.getElementById('refresh-btn').onclick = function(){ location.reload(); };
+</script>
+</body>
+</html>

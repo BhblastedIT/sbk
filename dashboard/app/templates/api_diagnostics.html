@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}SBK — API Diagnostics{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">API Diagnostics</h1>
+            <p class="text-base-content/60 text-sm mt-1">Outbound API calls — auto-refresh every 30s</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <select id="hours-select" class="select select-sm select-bordered" onchange="reloadStats()">
+                <option value="1" selected>Last hour</option>
+                <option value="4">4 ore</option>
+                <option value="12">12 ore</option>
+                <option value="24">24 ore</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Stats table (HTMX partial) -->
+    <div id="api-stats-container"
+         hx-get="/partials/api_stats?hours=1"
+         hx-trigger="load, every 30s"
+         hx-swap="innerHTML">
+        <div class="flex justify-center py-12">
+            <span class="loading loading-spinner loading-lg"></span>
+        </div>
+    </div>
+</div>
+
+<script>
+function reloadStats() {
+    var h = document.getElementById('hours-select').value;
+    var el = document.getElementById('api-stats-container');
+    el.setAttribute('hx-get', '/partials/api_stats?hours=' + h);
+    htmx.trigger(el, 'load');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,899 @@
+{% extends "base.html" %}
+{% block title %}Chat — SBK{% endblock %}
+{% block content %}
+<div class="flex h-[calc(100vh-6rem)] -m-6">
+    <!-- Conversation sidebar -->
+    <div class="w-64 bg-base-100 border-r border-base-300 flex flex-col shrink-0">
+        <div class="p-3 border-b border-base-300">
+            <button class="btn btn-primary btn-sm w-full gap-1" onclick="newChat()">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                </svg>
+                New chat
+            </button>
+        </div>
+        <div id="conversation-list" class="flex-1 overflow-y-auto py-1">
+            <div class="px-4 py-8 text-center text-xs text-base-content/40">Loading...</div>
+        </div>
+    </div>
+
+    <!-- Main chat area -->
+    <div class="flex-1 flex flex-col min-w-0 p-6">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-3 shrink-0">
+            <div class="flex items-center gap-3">
+                <div>
+                    <h1 class="text-2xl font-bold">Chat</h1>
+                    <p class="text-sm text-base-content/60" id="chat-status">Connecting...</p>
+                </div>
+                <div id="owner-mode-badge" class="badge badge-warning badge-lg gap-1 font-bold hidden">OWNER MODE</div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-1.5">
+                    <select id="model-select" class="select select-bordered select-xs w-32" onchange="setModel(this.value)">
+                        <option value="auto" selected>Auto</option>
+                        <option value="claude-sonnet-4-5-20250929">Sonnet 4.5</option>
+                        <option value="claude-opus-4-6">Opus 4.6</option>
+                        <option value="claude-haiku-4-5-20251001">Haiku 4.5</option>
+                    </select>
+                    <span id="model-info" class="text-xs text-base-content/40 hidden"></span>
+                </div>
+                <label class="flex items-center gap-2 cursor-pointer">
+                    <span class="text-sm text-base-content/60">Owner mode</span>
+                    <input type="checkbox" id="owner-mode-toggle" class="toggle toggle-warning toggle-sm" onchange="toggleOwnerMode(this.checked)">
+                </label>
+            </div>
+        </div>
+
+        <!-- Messages area -->
+        <div id="chat-messages" class="flex-1 overflow-y-auto space-y-4 pr-2 pb-2">
+            <!-- Welcome message -->
+            <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-center opacity-60">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+                </svg>
+                <p class="text-lg font-medium mb-1">Ask your data something</p>
+                <p class="text-sm max-w-md">You can search people, meetings, decisions, follow-ups, or explore the knowledge graph. Write in natural language.</p>
+                <div class="flex flex-wrap gap-2 mt-4 justify-center">
+                    <button class="btn btn-ghost btn-sm border border-base-300" onclick="sendPreset('Who is Sam and what is their score?')">Who is Sam?</button>
+                    <button class="btn btn-ghost btn-sm border border-base-300" onclick="sendPreset('Which follow-ups are overdue?')">Overdue follow-ups</button>
+                    <button class="btn btn-ghost btn-sm border border-base-300" onclick="sendPreset('What are the latest decisions made in meetings?')">Latest decisions</button>
+                    <button class="btn btn-ghost btn-sm border border-base-300" onclick="sendPreset('How are my inner circle relationships?')">inner circle</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input area -->
+        <div class="shrink-0 pt-3 border-t border-base-300">
+            <!-- Attachment preview chips -->
+            <div id="attachment-preview" class="flex flex-wrap gap-1 mb-2 hidden"></div>
+            <!-- Queue indicator -->
+            <div id="queue-indicator" class="hidden mb-1">
+                <span class="badge badge-outline badge-sm gap-1 text-base-content/60">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <span id="queue-count">0</span> queued
+                </span>
+            </div>
+            <div class="flex gap-2">
+                <button id="attach-btn" class="btn btn-ghost btn-sm self-end"
+                        onclick="document.getElementById('file-input').click()"
+                        title="Attach file">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+                    </svg>
+                </button>
+                <input type="file" id="file-input" class="hidden"
+                       accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.txt,.csv,.md,.json"
+                       multiple onchange="handleFileSelect(this)">
+                <textarea id="chat-input"
+                    class="textarea textarea-bordered flex-1 min-h-[2.5rem] max-h-32 text-sm resize-none"
+                    placeholder="Write a message..."
+                    rows="1"
+                    onkeydown="handleKeydown(event)"
+                    oninput="autoResize(this)"></textarea>
+                <button id="send-btn" class="btn btn-primary btn-sm self-end" onclick="sendMessage()" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                    </svg>
+                </button>
+            </div>
+            <p class="text-xs text-base-content/40 mt-1">Enter to send, Shift+Enter for new line</p>
+        </div>
+    </div>
+</div>
+
+<!-- Marked.js for Markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked@14.1.4/lib/marked.umd.min.js"></script>
+<!-- DOMPurify for XSS protection on rendered markdown -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
+
+<script>
+// ─── State ─────────────────────────────────────────────────────────────────
+let ws = null;
+let activeSessionId = localStorage.getItem('sbk-chat-session') || null;
+let reconnectAttempts = 0;
+let conversations = [];
+let ownerMode = false;
+
+// Per-conversation state map — replaces all global streaming/queue/attachment vars
+const convState = {};
+function getConvState(sessionId) {
+    if (!convState[sessionId]) {
+        convState[sessionId] = {
+            isStreaming: false,
+            currentAssistantDiv: null,
+            currentRawText: '',
+            messageQueue: [],
+            pendingAttachments: [],
+            domSnapshot: null,
+            toolIndicators: {},
+            processingActive: false,
+        };
+    }
+    return convState[sessionId];
+}
+
+// Configure marked
+marked.setOptions({ breaks: true, gfm: true });
+
+// ─── Model Selection ──────────────────────────────────────────────────────
+
+function setModel(model) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({type: 'set_model', model: model}));
+    }
+    localStorage.setItem('sbk-chat-model', model);
+}
+
+function restoreModelSelection() {
+    const saved = localStorage.getItem('sbk-chat-model');
+    if (saved) {
+        const sel = document.getElementById('model-select');
+        if (sel) sel.value = saved;
+    }
+}
+
+function updateModelInfo(label, isAuto) {
+    const info = document.getElementById('model-info');
+    if (info) {
+        info.textContent = isAuto ? label + ' (auto)' : label;
+        info.classList.remove('hidden');
+    }
+}
+
+// ─── Owner Mode ──────────────────────────────────────────────────────────────
+
+function toggleOwnerMode(enabled) {
+    ownerMode = enabled;
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({type: 'set_owner_mode', enabled: enabled}));
+    }
+    updateOwnerModeUI();
+}
+
+function updateOwnerModeUI() {
+    const badge = document.getElementById('owner-mode-badge');
+    const toggle = document.getElementById('owner-mode-toggle');
+    if (badge) badge.classList.toggle('hidden', !ownerMode);
+    if (toggle) toggle.checked = ownerMode;
+}
+
+// ─── WebSocket ─────────────────────────────────────────────────────────────
+
+function connectWs() {
+    // Guard: prevent double-connect
+    if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+        return;
+    }
+
+    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+    ws = new WebSocket(protocol + '//' + location.host + '/api/chat/ws/chat');
+
+    ws.onopen = function() {
+        document.getElementById('chat-status').textContent = 'Connected';
+        reconnectAttempts = 0;
+
+        // Resume only the active session (not all tracked sessions)
+        if (activeSessionId) {
+            document.getElementById('chat-messages').innerHTML = '';
+            addWelcome();
+            ws.send(JSON.stringify({type: 'resume', session_id: activeSessionId}));
+        } else {
+            ws.send(JSON.stringify({type: 'init'}));
+        }
+    };
+
+    ws.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        handleMessage(data);
+    };
+
+    ws.onclose = function() {
+        document.getElementById('chat-status').textContent = 'Disconnected';
+        document.getElementById('send-btn').disabled = true;
+
+        // Reset streaming flags for all conversations — keep currentRawText for recovery
+        for (const sid of Object.keys(convState)) {
+            const st = convState[sid];
+            if (st.isStreaming) {
+                st.isStreaming = false;
+                st.currentAssistantDiv = null;
+                // Keep st.currentRawText — resume protocol will restore
+            }
+        }
+        document.getElementById('chat-status').textContent = 'Reconnecting...';
+
+        // Reconnect with backoff (max 10 attempts)
+        if (reconnectAttempts < 10) {
+            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000);
+            reconnectAttempts++;
+            setTimeout(connectWs, delay);
+        }
+    };
+
+    ws.onerror = function(err) {
+        console.error('WebSocket error:', err);
+    };
+}
+
+// ─── Page Visibility API ───────────────────────────────────────────────────
+
+document.addEventListener('visibilitychange', function() {
+    if (!document.hidden) {
+        // Tab became visible — reset title notification
+        document.title = 'Chat \u2014 SBK';
+
+        // Reconnect if WS is dead
+        if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+            reconnectAttempts = 0;
+            connectWs();
+        }
+    }
+});
+
+// ─── Message handling ──────────────────────────────────────────────────────
+
+function handleMessage(data) {
+    // Route message by session_id. Messages without session_id are global.
+    const msgSid = data.session_id || null;
+    const isActive = !msgSid || msgSid === activeSessionId;
+
+    switch (data.type) {
+        case 'session':
+            // Update active session tracking (server confirmed)
+            if (data.session_id === activeSessionId) {
+                document.getElementById('send-btn').disabled = false;
+            }
+            loadConversations();
+            break;
+
+        case 'history_user':
+            // History replay always targets activeSessionId (only sent on resume)
+            hideWelcome();
+            addUserMessage(data.content, data.has_attachments ? ['attachment'] : null);
+            break;
+
+        case 'history_assistant':
+            hideWelcome();
+            const histBubble = addAssistantMessage();
+            renderMarkdown(histBubble, data.content);
+            break;
+
+        case 'processing': {
+            const sid = msgSid || activeSessionId;
+            const st = getConvState(sid);
+            st.processingActive = true;
+            st.isStreaming = true;
+            if (isActive) {
+                hideWelcome();
+                addProcessingIndicator();
+            }
+            renderConversationList();
+            break;
+        }
+
+        case 'token': {
+            const sid = msgSid || activeSessionId;
+            const st = getConvState(sid);
+            st.isStreaming = true;
+            if (isActive) {
+                // Render directly into DOM
+                removeProcessingIndicator();
+                if (!st.currentAssistantDiv) {
+                    hideWelcome();
+                    st.currentAssistantDiv = addAssistantMessage();
+                    st.currentRawText = '';
+                }
+                st.currentRawText += data.content;
+                renderMarkdown(st.currentAssistantDiv, st.currentRawText);
+                scrollToBottom();
+            } else {
+                // Buffer in background — no DOM rendering
+                st.currentRawText += data.content;
+                // First token from background conv: update sidebar spinner
+                if (st.currentRawText.length === data.content.length) {
+                    renderConversationList();
+                }
+            }
+            break;
+        }
+
+        case 'tool_start': {
+            const sid = msgSid || activeSessionId;
+            const st = getConvState(sid);
+            st.toolIndicators[data.tool_id] = {label: data.label, loading: true};
+            if (isActive) {
+                removeProcessingIndicator();
+                addToolIndicator(data.tool_id, data.label, true);
+            }
+            break;
+        }
+
+        case 'tool_done': {
+            const sid = msgSid || activeSessionId;
+            const st = getConvState(sid);
+            if (st.toolIndicators[data.tool_id]) {
+                st.toolIndicators[data.tool_id].loading = false;
+            }
+            if (isActive) {
+                updateToolIndicator(data.tool_id, false);
+            }
+            break;
+        }
+
+        case 'heartbeat':
+        case 'ping':
+            break;
+
+        case 'done': {
+            const sid = msgSid || activeSessionId;
+            const st = getConvState(sid);
+
+            if (isActive) {
+                removeProcessingIndicator();
+                // Recovery: if server sent full_text and we missed some/all tokens
+                if (data.full_text && (!st.currentRawText || st.currentRawText.length < data.full_text.length * 0.9)) {
+                    if (!st.currentAssistantDiv) {
+                        hideWelcome();
+                        st.currentAssistantDiv = addAssistantMessage();
+                    }
+                    st.currentRawText = data.full_text;
+                    renderMarkdown(st.currentAssistantDiv, st.currentRawText);
+                    scrollToBottom();
+                }
+                // Safety net: convert remaining spinners to check marks
+                document.querySelectorAll('#chat-messages .loading-spinner').forEach(function(spinner) {
+                    const check = document.createElement('span');
+                    check.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+                    spinner.replaceWith(check.firstChild);
+                });
+            } else {
+                // Background conv completed: save full_text for when user switches to it
+                if (data.full_text) {
+                    st.currentRawText = data.full_text;
+                }
+            }
+
+            st.isStreaming = false;
+            st.processingActive = false;
+            st.currentAssistantDiv = null;
+            st.toolIndicators = {};
+
+            // Process per-conv queued messages
+            if (st.messageQueue.length > 0 && ws && ws.readyState === WebSocket.OPEN) {
+                const queued = st.messageQueue.slice();
+                st.messageQueue = [];
+                if (isActive) updateQueueIndicator();
+                const texts = queued.map(q => q.text);
+                const allAttachments = queued.flatMap(q => q.attachments || []);
+                const aggregated = texts.join('\n\n---\n\n');
+                const payload = {type: 'message', content: aggregated, session_id: sid};
+                if (allAttachments.length > 0) {
+                    payload.attachments = allAttachments.map(a => a.id);
+                }
+                ws.send(JSON.stringify(payload));
+                st.isStreaming = true;
+            } else if (isActive) {
+                document.getElementById('chat-input').focus();
+            }
+
+            if (isActive) document.getElementById('send-btn').disabled = false;
+            saveChatCache();
+            loadConversations();
+            renderConversationList();
+            if (document.hidden) {
+                document.title = '(*) Chat \u2014 SBK';
+            }
+            break;
+        }
+
+        case 'error': {
+            const sid = msgSid || activeSessionId;
+            const st = getConvState(sid);
+            if (isActive) {
+                addErrorMessage(data.content);
+                removeProcessingIndicator();
+                document.getElementById('send-btn').disabled = false;
+            }
+            st.isStreaming = false;
+            st.currentAssistantDiv = null;
+            st.processingActive = false;
+            renderConversationList();
+            break;
+        }
+
+        case 'model_info':
+            updateModelInfo(data.label, data.auto);
+            break;
+
+        case 'model_set':
+            break;
+
+        case 'owner_mode':
+            ownerMode = data.enabled;
+            updateOwnerModeUI();
+            break;
+
+        case 'cleared':
+            document.getElementById('chat-messages').innerHTML = '';
+            addWelcome();
+            if (data.session_id) {
+                activeSessionId = data.session_id;
+                localStorage.setItem('sbk-chat-session', activeSessionId);
+            }
+            localStorage.removeItem('sbk-chat-cache');
+            loadConversations();
+            break;
+    }
+}
+
+// ─── Send messages ─────────────────────────────────────────────────────────
+
+function sendMessage() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text || !ws || ws.readyState !== WebSocket.OPEN || !activeSessionId) return;
+
+    const state = getConvState(activeSessionId);
+
+    hideWelcome();
+    const hasAttachments = state.pendingAttachments.length > 0;
+    addUserMessage(text, hasAttachments ? state.pendingAttachments.map(a => a.filename) : null);
+    input.value = '';
+    input.style.height = 'auto';
+
+    if (state.isStreaming) {
+        // Queue message for processing after current turn completes
+        state.messageQueue.push({text: text, attachments: state.pendingAttachments.slice()});
+        state.pendingAttachments = [];
+        renderAttachmentPreview();
+        updateQueueIndicator();
+    } else {
+        const payload = {
+            type: 'message',
+            content: text,
+            session_id: activeSessionId
+        };
+        if (state.pendingAttachments.length > 0) {
+            payload.attachments = state.pendingAttachments.map(a => a.id);
+            state.pendingAttachments = [];
+            renderAttachmentPreview();
+        }
+        ws.send(JSON.stringify(payload));
+        state.isStreaming = true;
+        document.getElementById('send-btn').disabled = false;
+    }
+    scrollToBottom();
+}
+
+function sendPreset(text) {
+    document.getElementById('chat-input').value = text;
+    sendMessage();
+}
+
+function clearChat() {
+    if (ws && ws.readyState === WebSocket.OPEN && activeSessionId) {
+        ws.send(JSON.stringify({type: 'clear', session_id: activeSessionId}));
+    }
+    document.getElementById('chat-messages').innerHTML = '';
+    addWelcome();
+}
+
+// ─── Conversation management ───────────────────────────────────────────────
+
+async function loadConversations() {
+    try {
+        const resp = await fetch('/api/chat/conversations');
+        const data = await resp.json();
+        conversations = data.conversations || [];
+        renderConversationList();
+    } catch (e) {
+        console.error('Failed to load conversations:', e);
+    }
+}
+
+function renderConversationList() {
+    const list = document.getElementById('conversation-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (conversations.length === 0) {
+        list.innerHTML = '<div class="px-4 py-8 text-center text-xs text-base-content/40">No conversations</div>';
+        return;
+    }
+
+    for (const conv of conversations) {
+        const isActive = conv.id === activeSessionId;
+        const cState = convState[conv.id];
+        const isConvStreaming = cState && cState.isStreaming;
+
+        const div = document.createElement('div');
+        div.className = 'chat-conv-item px-3 py-2 cursor-pointer text-sm truncate rounded-lg mx-2 my-0.5 flex items-center justify-between group'
+            + (isActive ? ' bg-base-300 font-medium' : ' hover:bg-base-200');
+
+        const titleSpan = document.createElement('span');
+        titleSpan.className = 'truncate flex-1 min-w-0';
+        titleSpan.textContent = conv.title || 'Untitled';
+        titleSpan.title = conv.title;
+        div.appendChild(titleSpan);
+
+        if (isConvStreaming) {
+            // Show spinner for conversations that are processing
+            const spinner = document.createElement('span');
+            spinner.className = 'loading loading-spinner loading-xs text-primary shrink-0 ml-1';
+            div.appendChild(spinner);
+        } else if (conv.message_count > 0) {
+            const badge = document.createElement('span');
+            badge.className = 'badge badge-ghost badge-xs shrink-0 ml-1 opacity-50';
+            badge.textContent = conv.message_count;
+            div.appendChild(badge);
+        }
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-ghost btn-xs opacity-0 group-hover:opacity-60 shrink-0 ml-1';
+        delBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+        delBtn.onclick = function(e) { e.stopPropagation(); deleteConversation(conv.id); };
+        div.appendChild(delBtn);
+
+        div.onclick = function() { switchConversation(conv.id); };
+        list.appendChild(div);
+    }
+}
+
+async function newChat() {
+    try {
+        const resp = await fetch('/api/chat/conversations', {method: 'POST'});
+        const data = await resp.json();
+        switchConversation(data.id);
+    } catch (e) {
+        console.error('Failed to create conversation:', e);
+    }
+}
+
+function switchConversation(id) {
+    if (id === activeSessionId) return;
+
+    const container = document.getElementById('chat-messages');
+
+    // 1. Snapshot current conversation DOM
+    if (activeSessionId) {
+        const oldState = getConvState(activeSessionId);
+        oldState.domSnapshot = container.innerHTML;
+    }
+
+    // 2. Switch active session
+    const previousId = activeSessionId;
+    activeSessionId = id;
+    localStorage.setItem('sbk-chat-session', id);
+
+    // 3. Restore target conversation
+    const newState = getConvState(id);
+    document.getElementById('send-btn').disabled = true;
+
+    if (newState.domSnapshot) {
+        // We have a cached DOM snapshot — restore it
+        container.innerHTML = newState.domSnapshot;
+
+        // If streaming completed in background, append the buffered text
+        if (!newState.isStreaming && newState.currentRawText && !newState.currentAssistantDiv) {
+            // Response completed while in background — render it
+            const bubble = addAssistantMessage();
+            renderMarkdown(bubble, newState.currentRawText);
+            newState.currentRawText = '';
+        }
+
+        document.getElementById('send-btn').disabled = false;
+        scrollToBottom();
+    } else {
+        // No snapshot: first visit to this conversation — resume from server
+        container.innerHTML = '';
+        addWelcome();
+        localStorage.removeItem('sbk-chat-cache');
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({type: 'resume', session_id: id}));
+        }
+    }
+
+    // 4. Update attachment preview for new conversation
+    renderAttachmentPreview();
+    updateQueueIndicator();
+    renderConversationList();
+}
+
+async function deleteConversation(id) {
+    try {
+        await fetch('/api/chat/conversations/' + id, {method: 'DELETE'});
+        // Clean up convState for deleted conversation
+        delete convState[id];
+        if (id === activeSessionId) {
+            // Deleted active conversation — create new one
+            await newChat();
+        } else {
+            await loadConversations();
+        }
+    } catch (e) {
+        console.error('Failed to delete conversation:', e);
+    }
+}
+
+// ─── Chat cache (localStorage) ─────────────────────────────────────────────
+
+function saveChatCache() {
+    if (!activeSessionId) return;
+    try {
+        const container = document.getElementById('chat-messages');
+        localStorage.setItem('sbk-chat-cache', JSON.stringify({
+            session_id: activeSessionId,
+            html: container.innerHTML,
+        }));
+    } catch (e) {
+        // localStorage quota exceeded — ignore
+    }
+}
+
+function restoreChatCache() {
+    try {
+        const cached = JSON.parse(localStorage.getItem('sbk-chat-cache') || 'null');
+        if (cached && cached.session_id === activeSessionId && cached.html) {
+            const container = document.getElementById('chat-messages');
+            container.innerHTML = cached.html;
+            scrollToBottom();
+            return true;
+        }
+    } catch (e) {}
+    return false;
+}
+
+// ─── Message rendering ─────────────────────────────────────────────────────
+
+function hideWelcome() {
+    const welcome = document.getElementById('welcome-msg');
+    if (welcome) welcome.remove();
+}
+
+function addUserMessage(text, attachmentNames) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'chat chat-end';
+    let html = '<div class="chat-bubble chat-bubble-primary text-sm whitespace-pre-wrap">';
+    if (attachmentNames && attachmentNames.length > 0) {
+        html += '<div class="flex flex-wrap gap-1 mb-1">';
+        for (const name of attachmentNames) {
+            html += '<span class="badge badge-xs badge-ghost opacity-80 gap-0.5">'
+                + '<svg xmlns="http://www.w3.org/2000/svg" class="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">'
+                + '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>'
+                + '</svg> ' + escapeHtml(name) + '</span>';
+        }
+        html += '</div>';
+    }
+    html += escapeHtml(text) + '</div>';
+    div.innerHTML = html;
+    container.appendChild(div);
+    scrollToBottom();
+}
+
+function addAssistantMessage() {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'chat chat-start';
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble bg-base-300 text-base-content text-sm prose prose-sm prose-invert max-w-none';
+    div.appendChild(bubble);
+    container.appendChild(div);
+    return bubble;
+}
+
+function addToolIndicator(toolId, label, loading) {
+    // Guard: skip if indicator already exists (prevent duplicates)
+    if (document.getElementById('tool-' + toolId)) return;
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'flex items-center gap-2 px-2 py-1';
+    div.id = 'tool-' + toolId;
+    div.innerHTML = (loading
+        ? '<span class="loading loading-spinner loading-xs text-primary"></span>'
+        : '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>')
+        + '<span class="text-xs text-base-content/50">' + escapeHtml(label) + '</span>';
+    container.appendChild(div);
+    scrollToBottom();
+}
+
+function updateToolIndicator(toolId, loading) {
+    const el = document.getElementById('tool-' + toolId);
+    if (el) {
+        const icon = el.querySelector('.loading, svg');
+        if (icon) {
+            const check = document.createElement('span');
+            check.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-success" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>';
+            icon.replaceWith(check.firstChild);
+        }
+    }
+}
+
+function addProcessingIndicator() {
+    removeProcessingIndicator();
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.id = 'processing-indicator';
+    div.className = 'flex items-center gap-2 px-2 py-1';
+    div.innerHTML = '<span class="loading loading-spinner loading-xs text-primary"></span>'
+        + '<span class="text-xs text-base-content/50">Processing...</span>';
+    container.appendChild(div);
+    scrollToBottom();
+}
+
+function removeProcessingIndicator() {
+    const el = document.getElementById('processing-indicator');
+    if (el) el.remove();
+}
+
+function addErrorMessage(text) {
+    const container = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.className = 'alert alert-error text-sm py-2 my-2';
+    div.textContent = text;
+    container.appendChild(div);
+    scrollToBottom();
+}
+
+function addWelcome() {
+    const container = document.getElementById('chat-messages');
+    container.innerHTML = `
+    <div id="welcome-msg" class="flex flex-col items-center justify-center h-full text-center opacity-60">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-3 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        </svg>
+        <p class="text-lg font-medium mb-1">Ask your data something</p>
+        <p class="text-sm max-w-md">You can search people, meetings, decisions, follow-ups, or explore the knowledge graph. Write in natural language.</p>
+        <div class="flex flex-wrap gap-2 mt-4 justify-center">
+            <button class="btn btn-ghost btn-sm border border-base-300" onclick="sendPreset('Who is Sam and what is their score?')">Who is Sam?</button>
+            <button class="btn btn-ghost btn-sm border border-base-300" onclick="sendPreset('Which follow-ups are overdue?')">Overdue follow-ups</button>
+            <button class="btn btn-ghost btn-sm border border-base-300" onclick="sendPreset('What are the latest decisions made in meetings?')">Latest decisions</button>
+            <button class="btn btn-ghost btn-sm border border-base-300" onclick="sendPreset('How are my inner circle relationships?')">inner circle</button>
+        </div>
+    </div>`;
+}
+
+function renderMarkdown(el, text) {
+    el.innerHTML = DOMPurify.sanitize(marked.parse(text));
+}
+
+// ─── Queue helpers ────────────────────────────────────────────────────────
+
+function updateQueueIndicator() {
+    const el = document.getElementById('queue-indicator');
+    const countEl = document.getElementById('queue-count');
+    const state = activeSessionId ? getConvState(activeSessionId) : null;
+    const qLen = state ? state.messageQueue.length : 0;
+    if (qLen > 0) {
+        countEl.textContent = qLen;
+        el.classList.remove('hidden');
+    } else {
+        el.classList.add('hidden');
+    }
+}
+
+// ─── File attachment helpers ──────────────────────────────────────────────
+
+async function handleFileSelect(input) {
+    if (!activeSessionId) return;
+    const state = getConvState(activeSessionId);
+    for (const file of input.files) {
+        // Client-side size check
+        if (file.size > 10 * 1024 * 1024) {
+            addErrorMessage('File "' + file.name + '" too large (max 10MB).');
+            continue;
+        }
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            const resp = await fetch('/api/chat/upload/' + activeSessionId, {
+                method: 'POST',
+                body: formData
+            });
+            const data = await resp.json();
+            if (data.error) {
+                addErrorMessage(data.error);
+            } else {
+                state.pendingAttachments.push(data);
+                renderAttachmentPreview();
+            }
+        } catch (e) {
+            addErrorMessage('Upload error: ' + e.message);
+        }
+    }
+    input.value = ''; // Reset to allow re-upload of same file
+}
+
+function renderAttachmentPreview() {
+    const container = document.getElementById('attachment-preview');
+    const state = activeSessionId ? getConvState(activeSessionId) : null;
+    const attachments = state ? state.pendingAttachments : [];
+    if (attachments.length === 0) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+    }
+    container.classList.remove('hidden');
+    container.innerHTML = '';
+    for (let i = 0; i < attachments.length; i++) {
+        const a = attachments[i];
+        const chip = document.createElement('span');
+        chip.className = 'badge badge-sm gap-1 badge-outline';
+        const isImage = (a.content_type || '').startsWith('image/');
+        const icon = isImage
+            ? '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>'
+            : '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
+        chip.innerHTML = icon + ' ' + escapeHtml(a.filename)
+            + ' <button class="btn btn-ghost btn-xs p-0 h-auto min-h-0" onclick="removeAttachment(' + i + ')">'
+            + '<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>'
+            + '</button>';
+        container.appendChild(chip);
+    }
+}
+
+function removeAttachment(index) {
+    if (!activeSessionId) return;
+    const state = getConvState(activeSessionId);
+    state.pendingAttachments.splice(index, 1);
+    renderAttachmentPreview();
+}
+
+// ─── Helpers ───────────────────────────────────────────────────────────────
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function scrollToBottom() {
+    const container = document.getElementById('chat-messages');
+    container.scrollTop = container.scrollHeight;
+}
+
+function handleKeydown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        sendMessage();
+    }
+}
+
+function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 128) + 'px';
+}
+
+// ─── Init ──────────────────────────────────────────────────────────────────
+
+// Try to restore cached chat before connecting
+if (activeSessionId) {
+    restoreChatCache();
+}
+restoreModelSelection();
+loadConversations();
+connectWs();
+</script>
+{% endblock %}

@@ -1,0 +1,240 @@
+<!-- Pipeline unified source table (HTMX auto-refresh) -->
+
+{% set live_sources = sources|selectattr("category", "equalto", "live")|list %}
+{% set storico_sources = sources|selectattr("category", "equalto", "storico")|list %}
+
+<!-- Alert badges — only for LIVE sources -->
+{% set critico_count = live_sources|selectattr("status", "equalto", "CRITICO")|list|length %}
+{% set stale_count = live_sources|selectattr("status", "equalto", "STALE")|list|length %}
+{% if critico_count > 0 %}
+<div class="alert alert-error mb-4 py-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+    </svg>
+    <span>{{ critico_count }} live source{{ "" if critico_count == 1 else "s" }} in CRITICAL state</span>
+</div>
+{% elif stale_count > 0 %}
+<div class="alert alert-warning mb-4 py-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span>{{ stale_count }} live source{{ "" if stale_count == 1 else "s" }} STALE</span>
+</div>
+{% else %}
+<div class="alert alert-success mb-4 py-2">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span>All live sources OK</span>
+</div>
+{% endif %}
+
+<!-- LIVE SOURCES -->
+<h3 class="text-sm font-semibold text-base-content/70 uppercase tracking-wide mb-2">Live Sources</h3>
+<div class="overflow-x-auto mb-6">
+<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>Source</th>
+            <th class="text-right">Records</th>
+            <th>Last update</th>
+            <th>Schedule</th>
+            <th>Sync</th>
+            <th>Actions</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for src in live_sources %}
+        <tr class="hover" id="source-{{ src.id }}">
+            <td>
+                <div class="flex items-center gap-1.5">
+                    <span class="font-semibold">{{ src.name }}</span>
+                    {% if src.realtime_mode == "realtime" %}
+                        <span class="badge badge-success badge-xs gap-0.5" title="Real-time via WebSocket/IMAP IDLE">
+                            <span class="w-1.5 h-1.5 rounded-full bg-success animate-pulse inline-block"></span>
+                            LIVE
+                        </span>
+                    {% elif src.id in ['slack', 'email'] %}
+                        <span class="badge badge-warning badge-xs" title="Polling mode">POLL</span>
+                    {% endif %}
+                </div>
+                <div class="text-xs text-base-content/50">{{ src.method }}</div>
+            </td>
+            <td class="text-right">
+                {% if src.records %}
+                    {{ "{:,}".format(src.records) }}
+                    <span class="text-xs text-base-content/50">{{ src.record_label }}</span>
+                {% else %}
+                    <span class="text-base-content/30">&mdash;</span>
+                {% endif %}
+            </td>
+            <td>
+                <span class="font-mono text-sm">{{ src.elapsed }}</span>
+            </td>
+            <td>
+                {% if src.schedules %}
+                    {% for sched in src.schedules %}
+                    <div class="flex items-center gap-1 {{ 'mt-1' if not loop.first else '' }}">
+                        <span class="badge badge-outline badge-xs font-mono">{{ sched.stage|upper }}</span>
+                        <select class="select select-bordered select-xs w-28"
+                                onchange="updateSchedule('{{ src.id }}', '{{ sched.stage }}', parseInt(this.value))">
+                            {% for opt in schedule_options %}
+                            <option value="{{ opt.value }}"
+                                    {{ 'selected' if opt.value == sched.interval_min else '' }}>
+                                {{ opt.label }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <span class="text-base-content/30 text-xs">&mdash;</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if src.last_sync %}
+                    <div class="font-mono text-xs">{{ src.last_sync[:16] }}</div>
+                    {% if src.sync_status == "OK" %}
+                        <span class="badge badge-success badge-xs">OK</span>
+                    {% elif src.sync_status == "STALE" %}
+                        <span class="badge badge-warning badge-xs">STALE</span>
+                    {% elif src.sync_status == "CRITICO" %}
+                        <span class="badge badge-error badge-xs">CRITICAL</span>
+                    {% elif src.sync_status %}
+                        <span class="badge badge-ghost badge-xs">{{ src.sync_status }}</span>
+                    {% endif %}
+                {% else %}
+                    <span class="text-base-content/30 text-xs">&mdash;</span>
+                {% endif %}
+            </td>
+            <td>
+                <div class="flex gap-1 flex-wrap">
+                    <button class="btn btn-xs btn-outline btn-accent pipeline-run-btn"
+                            hx-post="/api/pipeline/{{ src.id }}/run-full"
+                            hx-swap="none"
+                            onclick="switchTab('jobs'); startLogStream(this)"
+                            title="Run all stages">
+                        Full
+                    </button>
+                    {% for stage, info in src.scripts.items() %}
+                        {% if info.exists %}
+                        <button class="btn btn-xs btn-outline btn-primary pipeline-run-btn"
+                                hx-post="/api/pipeline/{{ src.id }}/run"
+                                hx-vals='{"stage": "{{ stage }}"}'
+                                hx-swap="none"
+                                onclick="switchTab('jobs'); startLogStream(this)">
+                            {{ stage|upper }}
+                        </button>
+                        {% endif %}
+                    {% endfor %}
+                    {% if src.id in ['email', 'slack', 'calendar'] %}
+                    <button class="btn btn-xs btn-outline btn-info"
+                            onclick="triggerSync('{{ src.id }}', this)"
+                            title="Trigger monitor sync">
+                        Sync
+                    </button>
+                    {% endif %}
+                </div>
+            </td>
+            <td>
+                {% if src.status == "OK" %}
+                    <span class="badge badge-success badge-sm">OK</span>
+                {% elif src.status == "STALE" %}
+                    <span class="badge badge-warning badge-sm">STALE</span>
+                {% elif src.status == "CRITICO" %}
+                    <span class="badge badge-error badge-sm">CRITICAL</span>
+                {% else %}
+                    <span class="badge badge-ghost badge-sm">{{ src.status }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<!-- ARCHIVE -->
+<h3 class="text-sm font-semibold text-base-content/70 uppercase tracking-wide mb-2">Archive
+    <span class="badge badge-ghost badge-xs ml-1 normal-case font-normal">import spot</span>
+</h3>
+<div class="overflow-x-auto">
+<table class="table table-sm opacity-80">
+    <thead>
+        <tr>
+            <th>Source</th>
+            <th class="text-right">Records</th>
+            <th>Last upload</th>
+            <th>Pipeline</th>
+            <th>Folder</th>
+            <th>Actions</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for src in storico_sources %}
+        <tr class="hover" id="source-{{ src.id }}">
+            <td>
+                <div class="font-semibold">{{ src.name }}</div>
+                <div class="text-xs text-base-content/50">{{ src.method }}</div>
+            </td>
+            <td class="text-right">
+                {% if src.records %}
+                    {{ "{:,}".format(src.records) }}
+                    <span class="text-xs text-base-content/50">{{ src.record_label }}</span>
+                {% else %}
+                    <span class="text-base-content/30">&mdash;</span>
+                {% endif %}
+            </td>
+            <td>
+                <span class="font-mono text-sm text-base-content/50">{{ src.elapsed }}</span>
+            </td>
+            <td>
+                <div class="flex gap-1">
+                    <span class="badge badge-xs {{ 'badge-success' if src.l0_ok else 'badge-ghost' }}" title="L0 — Raw data ingested">L0</span>
+                    <span class="badge badge-xs {{ 'badge-success' if src.l1_ok else 'badge-ghost' }}" title="L1 — Enriched">L1</span>
+                    <span class="badge badge-xs {{ 'badge-success' if src.l2_contacts else 'badge-ghost' }}" title="L2 — {{ src.l2_contacts }} contacts in merge">L2</span>
+                </div>
+            </td>
+            <td>
+                {% if src.data_dir %}
+                <a href="file://{{ src.data_dir }}" class="btn btn-xs btn-ghost btn-square" title="{{ src.data_dir }}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+                    </svg>
+                </a>
+                {% else %}
+                    <span class="text-base-content/30 text-xs">&mdash;</span>
+                {% endif %}
+            </td>
+            <td>
+                <div class="flex gap-1 flex-wrap">
+                    {% for stage, info in src.scripts.items() %}
+                        {% if info.exists %}
+                        <button class="btn btn-xs btn-outline btn-primary pipeline-run-btn"
+                                hx-post="/api/pipeline/{{ src.id }}/run"
+                                hx-vals='{"stage": "{{ stage }}"}'
+                                hx-swap="none"
+                                onclick="switchTab('jobs'); startLogStream(this)">
+                            {{ stage|upper }}
+                        </button>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </td>
+            <td>
+                {% if src.status == "OK" %}
+                    <span class="badge badge-success badge-sm">OK</span>
+                {% elif src.status == "STALE" %}
+                    <span class="badge badge-warning badge-sm">STALE</span>
+                {% elif src.status == "CRITICO" %}
+                    <span class="badge badge-error badge-sm">CRITICAL</span>
+                {% else %}
+                    <span class="badge badge-ghost badge-sm">{{ src.status }}</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>

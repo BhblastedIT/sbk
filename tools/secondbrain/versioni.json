@@ -1,0 +1,39 @@
+{
+  "corrente": "0.3.0",
+  "storia": [
+    {
+      "versione": "0.3.0",
+      "data": "2024-01-03T10:00:00Z",
+      "commit": "0000003",
+      "contenuto": "000000000003",
+      "firma": "demo signature (dev@example.com)",
+      "canale": "swift",
+      "novita": [
+        "Inspiration section shows saved items with their status",
+        "Activities view with table, board and calendar layouts"
+      ]
+    },
+    {
+      "versione": "0.2.0",
+      "data": "2024-01-02T10:00:00Z",
+      "commit": "0000002",
+      "contenuto": "000000000002",
+      "firma": "demo signature (dev@example.com)",
+      "canale": "swift",
+      "novita": [
+        "In-app changelog and automatic update check"
+      ]
+    },
+    {
+      "versione": "0.1.0",
+      "data": "2024-01-01T10:00:00Z",
+      "commit": "0000001",
+      "contenuto": "000000000001",
+      "firma": "demo signature (dev@example.com)",
+      "canale": "swift",
+      "novita": [
+        "First version tracked by the version engine"
+      ]
+    }
+  ]
+}

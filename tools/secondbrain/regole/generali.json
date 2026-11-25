@@ -1,0 +1,41 @@
+{
+ "verificate": "2026-01-01",
+ "ricontrollate": "2026-01-01",
+ "ricontrollate_cosa": "example rules of the template",
+ "come": "Example entries. Document here the rules of your sources and your stages.",
+ "generali": [
+  {
+   "id": "g1",
+   "regola": "Secrets are not hardcoded in the code.",
+   "perche": "Security.",
+   "quando": "Always.",
+   "fonte": "base rule",
+   "dove_nel_codice": "the whole repo",
+   "rispettata": "sì",
+   "prova": "Demo example.",
+   "note": ""
+  },
+  {
+   "id": "g2",
+   "regola": "Data lives in ~/.sbk-data, outside the repo.",
+   "perche": "Local and private.",
+   "quando": "Always.",
+   "fonte": "base rule",
+   "dove_nel_codice": "tools/sbk_config.py",
+   "rispettata": "sì",
+   "prova": "Demo example.",
+   "note": ""
+  },
+  {
+   "id": "g3",
+   "regola": "Run the whole pipeline before judging its state.",
+   "perche": "Example of a configurable rule.",
+   "quando": "On every run.",
+   "fonte": "base rule",
+   "dove_nel_codice": "tools/cross-source/xs-pipeline-run.py",
+   "rispettata": "sì",
+   "prova": "Demo example.",
+   "note": ""
+  }
+ ]
+}

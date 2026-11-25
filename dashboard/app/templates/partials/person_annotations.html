@@ -1,0 +1,19 @@
+{% if annotations %}
+{% for ann in annotations %}
+<div class="flex items-start gap-2 mb-2 text-sm bg-base-200 rounded-box p-2">
+    <span class="badge badge-xs mt-1
+        {% if ann.type == 'merge' %}badge-error
+        {% elif ann.type == 'enrichment' %}badge-info
+        {% else %}badge-ghost{% endif %}">
+        {{ ann.type }}
+    </span>
+    <div class="flex-1">
+        <div>{{ ann.text }}</div>
+        {% if ann.details %}<div class="text-xs text-base-content/40">{{ ann.details }}</div>{% endif %}
+        {% if ann.timestamp %}<div class="text-xs text-base-content/30">{{ ann.timestamp[:16] }}</div>{% endif %}
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="text-xs text-base-content/40">No annotations.</div>
+{% endif %}

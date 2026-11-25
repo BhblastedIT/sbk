@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Daily L3 staleness alert (xs-l3-staleness-alert.py): source freshness and failed jobs, macOS notice. No model call.
+  Template, not active. To turn it on, run from the repo folder (fills in your paths):
+    sed -e "s|__SBK_REPO__|$PWD|g" -e "s|__SBK_DATA__|${SBK_DATA_ROOT:-$HOME/.sbk-data}|g" \
+        -e "s|__UV__|$(command -v uv)|g" -e "s|__UV_DIR__|$(dirname "$(command -v uv)")|g" \
+        tools/cross-source/com.sbk.l3-staleness.plist > ~/Library/LaunchAgents/com.sbk.l3-staleness.plist
+    launchctl load ~/Library/LaunchAgents/com.sbk.l3-staleness.plist
+  To turn it off: launchctl unload ~/Library/LaunchAgents/com.sbk.l3-staleness.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sbk.l3-staleness</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__UV__</string>
+        <string>run</string>
+        <string>python3</string>
+        <string>__SBK_REPO__/tools/cross-source/xs-l3-staleness-alert.py</string>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__SBK_REPO__</string>
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>8</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+    <key>StandardOutPath</key>
+    <string>__SBK_DATA__/l3/logs/staleness-cron.log</string>
+    <key>StandardErrorPath</key>
+    <string>__SBK_DATA__/l3/logs/staleness-cron.log</string>
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>

@@ -1,0 +1,74 @@
+<div class="card bg-base-100 shadow-sm">
+    <div class="card-body p-4">
+        <h3 class="card-title text-sm font-semibold">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+            </svg>
+            Relationship Scorecard
+        </h3>
+        <div class="grid grid-cols-2 gap-3 mt-3">
+            <div class="text-center">
+                <div class="text-2xl font-bold text-primary">{{ scorecard.avg_score }}</div>
+                <div class="text-xs text-base-content/60">Score medio</div>
+            </div>
+            <div class="text-center">
+                <div class="text-2xl font-bold">{{ scorecard.total }}</div>
+                <div class="text-xs text-base-content/60">Total relationships</div>
+            </div>
+        </div>
+
+        {% if scorecard.breakdown_averages %}
+        <div class="mt-3 space-y-1">
+            <div class="text-xs font-semibold text-base-content/70 mb-1">Average dimensions</div>
+            {% set dim_labels = {
+                'frequency': 'Frequenza', 'intensity': 'Intensita',
+                'reciprocity': 'Reciprocita', 'shared_context': 'Contesto',
+                'intimacy': 'Intimita', 'interaction_quality': 'Qualita',
+                'structural': 'Strutturale', 'trust_commitment': 'Fiducia',
+                'negative_signals': 'Negativi'
+            } %}
+            {% for dim, val in scorecard.breakdown_averages.items() %}
+            <div class="flex items-center gap-2 text-xs">
+                <span class="w-24 truncate">{{ dim_labels.get(dim, dim|replace('_', ' ')|title) }}</span>
+                <div class="flex-1 bg-base-200 rounded-full h-2">
+                    {% if dim == 'negative_signals' %}
+                    <div class="bg-error rounded-full h-2" style="width: {{ (val * 100)|int }}%"></div>
+                    {% else %}
+                    <div class="bg-primary rounded-full h-2" style="width: {{ (val * 100)|int }}%"></div>
+                    {% endif %}
+                </div>
+                <span class="font-mono w-10 text-right">{{ "%.2f"|format(val) }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if scorecard.type_distribution %}
+        <div class="mt-3 space-y-1">
+            <div class="text-xs font-semibold text-base-content/70 mb-1">Type distribution</div>
+            {% for type_name, pct in scorecard.type_distribution.items() %}
+            {% if loop.index <= 5 %}
+            <div class="flex items-center gap-2 text-xs">
+                <span class="w-28 truncate">{{ type_name|replace('_', ' ')|title }}</span>
+                <div class="flex-1 bg-base-200 rounded-full h-2">
+                    <div class="bg-primary rounded-full h-2" style="width: {{ pct|int }}%"></div>
+                </div>
+                <span class="font-mono w-10 text-right">{{ pct }}%</span>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if scorecard.trend_summary %}
+        <div class="flex gap-3 mt-3 text-xs text-base-content/60">
+            {% if scorecard.trend_summary.get('strengthening') %}
+            <span class="text-success">+{{ scorecard.trend_summary.strengthening }} strengthening</span>
+            {% endif %}
+            {% if scorecard.trend_summary.get('cooling') %}
+            <span class="text-error">-{{ scorecard.trend_summary.cooling }} cooling</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>

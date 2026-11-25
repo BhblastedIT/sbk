@@ -1,0 +1,103 @@
+<!-- Pipeline source cards partial (HTMX auto-refresh) -->
+
+{% set live_sources = sources|selectattr("category", "equalto", "live")|list %}
+{% set storico_sources = sources|selectattr("category", "equalto", "storico")|list %}
+
+<!-- LIVE SOURCES -->
+<h3 class="text-sm font-semibold text-base-content/70 uppercase tracking-wide mb-3">Live Sources</h3>
+{% for src in live_sources %}
+<div class="card bg-base-100 shadow-md" id="source-{{ src.id }}">
+    <div class="card-body p-4">
+        <div class="flex items-center justify-between">
+            <h3 class="card-title text-base">{{ src.name }}</h3>
+            {% if src.status == "OK" %}
+                <span class="badge badge-success badge-sm">OK</span>
+            {% elif src.status == "STALE" %}
+                <span class="badge badge-warning badge-sm">STALE</span>
+            {% elif src.status == "CRITICO" %}
+                <span class="badge badge-error badge-sm">CRITICAL</span>
+            {% else %}
+                <span class="badge badge-ghost badge-sm">{{ src.status }}</span>
+            {% endif %}
+        </div>
+
+        <div class="text-sm text-base-content/60 mt-1">
+            {% if src.records %}
+                {{ "{:,}".format(src.records) }} {{ src.record_label }}
+            {% endif %}
+            <span class="font-mono">{{ src.elapsed }}</span>
+            &middot; {{ src.method }}
+        </div>
+
+        <!-- Run buttons -->
+        <div class="card-actions mt-3 flex gap-2 flex-wrap">
+            <button class="btn btn-sm btn-outline btn-accent pipeline-run-btn"
+                    hx-post="/api/pipeline/{{ src.id }}/run-full"
+                    hx-swap="none"
+                    onclick="startLogStream(this)"
+                    title="Run all available stages in sequence">
+                Full
+            </button>
+            {% for stage, info in src.scripts.items() %}
+                {% if info.exists %}
+                <button class="btn btn-sm btn-outline btn-primary pipeline-run-btn"
+                        hx-post="/api/pipeline/{{ src.id }}/run"
+                        hx-vals='{"stage": "{{ stage }}"}'
+                        hx-swap="none"
+                        onclick="startLogStream(this)">
+                    {{ stage|upper }}
+                </button>
+                {% else %}
+                <button class="btn btn-sm btn-outline btn-disabled" disabled
+                        title="Script missing: {{ info.path }}">
+                    {{ stage|upper }}
+                </button>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+<!-- ARCHIVE -->
+<h3 class="text-sm font-semibold text-base-content/70 uppercase tracking-wide mb-3 mt-6">Archive
+    <span class="badge badge-ghost badge-xs ml-1 normal-case font-normal">import spot</span>
+</h3>
+{% for src in storico_sources %}
+<div class="card bg-base-100 shadow-md opacity-80" id="source-{{ src.id }}">
+    <div class="card-body p-4">
+        <div class="flex items-center justify-between">
+            <h3 class="card-title text-base">{{ src.name }}</h3>
+            <span class="badge badge-neutral badge-sm badge-outline">archive</span>
+        </div>
+
+        <div class="text-sm text-base-content/60 mt-1">
+            {% if src.records %}
+                {{ "{:,}".format(src.records) }} {{ src.record_label }}
+            {% endif %}
+            <span class="font-mono text-base-content/50">{{ src.elapsed }}</span>
+            &middot; {{ src.method }}
+        </div>
+
+        <!-- Run buttons (still available for re-import) -->
+        <div class="card-actions mt-3 flex gap-2 flex-wrap">
+            {% for stage, info in src.scripts.items() %}
+                {% if info.exists %}
+                <button class="btn btn-sm btn-outline btn-primary pipeline-run-btn"
+                        hx-post="/api/pipeline/{{ src.id }}/run"
+                        hx-vals='{"stage": "{{ stage }}"}'
+                        hx-swap="none"
+                        onclick="startLogStream(this)">
+                    {{ stage|upper }}
+                </button>
+                {% else %}
+                <button class="btn btn-sm btn-outline btn-disabled" disabled
+                        title="Script missing: {{ info.path }}">
+                    {{ stage|upper }}
+                </button>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endfor %}

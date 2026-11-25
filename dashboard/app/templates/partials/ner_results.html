@@ -1,0 +1,72 @@
+{% if not items %}
+<div class="alert alert-info">No entity found with the selected filters.</div>
+{% else %}
+<div class="text-sm text-base-content/60 mb-3">
+    {{ total }} entities (page {{ page }}/{{ pages }})
+</div>
+<div class="overflow-x-auto">
+    <table class="table table-sm table-zebra w-full">
+        <thead>
+            <tr>
+                <th>Entity</th>
+                <th class="w-28">Type</th>
+                <th class="w-16 text-right">Conf.</th>
+                <th>Speaker</th>
+                <th>Meeting</th>
+                <th class="w-24">Data</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td class="font-medium">{{ item.entity_text }}</td>
+                <td>
+                    {% if item.entity_type == 'person' %}
+                        <span class="badge badge-primary badge-sm">person</span>
+                    {% elif item.entity_type == 'organization' %}
+                        <span class="badge badge-secondary badge-sm">org</span>
+                    {% elif item.entity_type == 'location' %}
+                        <span class="badge badge-accent badge-sm">location</span>
+                    {% elif item.entity_type == 'money' %}
+                        <span class="badge badge-warning badge-sm">money</span>
+                    {% elif item.entity_type == 'product' %}
+                        <span class="badge badge-info badge-sm">product</span>
+                    {% else %}
+                        <span class="badge badge-ghost badge-sm">{{ item.entity_type }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-right text-xs">{{ "%.0f"|format(item.confidence * 100) }}%</td>
+                <td class="text-xs">{{ item.speaker }}</td>
+                <td class="text-xs truncate max-w-[16rem]" title="{{ item.meeting_title }}">{{ item.meeting_title }}</td>
+                <td class="text-xs">{{ item.date }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if pages > 1 %}
+<div class="flex justify-center mt-4">
+    <div class="join">
+        {% if page > 1 %}
+        <button class="join-item btn btn-sm" onclick="loadNer({{ page - 1 }})">«</button>
+        {% endif %}
+        {% for p in range(1, [pages + 1, 8]|min) %}
+            {% if p == page %}
+            <button class="join-item btn btn-sm btn-active">{{ p }}</button>
+            {% else %}
+            <button class="join-item btn btn-sm" onclick="loadNer({{ p }})">{{ p }}</button>
+            {% endif %}
+        {% endfor %}
+        {% if pages > 7 %}
+        <button class="join-item btn btn-sm btn-disabled">...</button>
+        <button class="join-item btn btn-sm" onclick="loadNer({{ pages }})">{{ pages }}</button>
+        {% endif %}
+        {% if page < pages %}
+        <button class="join-item btn btn-sm" onclick="loadNer({{ page + 1 }})">»</button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endif %}

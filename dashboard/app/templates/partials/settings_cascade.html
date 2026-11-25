@@ -1,0 +1,46 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Cascade Debounce</h2>
+        <p class="text-sm text-base-content/60 mb-4">
+            Seconds to wait after the last event before triggering the cascade pipeline for each source.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for source in ['slack', 'email', 'calendar', 'attio', 'default'] %}
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text font-medium capitalize">{{ source }}</span>
+                    <span class="label-text-alt text-base-content/40">seconds</span>
+                </label>
+                <input type="number"
+                       id="cascade-{{ source }}"
+                       value="{{ settings.cascade_debounce[source] }}"
+                       min="10" max="3600" step="10"
+                       class="input input-bordered input-sm w-full">
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="card-actions justify-end mt-6">
+            <button class="btn btn-ghost btn-sm" onclick="resetSection('cascade_debounce')">
+                Reset default
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="saveCascade()">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function saveCascade() {
+    saveSection('cascade_debounce', function() {
+        const sources = ['slack', 'email', 'calendar', 'attio', 'default'];
+        const data = {};
+        sources.forEach(function(s) {
+            data[s] = parseInt(document.getElementById('cascade-' + s).value) || 300;
+        });
+        return data;
+    });
+}
+</script>

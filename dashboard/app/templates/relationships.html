@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block title %}Relationships | SBK{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Relationship Quality</h1>
+        <p class="text-sm text-base-content/60 mt-1">
+            {{ total }} active relationships in the network
+        </p>
+    </div>
+    <div class="flex gap-2 items-center">
+        <select id="circle-filter" class="select select-sm select-bordered"
+                onchange="applyFilters()">
+            <option value="">All tiers</option>
+            <option value="inner_circle" {% if circle_filter == 'inner_circle' %}selected{% endif %}>Core Team</option>
+            <option value="sympathy_group" {% if circle_filter == 'sympathy_group' %}selected{% endif %}>Sympathy Group</option>
+            <option value="active_network" {% if circle_filter == 'active_network' %}selected{% endif %}>Active Network</option>
+            <option value="full_network" {% if circle_filter == 'full_network' %}selected{% endif %}>Full Network</option>
+            <option value="extended" {% if circle_filter == 'extended' %}selected{% endif %}>Extended</option>
+        </select>
+        <select id="state-filter" class="select select-sm select-bordered"
+                onchange="applyFilters()">
+            <option value="">All statuses</option>
+            <option value="active" {% if state_filter == 'active' %}selected{% endif %}>Active</option>
+            <option value="cooling" {% if state_filter == 'cooling' %}selected{% endif %}>Cooling</option>
+            <option value="dormant" {% if state_filter == 'dormant' %}selected{% endif %}>Dormant</option>
+            <option value="ended" {% if state_filter == 'ended' %}selected{% endif %}>Ended</option>
+        </select>
+    </div>
+</div>
+
+<!-- Grid: 2x2 widgets -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+    <!-- Widget 1: Cooling Alerts -->
+    <div id="cooling-widget">
+        {% include "partials/rq_cooling_alerts.html" %}
+    </div>
+
+    <!-- Widget 2: Network Overview -->
+    <div id="network-widget">
+        {% include "partials/rq_network_overview.html" %}
+    </div>
+
+    <!-- Widget 3: Warm Intros -->
+    <div id="intros-widget">
+        {% include "partials/rq_warm_intros.html" %}
+    </div>
+
+    <!-- Widget 4: Scorecard -->
+    <div id="scorecard-widget">
+        {% include "partials/rq_scorecard.html" %}
+    </div>
+</div>
+
+<script>
+function applyFilters() {
+    const circle = document.getElementById('circle-filter').value;
+    const state = document.getElementById('state-filter').value;
+    let url = '/relationships?';
+    if (circle) url += 'circle=' + encodeURIComponent(circle) + '&';
+    if (state) url += 'state=' + encodeURIComponent(state) + '&';
+    window.location.href = url.replace(/&$/, '');
+}
+</script>
+{% endblock %}

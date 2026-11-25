@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.sbk.promemoria</string>
+	<key>CFBundleExecutable</key>
+	<string>sb-promemoria</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>LSUIElement</key>
+	<true/>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>CFBundleName</key>
+	<string>SBK Promemoria</string>
+	<key>CFBundleDisplayName</key>
+	<string>SBK Promemoria</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>SBK puts your tasks in the “SBK” list in Reminders, so you see them on your iPhone too, and brings back into SBK the ones you check off or write there.</string>
+	<key>NSRemindersUsageDescription</key>
+	<string>SBK puts your tasks in the “SBK” list in Reminders, so you see them on your iPhone too, and brings back into SBK the ones you check off or write there.</string>
+</dict>
+</plist>

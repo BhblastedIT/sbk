@@ -1,0 +1,63 @@
+{# Global health banner — shown on ALL pages when sources are unhealthy #}
+{# Loaded via HTMX every 60s from /partials/global_health_banner #}
+{# Dismissable: X button hides until next status change #}
+
+{% set all_critico = sources | selectattr("status", "equalto", "CRITICO") | list %}
+{% set all_stale = sources | selectattr("status", "equalto", "STALE") | list %}
+
+{# Build a fingerprint so dismiss resets when status changes #}
+{% set banner_key = (all_critico | map(attribute="source") | sort | join(",")) ~ "|" ~ (all_stale | map(attribute="source") | sort | join(",")) %}
+
+{% if all_critico %}
+<div class="alert alert-error shadow-sm rounded-none py-2 px-4 flex items-center gap-2 text-sm health-banner" data-banner-key="{{ banner_key }}">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+    </svg>
+    <span>
+        <strong>{{ all_critico | length }} source{{ "" if all_critico | length == 1 else "s" }} CRITICAL:</strong>
+        {{ all_critico | map(attribute="source") | join(", ") }}
+        {% if all_stale %} &middot; {{ all_stale | length }} stale{% endif %}
+    </span>
+    <a href="/health-overview" class="btn btn-ghost btn-xs ml-auto">Details</a>
+    <button class="btn btn-ghost btn-xs btn-square" onclick="dismissBanner(this)" title="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+    </button>
+</div>
+{% elif all_stale %}
+<div class="alert alert-warning shadow-sm rounded-none py-2 px-4 flex items-center gap-2 text-sm health-banner" data-banner-key="{{ banner_key }}">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <span>
+        <strong>{{ all_stale | length }} source{{ "" if all_stale | length == 1 else "s" }} stale:</strong>
+        {{ all_stale | map(attribute="source") | join(", ") }}
+    </span>
+    <a href="/health-overview" class="btn btn-ghost btn-xs ml-auto">Details</a>
+    <button class="btn btn-ghost btn-xs btn-square" onclick="dismissBanner(this)" title="Close">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+    </button>
+</div>
+{% endif %}
+
+<script>
+(function() {
+    var banner = document.querySelector('.health-banner');
+    if (!banner) return;
+    var key = banner.getAttribute('data-banner-key');
+    var dismissed = sessionStorage.getItem('sbk-banner-dismissed');
+    if (dismissed === key) {
+        banner.style.display = 'none';
+    }
+})();
+
+function dismissBanner(btn) {
+    var banner = btn.closest('.health-banner');
+    var key = banner.getAttribute('data-banner-key');
+    sessionStorage.setItem('sbk-banner-dismissed', key);
+    banner.style.display = 'none';
+}
+</script>

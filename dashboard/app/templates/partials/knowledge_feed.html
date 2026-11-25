@@ -1,0 +1,22 @@
+<!-- Knowledge Feed partial — standalone changes feed -->
+
+{% if changes %}
+<div class="space-y-2">
+    {% for c in changes %}
+    <div class="flex items-center gap-3 p-2 rounded hover:bg-base-200">
+        {% if c.change_type == "new_fact" %}
+        <span class="badge badge-success badge-xs">+</span>
+        {% else %}
+        <span class="badge badge-error badge-xs">-</span>
+        {% endif %}
+        <div class="flex-1 min-w-0">
+            <span class="text-sm font-medium">{{ c.entity }}</span>
+            <span class="text-xs text-base-content/50 ml-1">{{ c.attribute }}</span>
+        </div>
+        <span class="text-xs text-base-content/40 shrink-0">{{ c.date[:10] if c.date else "" }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<p class="text-center text-base-content/50 text-sm py-6">No changes in this period.</p>
+{% endif %}

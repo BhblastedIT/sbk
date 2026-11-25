@@ -1,0 +1,44 @@
+{
+ "verificate": "2026-01-01",
+ "ricontrollate": "2026-01-01",
+ "ricontrollate_cosa": "example rules of the template",
+ "come": "Example entries. Document here the rules of your sources and your stages.",
+ "stadi": [
+  {
+   "id": "l1_email",
+   "script": "tools/email/em-l1-enrich.py",
+   "argomenti": [],
+   "cosa_fa": "normalizes and enriches the mail",
+   "incrementale": "sì",
+   "memoria": "",
+   "se_fallisce": "defers to the next run",
+   "legge": "~/.sbk-data/emails/",
+   "scrive": "~/.sbk-data/enriched/",
+   "regole_di_owner": [
+    "Keep idempotency."
+   ],
+   "prove": [
+    "Demo example."
+   ],
+   "note": "Demo example."
+  },
+  {
+   "id": "l2_merge",
+   "script": "tools/cross-source/xs-l2-merge.py",
+   "argomenti": [],
+   "cosa_fa": "unifies the sources and resolves the entities",
+   "incrementale": "sì",
+   "memoria": "",
+   "se_fallisce": "skips the stage and names it",
+   "legge": "~/.sbk-data/enriched/",
+   "scrive": "~/.sbk-data/exports/",
+   "regole_di_owner": [
+    "Do not merge uncertain entities."
+   ],
+   "prove": [
+    "Demo example."
+   ],
+   "note": "Demo example."
+  }
+ ]
+}

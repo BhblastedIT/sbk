@@ -1,0 +1,76 @@
+<!-- Pipeline DLQ (failure queue) -->
+{% if failures %}
+<div class="card bg-base-100 shadow mt-4">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="card-title text-lg">Failure Queue</h3>
+            <span class="badge badge-error badge-sm">{{ failures|length }}</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="table table-xs">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Script</th>
+                        <th>Source</th>
+                        <th>Error</th>
+                        <th>Retry</th>
+                        <th>Next</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in failures %}
+                    <tr class="{% if f.status == 'failed_permanent' %}bg-error/10{% elif f.status == 'pending' %}bg-warning/10{% endif %}">
+                        <td>
+                            {% if f.status == 'failed_permanent' %}
+                                <span class="badge badge-error badge-xs">PERMANENTE</span>
+                            {% elif f.status == 'pending' %}
+                                <span class="badge badge-warning badge-xs">PENDING</span>
+                            {% elif f.status == 'resolved' %}
+                                <span class="badge badge-success badge-xs">RESOLVED</span>
+                            {% else %}
+                                <span class="badge badge-ghost badge-xs">{{ f.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="font-mono text-xs">{{ f.script_name }}</td>
+                        <td>{{ f.source }}</td>
+                        <td class="max-w-xs truncate" title="{{ f.error_message }}">
+                            <span class="text-xs">{{ f.error_type }}: {{ f.error_message[:80] }}</span>
+                        </td>
+                        <td class="text-center">{{ f.retry_count }}/{{ f.max_retries }}</td>
+                        <td class="text-xs">
+                            {% if f.status == 'pending' and f.next_retry %}
+                                {{ f.next_retry[:16] }}
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if f.status != 'resolved' %}
+                            <button class="btn btn-xs btn-ghost"
+                                    hx-post="/api/pipeline/dlq/resolve?id={{ f.id }}"
+                                    hx-target="#dlq-container"
+                                    hx-swap="innerHTML"
+                                    title="Archive">Archive</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="card bg-base-100 shadow mt-4">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between">
+            <h3 class="card-title text-lg">Failure Queue</h3>
+            <span class="badge badge-success badge-sm">0</span>
+        </div>
+        <p class="text-base-content/50 text-sm mt-2">No failures in queue.</p>
+    </div>
+</div>
+{% endif %}

@@ -1,0 +1,11 @@
+<div class="card bg-base-100 shadow-lg border border-secondary/30">
+    <div class="card-body">
+        <h3 class="card-title text-sm text-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+            </svg>
+            Claude summary
+        </h3>
+        <div class="prose prose-sm max-w-none">{{ answer|markdown|safe }}</div>
+    </div>
+</div>

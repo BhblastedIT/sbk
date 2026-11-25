@@ -1,0 +1,102 @@
+<!-- Stats bar -->
+<div class="flex gap-2 mb-3 text-xs">
+    {% for status, count in stats.items() | sort(attribute='1', reverse=True) %}
+    <span class="badge
+        {% if status == 'PENDING' %}badge-warning
+        {% elif status == 'BROKEN' %}badge-error
+        {% elif status == 'KEPT' %}badge-success
+        {% elif status == 'EXPIRED' %}badge-ghost
+        {% elif status == 'DISMISSED' %}badge-ghost
+        {% else %}badge-info{% endif %}
+        badge-sm">{{ status }}: {{ count }}</span>
+    {% endfor %}
+    <span class="text-base-content/40 ml-2">{{ total }} total, {{ filtered_count }} filtered</span>
+</div>
+
+{% if commitments %}
+<div class="overflow-x-auto">
+    <table class="table table-xs table-zebra w-full">
+        <thead>
+            <tr class="text-xs">
+                <th>Status</th>
+                <th>Deadline</th>
+                <th>Chi</th>
+                <th>A chi</th>
+                <th>What</th>
+                <th>Type</th>
+                <th>Source</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in commitments %}
+            <tr class="hover" id="row-{{ c.commitment_id }}">
+                <td>
+                    {% if c.status == 'PENDING' %}
+                    <span class="badge badge-warning badge-xs">PENDING</span>
+                    {% elif c.status == 'BROKEN' %}
+                    <span class="badge badge-error badge-xs">BROKEN</span>
+                    {% elif c.status == 'KEPT' %}
+                    <span class="badge badge-success badge-xs">KEPT</span>
+                    {% elif c.status == 'EXPIRED' %}
+                    <span class="badge badge-ghost badge-xs">EXPIRED</span>
+                    {% elif c.status == 'DISMISSED' %}
+                    <span class="badge badge-ghost badge-xs">DISMISSED</span>
+                    {% endif %}
+                </td>
+                <td class="whitespace-nowrap {% if c.status == 'BROKEN' %}text-error{% endif %}">
+                    {{ c.deadline or '-' }}
+                </td>
+                <td class="font-medium max-w-32 truncate" title="{{ c.who }}">{{ c.who or '?' }}</td>
+                <td class="max-w-32 truncate" title="{{ c.to_whom }}">{{ c.to_whom or '?' }}</td>
+                <td class="max-w-64 truncate" title="{{ c.what }}">{{ (c.what or '')[:100] }}</td>
+                <td class="text-base-content/50 text-xs">{{ c.commitment_type or '' }}</td>
+                <td class="text-base-content/50 text-xs whitespace-nowrap">
+                    {{ c.source_type }}
+                    {% if c.source_date %}<br>{{ c.source_date }}{% endif %}
+                </td>
+                <td>
+                    {% if c.status == 'PENDING' or c.status == 'BROKEN' %}
+                    <div class="dropdown dropdown-end">
+                        <label tabindex="0" class="btn btn-ghost btn-xs">...</label>
+                        <ul tabindex="0" class="dropdown-content z-50 menu p-1 shadow bg-base-100 rounded-box text-xs w-32">
+                            {% if c.status != 'KEPT' %}
+                            <li><a hx-put="/api/commitments/{{ c.commitment_id }}/status"
+                                   hx-vals='{"status": "KEPT"}'
+                                   hx-headers='{"Content-Type": "application/json"}'
+                                   hx-target="#commitments-table"
+                                   hx-get="/partials/commitments_table"
+                                   hx-include="#status-filter, #person-filter"
+                                   hx-swap="innerHTML">Kept</a></li>
+                            {% endif %}
+                            {% if c.status != 'BROKEN' %}
+                            <li><a hx-put="/api/commitments/{{ c.commitment_id }}/status"
+                                   hx-vals='{"status": "BROKEN"}'
+                                   hx-headers='{"Content-Type": "application/json"}'
+                                   hx-target="#commitments-table"
+                                   hx-get="/partials/commitments_table"
+                                   hx-include="#status-filter, #person-filter"
+                                   hx-swap="innerHTML">Not kept</a></li>
+                            {% endif %}
+                            <li><a hx-put="/api/commitments/{{ c.commitment_id }}/status"
+                                   hx-vals='{"status": "DISMISSED"}'
+                                   hx-headers='{"Content-Type": "application/json"}'
+                                   hx-target="#commitments-table"
+                                   hx-get="/partials/commitments_table"
+                                   hx-include="#status-filter, #person-filter"
+                                   hx-swap="innerHTML">Ignore</a></li>
+                        </ul>
+                    </div>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-center py-12 text-base-content/40">
+    <p>No commitment found with the selected filters.</p>
+    <p class="text-xs mt-2">Run <code>xs-commitment-consolidate.py</code> to fill in the data.</p>
+</div>
+{% endif %}

@@ -1,0 +1,68 @@
+{% if not items %}
+<div class="alert alert-info">No contacts found with the selected filters.</div>
+{% else %}
+<div class="text-sm text-base-content/60 mb-3">
+    {{ total }} contacts (page {{ page }}/{{ pages }})
+</div>
+<div class="overflow-x-auto">
+    <table class="table table-sm table-zebra w-full">
+        <thead>
+            <tr>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Organisation</th>
+                <th class="text-right">Score</th>
+                <th class="text-right">Email</th>
+                <th class="text-right">Calendar</th>
+                <th class="text-right">Sources</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr class="hover cursor-pointer" onclick="window.location='/partials/person_card?q={{ item.email or item.name }}'">
+                <td class="font-medium">{{ item.name }}</td>
+                <td class="text-xs text-base-content/60">{{ item.email }}</td>
+                <td class="text-xs">{{ item.organization }}</td>
+                <td class="text-right">
+                    {% if item.score >= 50 %}
+                        <span class="badge badge-primary badge-sm">{{ item.score }}</span>
+                    {% elif item.score >= 20 %}
+                        <span class="badge badge-secondary badge-sm">{{ item.score }}</span>
+                    {% elif item.score >= 5 %}
+                        <span class="badge badge-ghost badge-sm">{{ item.score }}</span>
+                    {% else %}
+                        <span class="text-xs text-base-content/40">{{ item.score }}</span>
+                    {% endif %}
+                </td>
+                <td class="text-right text-xs">{{ item.email_total }}</td>
+                <td class="text-right text-xs">{{ item.cal_events }}</td>
+                <td class="text-right text-xs">{{ item.source_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if pages > 1 %}
+<div class="flex justify-center mt-4">
+    <div class="join">
+        {% if page > 1 %}
+        <button class="join-item btn btn-sm" onclick="loadContacts({{ page - 1 }})">«</button>
+        {% endif %}
+        {% for p in range(1, pages + 1) %}
+            {% if p == page %}
+            <button class="join-item btn btn-sm btn-active">{{ p }}</button>
+            {% elif p <= 3 or p >= pages - 1 or (p >= page - 1 and p <= page + 1) %}
+            <button class="join-item btn btn-sm" onclick="loadContacts({{ p }})">{{ p }}</button>
+            {% elif p == 4 or p == pages - 2 %}
+            <button class="join-item btn btn-sm btn-disabled">...</button>
+            {% endif %}
+        {% endfor %}
+        {% if page < pages %}
+        <button class="join-item btn btn-sm" onclick="loadContacts({{ page + 1 }})">»</button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endif %}

@@ -1,0 +1,176 @@
+<!-- Pipeline Grid v3: Partner-style with collapsible column groups -->
+
+{# ── Macros ──────────────────────────────────────────────────────────── #}
+
+{% macro stato_cell(stato) %}
+{% if stato == "OK" %}<span class="pg-st pg-st-ok">OK</span>
+{% elif stato == "Stale" %}<span class="pg-st pg-st-stale">Stale</span>
+{% elif stato.startswith("Err") %}<span class="pg-st pg-st-err" title="{{ stato }}">Err</span>
+{% else %}<span class="pg-st">{{ stato }}</span>
+{% endif %}
+{% endmacro %}
+
+{% macro yn(val) %}
+{% if val == "Si" or val == "Sì" %}<span class="pg-yn-yes">Si</span>{% else %}<span class="pg-dim">-</span>{% endif %}
+{% endmacro %}
+
+{% macro run_btn(row) %}
+{% if row._run_info %}
+<button class="pg-run-btn"
+        onclick="event.stopPropagation(); runGridScript(this, '{{ row._run_info.script }}', '{{ row._run_info.args_str }}')"
+        title="Run: {{ row['Comando run'] or row.Script }}">&#9654;</button>
+{% endif %}
+{% endmacro %}
+
+{% macro group_run_btn(run_source) %}
+{% if run_source %}
+<button class="pg-run-btn pg-run-grp"
+        hx-post="/api/pipeline/{{ run_source }}/run-full"
+        hx-swap="none"
+        onclick="event.stopPropagation(); switchTab('jobs'); startLogStream(this)"
+        title="Run all {{ run_source }}">&#9654; Run</button>
+{% endif %}
+{% endmacro %}
+
+{% macro summary_badge(s) %}
+<span class="pg-summary">{{ s.ok }}/{{ s.ok + s.stale + s.err }}{% if s.stale %} <span class="pg-stale-n">{{ s.stale }}s</span>{% endif %}{% if s.err %} <span class="pg-err-n">{{ s.err }}e</span>{% endif %}</span>
+{% endmacro %}
+
+{# ── Data row ────────────────────────────────────────────────────────── #}
+
+{% macro data_row(row, layer_key, subgroup_key) %}
+<tr class="pg-data" data-layer="{{ layer_key }}"
+    {% if subgroup_key %}data-subgroup="{{ layer_key }}-{{ subgroup_key }}"{% endif %}
+    data-status="{{ row.Stato }}" data-name="{{ row['Sorgente / Fase']|lower }}">
+    <td class="pg-sticky pg-col-run pg-c">{{ run_btn(row) }}</td>
+    <td class="pg-sticky pg-col-stato">{{ stato_cell(row.Stato) }}</td>
+    <td class="pg-sticky pg-col-id">{{ row.ID }}</td>
+    <td class="pg-sticky pg-col-fase" title="{{ row['Sorgente / Fase'] }}">{{ row["Sorgente / Fase"] }}</td>
+    <td data-cg="timing" class="pg-r pg-mono">{{ row["Età h"] or "" }}</td>
+    <td data-cg="timing" class="pg-date">{{ row["Ultimo run"] or "" }}</td>
+    <td data-cg="dati" class="pg-r pg-mono">{{ "{:,}".format(row.Records|int) if row.Records else "" }}</td>
+    <td data-cg="dati" class="pg-r pg-mono">{{ row["%"] or "" }}</td>
+    <td data-cg="dati" class="pg-r pg-mono">{{ row["Size MB"] if row["Size MB"] else "" }}</td>
+    <td data-cg="conn">{{ row.Tipo or "" }}</td>
+    <td data-cg="conn" class="pg-trunc" title="{{ row.Connessione or '' }}">{{ row.Connessione or "" }}</td>
+    <td data-cg="conn">{{ row.Auth or "" }}</td>
+    <td data-cg="conn" class="pg-dim" title="{{ row['Freq target'] or '' }}">{{ row["Freq target"] or "" }}</td>
+    <td data-cg="pipe" class="pg-c">{{ yn(row["In L3 NLP"]) }}</td>
+    <td data-cg="pipe" class="pg-c">{{ yn(row["In L5 Vector"]) }}</td>
+    <td data-cg="pipe" class="pg-trunc" title="{{ row['Profondità'] or '' }}">{{ row["Profondità"] or "" }}</td>
+    <td data-cg="pipe" class="pg-trunc pg-dim" title="{{ row.Gap or '' }}">{{ row.Gap or "" }}</td>
+    <td data-cg="exec" class="pg-mono pg-sm">{{ row.Script or "" }}</td>
+    <td data-cg="exec" class="pg-cmd" title="{{ row['Comando run'] or '' }}"
+        {% if row['Comando run'] %}onclick="event.stopPropagation(); navigator.clipboard.writeText(this.dataset.cmd); this.classList.add('pg-copied'); setTimeout(()=>this.classList.remove('pg-copied'),500)" data-cmd="{{ row['Comando run'] }}"{% endif %}>{{ (row["Comando run"] or "")[:40] }}{% if (row["Comando run"] or "")|length > 40 %}&hellip;{% endif %}</td>
+    <td data-cg="exec">{% if row["Link azione"] %}<a href="{{ row['Link azione'] }}" target="_blank" class="pg-link">&#8599;</a>{% endif %}</td>
+    <td data-cg="exec" class="pg-r pg-dim pg-mono">{{ row["Costo/run"] if row["Costo/run"] and row["Costo/run"] != "0" else "" }}</td>
+</tr>
+{% endmacro %}
+
+{# ── Main ────────────────────────────────────────────────────────────── #}
+
+{% set FULL_COLS = 21 %}
+
+<div id="pipeline-grid">
+
+{% if not grid_data or (not grid_data.pipeline and not grid_data.archive) %}
+<div class="alert alert-warning py-2">
+    <span>pipeline-status.json not found. Run <code>xs-util-pipeline-status.py</code>.</span>
+</div>
+{% else %}
+
+<!-- Toolbar -->
+<div class="pg-toolbar">
+    <div class="pg-filters">
+        <select id="pg-filter-status" onchange="applyGridFilters()" class="pg-select">
+            <option value="">All</option>
+            <option value="OK">OK</option>
+            <option value="Stale">Stale</option>
+            <option value="Err">Error</option>
+        </select>
+        <input type="text" id="pg-filter-text" placeholder="Search stage..."
+               oninput="applyGridFilters()" class="pg-input">
+    </div>
+    <div class="pg-cg-toggles">
+        <button class="pg-chip pg-chip-on" data-group="timing" onclick="toggleCG('timing')">TIMING</button>
+        <button class="pg-chip pg-chip-on" data-group="dati" onclick="toggleCG('dati')">DATA</button>
+        <button class="pg-chip" data-group="conn" onclick="toggleCG('conn')">CONNECTION</button>
+        <button class="pg-chip" data-group="pipe" onclick="toggleCG('pipe')">PIPELINE</button>
+        <button class="pg-chip" data-group="exec" onclick="toggleCG('exec')">EXECUTION</button>
+    </div>
+    {% if grid_data.generated_at %}
+    <span class="pg-timestamp">{{ grid_data.generated_at }}</span>
+    {% endif %}
+</div>
+
+<!-- Grid -->
+<div class="pg-scroll">
+<table class="pg-table hide-conn hide-pipe hide-exec">
+    <thead>
+        <tr>
+            <th class="pg-sticky pg-col-run pg-c"></th>
+            <th class="pg-sticky pg-col-stato">Status</th>
+            <th class="pg-sticky pg-col-id">ID</th>
+            <th class="pg-sticky pg-col-fase">Stage</th>
+            <th data-cg="timing" class="pg-r">Eta h</th>
+            <th data-cg="timing">Last run</th>
+            <th data-cg="dati" class="pg-r">Records</th>
+            <th data-cg="dati" class="pg-r">%</th>
+            <th data-cg="dati" class="pg-r">MB</th>
+            <th data-cg="conn">Type</th>
+            <th data-cg="conn">Connection</th>
+            <th data-cg="conn">Auth</th>
+            <th data-cg="conn">Freq</th>
+            <th data-cg="pipe" class="pg-c">NLP</th>
+            <th data-cg="pipe" class="pg-c">Vec</th>
+            <th data-cg="pipe">Prof.</th>
+            <th data-cg="pipe">Gap</th>
+            <th data-cg="exec">Script</th>
+            <th data-cg="exec">Command</th>
+            <th data-cg="exec">Link</th>
+            <th data-cg="exec" class="pg-r">&#8364;</th>
+        </tr>
+    </thead>
+    <tbody>
+
+    {# ── PIPELINE ───────────────────────────────────────────────── #}
+
+    {% for section in grid_data.pipeline %}
+    <tr class="pg-layer" onclick="toggleLayer('{{ section.key }}')" data-layer-header="{{ section.key }}">
+        <td class="pg-fullspan" colspan="{{ FULL_COLS }}">
+            <span class="pg-arrow" id="arrow-{{ section.key }}">&#9654;</span>
+            <strong>{{ section.label }}</strong>
+            <span class="pg-count">({{ section.count }})</span>
+            {{ summary_badge(section.summary) }}
+        </td>
+    </tr>
+
+    {% for sg in section.subgroups %}
+    <tr class="pg-subgroup pg-child" data-layer="{{ section.key }}"
+        onclick="toggleSubgroup('{{ section.key }}-{{ sg.key }}')"
+        data-subgroup-header="{{ section.key }}-{{ sg.key }}">
+        <td class="pg-fullspan" colspan="{{ FULL_COLS }}">
+            <span class="pg-indent"></span>
+            <span class="pg-arrow" id="arrow-{{ section.key }}-{{ sg.key }}">&#9654;</span>
+            <strong>{{ sg.label }}</strong>
+            <span class="pg-count">({{ sg.count }})</span>
+            <span class="pg-dim pg-summary-detail">{{ sg.summary_text }}</span>
+            {{ group_run_btn(sg.run_source) }}
+        </td>
+    </tr>
+    {% for row in sg.rows %}
+    {{ data_row(row, section.key, sg.key) }}
+    {% endfor %}
+    {% endfor %}
+
+    {% for row in section.rows %}
+    {{ data_row(row, section.key, "") }}
+    {% endfor %}
+    {% endfor %}
+
+    </tbody>
+</table>
+</div>
+
+{% endif %}
+</div>

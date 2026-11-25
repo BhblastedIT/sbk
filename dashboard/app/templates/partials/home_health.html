@@ -1,0 +1,71 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-lg">System</h2>
+            <p class="widget-description text-xs text-base-content/40">Monitor and data source status</p>
+            {% if monitor.status == "OK" %}
+                <span class="badge badge-success badge-sm">Monitor OK</span>
+            {% elif monitor.status == "PARTIAL" %}
+                <span class="badge badge-warning badge-sm">Partial monitor</span>
+            {% elif monitor.status == "STALE" %}
+                <span class="badge badge-warning badge-sm">Monitor stale</span>
+            {% else %}
+                <span class="badge badge-error badge-sm">Monitor offline</span>
+            {% endif %}
+        </div>
+
+        <!-- Monitor sources -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            {% for check in monitor.checks %}
+            <div class="stat bg-base-200/50 rounded-box p-3">
+                <div class="stat-title text-xs">{{ check.source|capitalize }}</div>
+                <div class="stat-value text-sm">
+                    {% if check.status == "OK" %}
+                        <span class="badge badge-success badge-sm">OK</span>
+                    {% elif check.status == "STALE" %}
+                        <span class="badge badge-warning badge-sm">Stale</span>
+                    {% else %}
+                        <span class="badge badge-error badge-sm">Critical</span>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Freshness warnings -->
+        {% if critico_count > 0 or stale_count > 0 %}
+        <div class="flex gap-2 mb-3">
+            {% if critico_count > 0 %}
+                <span class="badge badge-error badge-sm">{{ critico_count }} CRITICAL: {{ critico_sources|join(", ") }}</span>
+            {% endif %}
+            {% if stale_count > 0 %}
+                <span class="badge badge-warning badge-sm">{{ stale_count }} STALE</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Compact stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="stat bg-base-200/50 rounded-box p-3">
+                <div class="stat-title text-xs">Contacts</div>
+                <div class="stat-value text-lg">{{ "{:,}".format(contacts) }}</div>
+            </div>
+            <div class="stat bg-base-200/50 rounded-box p-3">
+                <div class="stat-title text-xs">Vector</div>
+                <div class="stat-value text-lg">{{ "{:,}".format(vector_chunks) }}</div>
+            </div>
+            <div class="stat bg-base-200/50 rounded-box p-3">
+                <div class="stat-title text-xs">Graph</div>
+                <div class="stat-value text-lg">{{ "{:,}".format(graph_nodes) }}</div>
+            </div>
+            <div class="stat bg-base-200/50 rounded-box p-3">
+                <div class="stat-title text-xs">Storage</div>
+                <div class="stat-value text-lg">{{ data_size_mb }} MB</div>
+            </div>
+        </div>
+
+        <div class="card-actions justify-end mt-3">
+            <a href="/system" class="btn btn-ghost btn-xs">View full system</a>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,119 @@
+<div class="mb-4">
+    <h3 class="font-semibold text-sm mb-2 flex items-center gap-2">
+        Activity over time
+        {% if heatmap.trend == "up" %}
+        <span class="badge badge-success badge-xs">crescente</span>
+        {% elif heatmap.trend == "down" %}
+        <span class="badge badge-error badge-xs">declining</span>
+        {% else %}
+        <span class="badge badge-ghost badge-xs">stabile</span>
+        {% endif %}
+        {% if heatmap.total %}
+        <span class="text-xs text-base-content/40 ml-auto">{{ heatmap.total }} total interactions</span>
+        {% endif %}
+    </h3>
+
+    {% if heatmap.months %}
+    <!-- Sparkline canvas -->
+    <div class="w-full h-16 mb-2">
+        <canvas id="sparkline-{{ person_id }}" width="300" height="60"></canvas>
+    </div>
+
+    <!-- Monthly breakdown bars -->
+    <div class="flex gap-0.5 h-8 items-end">
+        {% set ns = namespace(max_val=1) %}
+        {% for m in heatmap.months %}
+            {% if m.total > ns.max_val %}{% set ns.max_val = m.total %}{% endif %}
+        {% endfor %}
+        {% for m in heatmap.months %}
+        {% set height_pct = (m.total / ns.max_val * 100)|int if ns.max_val > 0 else 0 %}
+        <div class="flex-1 group relative cursor-default">
+            <div class="bg-primary/60 hover:bg-primary rounded-t transition-colors"
+                 style="height: {{ height_pct }}%; min-height: {% if m.total > 0 %}2px{% else %}0{% endif %}"
+                 title="{{ m.month }}: {{ m.total }} interactions (email: {{ m.email }}, cal: {{ m.calendar }}, meeting: {{ m.meeting }}, other: {{ m.other }})"></div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="flex justify-between text-[10px] text-base-content/40 mt-0.5">
+        <span>{{ heatmap.months[0].month if heatmap.months else "" }}</span>
+        <span>{{ heatmap.months[-1].month if heatmap.months else "" }}</span>
+    </div>
+
+    <!-- Channel breakdown legend -->
+    {% set ns2 = namespace(has_email=false, has_cal=false, has_meeting=false, has_other=false) %}
+    {% for m in heatmap.months %}
+        {% if m.email > 0 %}{% set ns2.has_email = true %}{% endif %}
+        {% if m.calendar > 0 %}{% set ns2.has_cal = true %}{% endif %}
+        {% if m.meeting > 0 %}{% set ns2.has_meeting = true %}{% endif %}
+        {% if m.other > 0 %}{% set ns2.has_other = true %}{% endif %}
+    {% endfor %}
+    <div class="flex gap-3 text-[10px] text-base-content/50 mt-1">
+        {% if ns2.has_email %}<span>Email: {{ heatmap.months|sum(attribute='email') }}</span>{% endif %}
+        {% if ns2.has_cal %}<span>Cal: {{ heatmap.months|sum(attribute='calendar') }}</span>{% endif %}
+        {% if ns2.has_meeting %}<span>Meeting: {{ heatmap.months|sum(attribute='meeting') }}</span>{% endif %}
+        {% if ns2.has_other %}<span>Other: {{ heatmap.months|sum(attribute='other') }}</span>{% endif %}
+    </div>
+    {% else %}
+    <div class="text-xs text-base-content/40">No interaction data available.</div>
+    {% endif %}
+
+    <!-- Decay Forecast -->
+    {% if forecast.available %}
+    <div class="mt-3 p-2 bg-base-200/50 rounded-lg">
+        <div class="flex items-center justify-between text-xs">
+            <span class="text-base-content/60">Decay forecast</span>
+            <span class="{% if forecast.current_pct < 50 %}text-error{% elif forecast.current_pct < 70 %}text-warning{% else %}text-success{% endif %} font-semibold">
+                {{ forecast.current_pct }}% salute
+            </span>
+        </div>
+        <div class="flex items-center gap-2 text-[10px] text-base-content/40 mt-1">
+            <span>Last contact: {{ forecast.days_since }}d ago</span>
+            <span>Expected gap: {{ forecast.expected_gap }}d</span>
+        </div>
+        {% if forecast.days_until_alert < 30 %}
+        <div class="text-xs text-warning mt-1">Alert in {{ forecast.days_until_alert }} days if no contact</div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Chart.js sparkline script (lazy-loaded) -->
+{% if heatmap.months %}
+<script>
+(function() {
+    function initSparkline() {
+        var ctx = document.getElementById('sparkline-{{ person_id }}');
+        if (!ctx) return;
+        new Chart(ctx.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: [{% for m in heatmap.months %}'{{ m.month }}'{% if not loop.last %},{% endif %}{% endfor %}],
+                datasets: [{
+                    data: [{% for m in heatmap.months %}{{ m.total }}{% if not loop.last %},{% endif %}{% endfor %}],
+                    borderColor: '{{ "rgb(74,222,128)" if heatmap.trend == "up" else "rgb(248,113,113)" if heatmap.trend == "down" else "rgb(148,163,184)" }}',
+                    backgroundColor: '{{ "rgba(74,222,128,0.1)" if heatmap.trend == "up" else "rgba(248,113,113,0.1)" if heatmap.trend == "down" else "rgba(148,163,184,0.1)" }}',
+                    fill: true,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {legend: {display: false}, tooltip: {enabled: true}},
+                scales: {x: {display: false}, y: {display: false, beginAtZero: true}}
+            }
+        });
+    }
+    if (typeof Chart !== 'undefined') {
+        initSparkline();
+    } else {
+        var s = document.createElement('script');
+        s.src = '/static/vendor/chart.min.js';
+        s.onload = initSparkline;
+        document.head.appendChild(s);
+    }
+})();
+</script>
+{% endif %}

@@ -1,0 +1,17 @@
+<!-- Blood Trends Partial — marker trend chart with reference range -->
+<div class="mb-2">
+    <select class="select select-bordered select-sm" onchange="loadBloodTrend(this.value)">
+        <option value="vitamin_d">Vitamin D</option>
+        <option value="glucose">Glucose</option>
+        <option value="cholesterol_total">Total Cholesterol</option>
+        <option value="ferritin">Ferritin</option>
+        <option value="tsh">TSH</option>
+        <option value="hemoglobin">Haemoglobin</option>
+    </select>
+</div>
+<div id="blood-chart" style="width: 100%; height: 250px;"></div>
+<script>
+function loadBloodTrend(marker) {
+    htmx.ajax('GET', '/api/performance/blood-trends?marker=' + marker, '#perf-blood-trends');
+}
+</script>

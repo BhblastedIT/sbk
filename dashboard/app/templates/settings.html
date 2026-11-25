@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}SBK Settings{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">Settings</h1>
+    <span class="text-sm text-base-content/50">Configurable SBK parameters</span>
+</div>
+
+<!-- Tabs -->
+<div role="tablist" class="tabs tabs-bordered mb-6">
+    <a role="tab" class="tab tab-active" id="tab-cascade" onclick="switchSettingsTab('cascade')">Cascade</a>
+    <a role="tab" class="tab" id="tab-decay" onclick="switchSettingsTab('decay')">Decay</a>
+    <a role="tab" class="tab" id="tab-entity" onclick="switchSettingsTab('entity')">Entity Resolution</a>
+    <a role="tab" class="tab" id="tab-domains" onclick="switchSettingsTab('domains')">Domini</a>
+</div>
+
+<!-- Tab Panel: CASCADE -->
+<div id="panel-cascade" class="tab-panel">
+    {% include "partials/settings_cascade.html" %}
+</div>
+
+<!-- Tab Panel: DECAY -->
+<div id="panel-decay" class="tab-panel hidden">
+    {% include "partials/settings_decay.html" %}
+</div>
+
+<!-- Tab Panel: ENTITY -->
+<div id="panel-entity" class="tab-panel hidden">
+    {% include "partials/settings_entity.html" %}
+</div>
+
+<!-- Tab Panel: DOMAINS -->
+<div id="panel-domains" class="tab-panel hidden">
+    {% include "partials/settings_domains.html" %}
+</div>
+
+<script>
+const settingsTabIds = ['cascade', 'decay', 'entity', 'domains'];
+
+function switchSettingsTab(name) {
+    settingsTabIds.forEach(id => {
+        const tab = document.getElementById('tab-' + id);
+        const panel = document.getElementById('panel-' + id);
+        if (id === name) {
+            tab.classList.add('tab-active');
+            panel.classList.remove('hidden');
+        } else {
+            tab.classList.remove('tab-active');
+            panel.classList.add('hidden');
+        }
+    });
+}
+
+function saveSection(section, getData) {
+    const data = getData();
+    fetch('/api/settings/section/' + section, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+    })
+    .then(r => {
+        if (!r.ok) throw new Error('Save error');
+        return r.json();
+    })
+    .then(() => showToast('Settings saved', 'success'))
+    .catch(err => showToast('Error: ' + err.message, 'error'));
+}
+
+function resetSection(section) {
+    fetch('/api/settings/reset/' + section, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    })
+    .then(r => {
+        if (!r.ok) throw new Error('Reset error');
+        return r.json();
+    })
+    .then(() => {
+        showToast('Reset to default completed', 'success');
+        setTimeout(() => location.reload(), 500);
+    })
+    .catch(err => showToast('Error: ' + err.message, 'error'));
+}
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% if events %}
+<table class="table table-xs w-full">
+    <thead>
+        <tr>
+            <th class="text-xs">Event</th>
+            <th class="text-xs w-24">Data</th>
+            <th class="text-xs">Participants</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for ev in events %}
+        <tr class="hover">
+            <td class="text-sm truncate max-w-xs">{{ ev.summary or "(no title)" }}</td>
+            <td class="text-xs text-base-content/60">{{ ev.date }}</td>
+            <td class="text-xs text-base-content/60 truncate max-w-xs">{{ ev.attendees }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No calendar event found.</div>
+{% endif %}

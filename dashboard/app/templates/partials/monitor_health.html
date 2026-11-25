@@ -1,0 +1,10 @@
+<!-- Monitor health mini-indicator (HTMX auto-refresh) -->
+{% if monitor_health.status == "OK" %}
+    <a href="/pipeline" class="badge badge-success badge-sm link link-hover" title="Go to system status">Monitor OK</a>
+{% elif monitor_health.status == "PARTIAL" %}
+    <a href="/pipeline" class="badge badge-warning badge-sm link link-hover" title="Some sources out of date. Go to system status">Partial monitor</a>
+{% elif monitor_health.status == "STALE" %}
+    <a href="/pipeline" class="badge badge-warning badge-sm link link-hover" title="Data out of date. Go to system status">Monitor stale</a>
+{% else %}
+    <a href="/pipeline" class="badge badge-error badge-sm link link-hover" title="Monitor not active. Go to system status">Monitor offline</a>
+{% endif %}

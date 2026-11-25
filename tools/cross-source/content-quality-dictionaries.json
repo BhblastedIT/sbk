@@ -1,0 +1,57 @@
+{
+  "greeting_formal": ["dear", "gentile", "egregio", "spettabile", "dear sir", "dear madam"],
+  "greeting_semi": ["hi", "hey", "hello", "buongiorno", "buonasera", "salve"],
+  "greeting_informal": ["ciao", "ehi", "bella", "we", "yo"],
+  "signoff_formal": ["cordiali saluti", "distinti saluti", "best regards", "sincerely", "yours truly", "kind regards"],
+  "signoff_semi": ["grazie", "thanks", "thank you", "a presto", "saluti", "regards"],
+  "signoff_informal": ["baci", "abbracci", "un abbraccio", "tvb", "kiss", "hugs", "xo", "cheers"],
+  "self_disclosure_patterns": [
+    "\\bI feel\\b", "\\bmy family\\b", "\\bpersonally\\b", "\\bto be honest\\b",
+    "\\bbetween us\\b", "\\bI'?m worried\\b", "\\bI'?m excited\\b", "\\bI struggle\\b",
+    "\\bI'?m afraid\\b", "\\bconfidentially\\b",
+    "\\bti dico\\b", "\\btra noi\\b", "\\bla mia famiglia\\b", "\\bpersonalmente\\b",
+    "\\bmi sento\\b", "\\bsono preoccupato\\b", "\\bti confesso\\b", "\\bin confidenza\\b",
+    "\\ba te posso dirlo\\b", "\\bdevo confessare\\b"
+  ],
+  "emotional_positive": [
+    "happy", "excited", "grateful", "love", "wonderful", "amazing", "fantastic",
+    "thrilled", "proud", "delighted", "brilliant", "excellent", "incredible",
+    "felice", "entusiasta", "grato", "meraviglioso", "fantastico", "contento",
+    "orgoglioso", "bellissimo", "ottimo", "stupendo", "eccezionale"
+  ],
+  "emotional_negative": [
+    "sad", "angry", "frustrated", "worried", "disappointed", "terrible",
+    "anxious", "upset", "devastated", "furious", "heartbroken", "miserable",
+    "triste", "arrabbiato", "frustrato", "preoccupato", "deluso", "terribile",
+    "ansioso", "sconvolto", "devastato", "furioso", "disperato"
+  ],
+  "inclusive_pronouns": ["we", "us", "our", "ourselves", "noi", "nostro", "nostra", "nostri", "nostre", "ci"],
+  "individual_pronouns": ["i", "you", "my", "your", "me", "myself", "yourself", "io", "tu", "mio", "tuo", "mia", "tua", "mi", "ti"],
+  "humor_patterns": ["\\bhaha\\b", "\\bahah\\b", "\\bahahah\\b", "\\blol\\b", "\\brofl\\b", "\\blmao\\b", "\\bXD\\b", "!!"],
+  "humor_emoji": ["\ud83d\ude02", "\ud83e\udd23", "\ud83d\ude04", "\ud83d\ude06", "\ud83d\ude39", "\ud83e\udee0"],
+  "warmth_greetings": [
+    "come stai", "come va", "tutto bene", "come stanno", "buon weekend",
+    "buone feste", "come \u00e8 andato", "come sono andate",
+    "how are you", "how's it going", "how was your weekend",
+    "how are the kids", "hope you're well", "hope all is well",
+    "how have you been", "good to see you"
+  ],
+  "personal_topic_keywords": [
+    "famiglia", "vacanza", "vacanze", "ferie", "hobby", "figlio", "figlia",
+    "moglie", "marito", "casa", "salute", "palestra", "weekend", "compleanno",
+    "matrimonio", "battesimo", "natale", "pasqua", "calcio",
+    "family", "vacation", "holiday", "son", "daughter", "wife", "husband",
+    "home", "health", "gym", "birthday", "wedding", "christmas", "soccer", "football"
+  ],
+  "function_words": {
+    "articles": ["the", "a", "an", "il", "lo", "la", "i", "gli", "le", "un", "una", "uno", "l"],
+    "prepositions": ["in", "on", "at", "to", "for", "of", "with", "from", "by", "about", "di", "da", "per", "con", "su", "tra", "fra"],
+    "personal_pronouns": ["i", "you", "he", "she", "we", "they", "me", "him", "her", "us", "them", "io", "tu", "lui", "lei", "noi", "voi", "loro"],
+    "impersonal_pronouns": ["it", "that", "this", "those", "these", "which", "what", "quello", "questa", "questo", "quelli", "queste", "ci\u00f2", "chi"],
+    "auxiliary_verbs": ["is", "am", "are", "was", "were", "has", "have", "had", "do", "does", "did", "will", "would", "can", "could", "\u00e8", "sono", "ha", "hanno", "era", "ero", "fare", "essere", "avere", "stare"],
+    "conjunctions": ["and", "but", "or", "nor", "yet", "so", "because", "although", "e", "ma", "o", "per\u00f2", "perch\u00e9", "quindi", "anche", "oppure"],
+    "negations": ["not", "no", "never", "neither", "nor", "cannot", "don't", "doesn't", "non", "mai", "nemmeno", "neanche", "neppure"],
+    "quantifiers": ["all", "some", "many", "few", "much", "every", "each", "any", "most", "tutti", "alcuni", "molti", "pochi", "molto", "ogni", "ciascuno", "tanto"],
+    "adverbs": ["very", "really", "always", "often", "sometimes", "never", "quite", "just", "also", "molto", "davvero", "sempre", "spesso", "talvolta", "anche", "proprio", "gi\u00e0"]
+  }
+}

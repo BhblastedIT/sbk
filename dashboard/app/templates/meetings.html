@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Meeting Summaries — SBK{% endblock %}
+
+{% block content %}
+<div class="p-6 max-w-7xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">Meeting Summaries</h1>
+            <p class="text-base-content/60 text-sm mt-1">Post-meeting capture: transcripts analyzed with structured extraction</p>
+        </div>
+        <div class="flex gap-2">
+            <span class="badge badge-lg badge-ghost">{{ total }} meeting</span>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex gap-3 mb-4">
+        <select id="source-filter" name="source" class="select select-bordered select-sm"
+                hx-get="/partials/meeting_summaries" hx-target="#summaries-list"
+                hx-include="#source-filter, #person-filter" hx-trigger="change">
+            <option value="all">All sources</option>
+            <option value="plaud">Plaud</option>
+            <option value="tactiq">Tactiq</option>
+            <option value="attio">Attio</option>
+        </select>
+        <input type="text" id="person-filter" name="person" placeholder="Filter by person..."
+               class="input input-bordered input-sm w-64"
+               hx-get="/partials/meeting_summaries" hx-target="#summaries-list"
+               hx-include="#source-filter" hx-trigger="keyup changed delay:400ms">
+    </div>
+
+    <!-- Summaries List -->
+    <div id="summaries-list">
+        {% include "partials/meeting_summaries.html" %}
+    </div>
+</div>
+{% endblock %}

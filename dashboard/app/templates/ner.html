@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}NER entities — SBK{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold">Extracted entities (NER)</h1>
+        <p class="text-sm text-base-content/60">{{ total }} entities from GLiNER multi-v2.1</p>
+    </div>
+</div>
+
+<!-- Stats cards -->
+<div class="grid grid-cols-3 md:grid-cols-6 gap-3 mb-6">
+    {% for type_name, count in type_counts.items() %}
+    <div class="stat bg-base-100 rounded-box p-3 shadow-sm cursor-pointer hover:bg-base-200"
+         onclick="filterByType('{{ type_name }}')">
+        <div class="stat-title text-xs">{{ type_name }}</div>
+        <div class="stat-value text-lg">{{ "{:,}".format(count) }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Filters -->
+<div class="flex flex-wrap gap-3 mb-4">
+    <select id="ner-type" class="select select-bordered select-sm">
+        <option value="all">All types</option>
+        <option value="person">person</option>
+        <option value="organization">organization</option>
+        <option value="location">location</option>
+        <option value="date">date</option>
+        <option value="product">product</option>
+        <option value="money">money</option>
+    </select>
+    <input id="ner-search" type="text" placeholder="Search entity..." class="input input-bordered input-sm w-48">
+    <input id="ner-speaker" type="text" placeholder="Speaker..." class="input input-bordered input-sm w-36">
+    <button class="btn btn-primary btn-sm" onclick="loadNer()">Filter</button>
+</div>
+
+<!-- Results -->
+<div id="ner-results"
+     hx-get="/partials/ner_results"
+     hx-trigger="load"
+     hx-vals='{"entity_type": "all", "page": "1"}'>
+    <span class="loading loading-spinner loading-md"></span>
+</div>
+
+<script>
+function filterByType(type) {
+    document.getElementById('ner-type').value = type;
+    loadNer();
+}
+function loadNer(page) {
+    page = page || 1;
+    const entity_type = document.getElementById('ner-type').value;
+    const search = document.getElementById('ner-search').value;
+    const speaker = document.getElementById('ner-speaker').value;
+    const params = new URLSearchParams({entity_type, search, speaker, page});
+    htmx.ajax('GET', '/partials/ner_results?' + params.toString(), '#ner-results');
+}
+</script>
+{% endblock %}

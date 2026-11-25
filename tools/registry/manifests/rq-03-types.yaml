@@ -1,0 +1,22 @@
+# Manifest job registro — rq-03-types
+# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+job_id: rq-03-types
+cmd: python3
+args:
+- tools/cross-source/rq-03-type-detection.py
+timeout_s: 1800
+lock: pipeline-run
+paid: false
+cadence_minutes: 0
+night_ok: false
+cascade: false
+state: 'off'
+owner_area: L2-knowledge
+backend: subprocess
+fragile: true
+artifact_refs:
+- relationship-types.parquet
+forbidden_adapter_types: []
+perimeter: null
+description: 'RQ-03 type detection: rule-only, never calls the LLM. With paid false
+  the paid key never reaches the process (env.py).'

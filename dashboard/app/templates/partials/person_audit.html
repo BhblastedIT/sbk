@@ -1,0 +1,45 @@
+{% if audit %}
+<div class="overflow-x-auto">
+    <table class="table table-xs">
+        <thead>
+            <tr>
+                <th>Campo</th>
+                <th>Valore</th>
+                <th>Source</th>
+                <th>Data</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for field, info in audit.items() %}
+            <tr class="hover {% if not info.verified %}opacity-50{% endif %}">
+                <td class="font-medium text-xs">{{ field|predicate_label }}</td>
+                <td class="text-xs max-w-xs truncate" title="{{ info.value or '' }}">{{ (info.value or '')[:80] }}</td>
+                <td>
+                    {% if info.source %}
+                    <span class="badge badge-xs badge-ghost">{{ info.source }}</span>
+                    {% else %}
+                    <span class="badge badge-xs badge-error">not verified</span>
+                    {% endif %}
+                </td>
+                <td class="text-xs text-base-content/50">{{ info.date or '-' }}</td>
+                <td>
+                    {% if info.confidence %}
+                    <span class="badge badge-xs
+                        {% if info.confidence == 'high' or info.confidence|string|float(0) >= 0.8 %}badge-success
+                        {% elif info.confidence == 'medium' or (info.confidence|string|float(0) >= 0.5 and info.confidence|string|float(0) < 0.8) %}badge-warning
+                        {% else %}badge-ghost{% endif %}">
+                        {{ info.confidence }}
+                    </span>
+                    {% else %}
+                    <span class="text-xs text-base-content/30">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No audit data available for this person.</div>
+{% endif %}

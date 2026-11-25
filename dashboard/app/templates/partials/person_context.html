@@ -1,0 +1,131 @@
+{% if context and context.status != "no_context_available" %}
+<div class="space-y-3">
+    {% if context.personal %}
+    <div>
+        <h4 class="text-xs font-semibold text-base-content/60 mb-1">Personale</h4>
+        {% if context.personal.famiglia %}
+        <div class="text-sm mb-1">
+            <span class="text-xs text-base-content/40">Family:</span>
+            {% for f in context.personal.famiglia %}
+            <span class="badge badge-sm badge-ghost">{{ f }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if context.personal.hobby %}
+        <div class="text-sm mb-1">
+            <span class="text-xs text-base-content/40">Hobby:</span>
+            {% for h in context.personal.hobby %}
+            <span class="badge badge-sm badge-secondary">{{ h }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if context.personal.progetti_personali %}
+        <div class="text-sm mb-1">
+            <span class="text-xs text-base-content/40">Personal projects:</span>
+            {% for p in context.personal.progetti_personali %}
+            <span class="badge badge-sm badge-accent">{{ p }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if context.personal.location %}
+        <div class="text-sm">
+            <span class="text-xs text-base-content/40">Location:</span> {{ context.personal.location }}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if context.business %}
+    <div>
+        <h4 class="text-xs font-semibold text-base-content/60 mb-1">Business</h4>
+        {% if context.business.organizzazione %}
+        <div class="text-sm mb-1">
+            <span class="text-xs text-base-content/40">Company:</span> {{ context.business.organizzazione }}
+            {% if context.business.ruolo %} &middot; {{ context.business.ruolo }}{% endif %}
+        </div>
+        {% endif %}
+        {% if context.business.progetti %}
+        <div class="text-sm mb-1">
+            <span class="text-xs text-base-content/40">Projects:</span>
+            {% for p in context.business.progetti[:6] %}
+            <span class="badge badge-sm badge-primary">{{ p }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% if context.business.sfide %}
+        <div class="text-sm mb-1">
+            <span class="text-xs text-base-content/40">Challenges:</span>
+            {% for s in context.business.sfide[:4] %}
+            <span class="badge badge-sm badge-warning">{{ s }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if context.promises %}
+    <div>
+        <h4 class="text-xs font-semibold text-base-content/60 mb-1">Promises</h4>
+        {% for p in context.promises[:5] %}
+        <div class="flex gap-2 text-sm items-center mb-1">
+            <span class="badge badge-xs {% if p.status == 'pending' %}badge-warning{% elif p.status == 'done' %}badge-success{% else %}badge-ghost{% endif %}">
+                {{ p.status or "?" }}
+            </span>
+            <span>{{ p.description }}</span>
+            <span class="text-xs text-base-content/40">
+                {% if p.direction == "from_person" %}(from them){% elif p.direction == "to_person" %}(from you){% else %}(mutual){% endif %}
+            </span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if context.changes %}
+    <div>
+        <h4 class="text-xs font-semibold text-base-content/60 mb-1">Recent changes</h4>
+        {% for c in context.changes[:4] %}
+        <div class="text-sm mb-1">
+            <span class="badge badge-xs badge-info">{{ c.type }}</span>
+            {{ c.description }}
+            {% if c.date %}<span class="text-xs text-base-content/40">({{ c.date }})</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if context.key_moments %}
+    <div>
+        <h4 class="text-xs font-semibold text-base-content/60 mb-1">Key moments</h4>
+        {% for m in context.key_moments[:4] %}
+        <div class="text-sm mb-1">{{ m.description }}
+            {% if m.source %}<span class="text-xs text-base-content/30">[{{ m.source }}]</span>{% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if context.generated_at %}
+    <div class="text-xs text-base-content/30 mt-2">
+        Generated: {{ context.generated_at[:16] }}
+        {% if context.fact_count %} &middot; {{ context.fact_count }} facts analysed{% endif %}
+        {% if context.status == "fallback_from_graph" %} &middot; <span class="text-warning">data from the graph (context not generated)</span>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% elif context and context.status == "fallback_from_graph" %}
+<div class="text-sm">
+    {% if context.business and context.business.organizzazione %}
+    <div><span class="text-xs text-base-content/40">Org:</span> {{ context.business.organizzazione }}</div>
+    {% endif %}
+    {% if context.business and context.business.progetti %}
+    <div class="flex flex-wrap gap-1 mt-1">
+        {% for p in context.business.progetti[:5] %}
+        <span class="badge badge-sm badge-ghost">{{ p }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <div class="text-xs text-base-content/30 mt-2">Context from the graph node (run xs-context-enricher.py for the full profile)</div>
+</div>
+{% else %}
+<div class="text-xs text-base-content/40">No context available. Run xs-context-enricher.py to generate.</div>
+{% endif %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}SBK NLP{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">NLP Intelligence</h1>
+    <div class="text-sm text-base-content/50">{{ total_decisions }} decisions, {{ total_actions }} action items</div>
+</div>
+
+<!-- Tab + Filters -->
+<form hx-get="/partials/nlp_results" hx-target="#nlp-results-container" hx-swap="innerHTML" hx-trigger="submit"
+      class="mb-4 space-y-3">
+
+    <!-- Tabs -->
+    <div class="tabs tabs-boxed">
+        <label class="tab tab-active" id="tab-decisions">
+            <input type="radio" name="tab" value="decisions" checked class="hidden"
+                   onchange="document.getElementById('tab-decisions').classList.add('tab-active');document.getElementById('tab-actions').classList.remove('tab-active')">
+            Decisions ({{ "{:,}".format(total_decisions) }})
+        </label>
+        <label class="tab" id="tab-actions">
+            <input type="radio" name="tab" value="actions" class="hidden"
+                   onchange="document.getElementById('tab-actions').classList.add('tab-active');document.getElementById('tab-decisions').classList.remove('tab-active')">
+            Action Items ({{ "{:,}".format(total_actions) }})
+        </label>
+    </div>
+
+    <!-- Search + Filters -->
+    <div class="flex gap-3 flex-wrap items-end">
+        <div class="form-control flex-1 min-w-[200px]">
+            <label class="label"><span class="label-text">Search</span></label>
+            <input type="text" name="search" placeholder="Search in text..." class="input input-bordered input-sm">
+        </div>
+        <div class="form-control">
+            <label class="label"><span class="label-text">Speaker</span></label>
+            <select name="speaker" class="select select-bordered select-sm">
+                <option value="">All</option>
+                {% for s in speakers %}
+                <option value="{{ s }}">{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-control">
+            <label class="label"><span class="label-text">Source</span></label>
+            <select name="source" class="select select-bordered select-sm">
+                <option value="">All</option>
+                <option value="plaud">Plaud</option>
+                <option value="tactiq">Tactiq</option>
+                <option value="email">Email</option>
+            </select>
+        </div>
+        <input type="hidden" name="page" value="1">
+        <button type="submit" class="btn btn-primary btn-sm">Filter</button>
+        <a id="nlp-export-btn" href="/api/nlp/export?tab=decisions" class="btn btn-outline btn-sm" target="_blank">Export CSV</a>
+    </div>
+</form>
+
+<!-- Results -->
+<div id="nlp-results-container" class="bg-base-100 rounded-box shadow p-4">
+    {% include "partials/nlp_results.html" %}
+</div>
+
+<script>
+// Update export link with current filters
+document.querySelector('form[hx-get]').addEventListener('submit', function() {
+    updateExportLink();
+});
+function updateExportLink() {
+    var form = document.querySelector('form[hx-get]');
+    var tab = form.querySelector('input[name="tab"]:checked');
+    var search = form.querySelector('input[name="search"]');
+    var speaker = form.querySelector('select[name="speaker"]');
+    var source = form.querySelector('select[name="source"]');
+    var params = new URLSearchParams();
+    if (tab) params.set('tab', tab.value);
+    if (search && search.value) params.set('search', search.value);
+    if (speaker && speaker.value) params.set('speaker', speaker.value);
+    if (source && source.value) params.set('source', source.value);
+    document.getElementById('nlp-export-btn').href = '/api/nlp/export?' + params.toString();
+}
+// Also update on any input change
+document.querySelectorAll('form[hx-get] input, form[hx-get] select').forEach(function(el) {
+    el.addEventListener('change', updateExportLink);
+});
+</script>
+{% endblock %}

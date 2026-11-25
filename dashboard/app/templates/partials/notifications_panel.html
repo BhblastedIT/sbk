@@ -1,0 +1,118 @@
+{# Notification dropdown panel — loaded via HTMX into the bell dropdown #}
+
+{% if notifications %}
+<div class="flex items-center justify-between px-4 py-2 border-b border-base-300">
+    <span class="font-semibold text-sm">Notifications ({{ notifications|length }})</span>
+    <button class="btn btn-ghost btn-xs" onclick="dismissAllNotifications()">Dismiss all</button>
+</div>
+
+<div class="max-h-80 overflow-y-auto">
+    {% for n in notifications %}
+    <div class="notif-item flex items-start gap-3 px-4 py-3 hover:bg-base-200 border-b border-base-300/50 transition-all"
+         data-notif-id="{{ n.id }}">
+        {# Icon per type #}
+        {% if n.type == "health" %}
+            <div class="shrink-0 mt-0.5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 {% if n.severity == 'error' %}text-error{% else %}text-warning{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+        {% elif n.type == "decay" %}
+            <div class="shrink-0 mt-0.5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-warning" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+        {% elif n.type == "followup" %}
+            <div class="shrink-0 mt-0.5">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 {% if n.severity == 'error' %}text-error{% else %}text-warning{% endif %}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+            </div>
+        {% endif %}
+
+        <div class="flex-1 min-w-0">
+            <a href="{{ n.link }}" class="text-sm font-medium link link-hover block truncate">{{ n.title }}</a>
+            <p class="text-xs text-base-content/60 truncate">{{ n.message }}</p>
+        </div>
+
+        <button class="btn btn-ghost btn-xs btn-square shrink-0 opacity-40 hover:opacity-100"
+                onclick="dismissNotification('{{ n.id }}', this)" title="Close">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="px-4 py-2 border-t border-base-300">
+    <a href="/health-overview" class="btn btn-ghost btn-xs btn-block">View system status</a>
+</div>
+
+{% else %}
+<div class="px-4 py-6 text-center">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto mb-2 text-base-content/30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+    </svg>
+    <p class="text-sm text-base-content/50">All good, no notifications</p>
+</div>
+{% endif %}
+
+<script>
+(function() {
+    // Hide already-dismissed notifications
+    var dismissed = JSON.parse(localStorage.getItem('sbk-notif-dismissed') || '[]');
+    document.querySelectorAll('.notif-item').forEach(function(el) {
+        if (dismissed.indexOf(el.dataset.notifId) !== -1) {
+            el.style.display = 'none';
+        }
+    });
+    // Update visible count
+    updateNotifCount();
+})();
+
+function dismissNotification(id, btn) {
+    var dismissed = JSON.parse(localStorage.getItem('sbk-notif-dismissed') || '[]');
+    if (dismissed.indexOf(id) === -1) dismissed.push(id);
+    localStorage.setItem('sbk-notif-dismissed', JSON.stringify(dismissed));
+    var item = btn.closest('.notif-item');
+    item.style.opacity = '0';
+    item.style.maxHeight = item.offsetHeight + 'px';
+    item.style.transition = 'opacity 0.2s, max-height 0.3s ease';
+    setTimeout(function() {
+        item.style.maxHeight = '0';
+        item.style.padding = '0';
+        item.style.overflow = 'hidden';
+    }, 200);
+    setTimeout(function() {
+        item.remove();
+        updateNotifCount();
+    }, 500);
+}
+
+function dismissAllNotifications() {
+    var ids = [];
+    document.querySelectorAll('.notif-item').forEach(function(el) {
+        ids.push(el.dataset.notifId);
+        el.remove();
+    });
+    var dismissed = JSON.parse(localStorage.getItem('sbk-notif-dismissed') || '[]');
+    ids.forEach(function(id) { if (dismissed.indexOf(id) === -1) dismissed.push(id); });
+    localStorage.setItem('sbk-notif-dismissed', JSON.stringify(dismissed));
+    updateNotifCount();
+}
+
+function updateNotifCount() {
+    var visible = document.querySelectorAll('.notif-item:not([style*="display: none"])').length;
+    var badge = document.getElementById('notif-badge');
+    if (badge) {
+        if (visible > 0) {
+            badge.textContent = visible > 99 ? '99+' : visible;
+            badge.style.display = '';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+</script>

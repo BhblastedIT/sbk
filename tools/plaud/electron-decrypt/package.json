@@ -1,0 +1,11 @@
+{
+  "name": "plaud-decrypt",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron main.js"
+  },
+  "dependencies": {
+    "electron": "^42.2.0"
+  }
+}

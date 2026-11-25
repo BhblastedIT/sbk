@@ -1,0 +1,49 @@
+{% if threads %}
+<table class="table table-xs w-full">
+    <thead>
+        <tr>
+            <th class="text-xs">Subject</th>
+            <th class="text-xs w-24">Data</th>
+            <th class="text-xs w-16 text-right">Msg</th>
+            <th class="text-xs w-16"></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for t in threads %}
+        <tr class="hover">
+            <td class="text-sm truncate max-w-xs">{{ t.subject or "(no subject)" }}</td>
+            <td class="text-xs text-base-content/60">{{ t.date }}</td>
+            <td class="text-xs text-right">{{ t.msg_count }}</td>
+            <td class="text-right">
+                {% if t.thread_id %}
+                <button hx-get="/partials/thread/email/{{ t.thread_id }}"
+                        hx-target="#pc-thread-modal-content" hx-swap="innerHTML"
+                        class="btn btn-xs btn-ghost btn-square"
+                        onclick="event.stopPropagation(); document.getElementById('pc-thread-modal').showModal()"
+                        title="Read conversation">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+                    </svg>
+                </button>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Thread viewer modal (person card) -->
+<dialog id="pc-thread-modal" class="modal">
+    <div class="modal-box max-w-4xl max-h-[80vh]">
+        <div id="pc-thread-modal-content">
+            <span class="loading loading-spinner loading-md"></span>
+        </div>
+        <div class="modal-action">
+            <form method="dialog"><button class="btn btn-sm">Close</button></form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No email thread found.</div>
+{% endif %}

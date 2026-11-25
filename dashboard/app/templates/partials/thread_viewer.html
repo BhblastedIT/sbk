@@ -1,0 +1,138 @@
+{% if error is defined and error %}
+<div class="alert alert-error text-sm">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.072 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+    </svg>
+    <span>{{ error }}</span>
+</div>
+{% else %}
+
+{# ─── Header ─── #}
+<div class="flex items-center gap-2 mb-4">
+    <span class="badge
+        {% if source_type == 'email' %}badge-primary
+        {% elif source_type == 'plaud' %}badge-secondary
+        {% elif source_type == 'tactiq' %}badge-accent
+        {% elif source_type == 'slack' %}badge-info
+        {% elif source_type == 'whatsapp' %}badge-success
+        {% else %}badge-ghost{% endif %}">
+        {{ source_type }}
+    </span>
+
+    {% if source_type == 'email' and subject is defined and subject %}
+        <h3 class="font-bold text-lg flex-1 truncate">{{ subject }}</h3>
+    {% elif source_type == 'slack' and channel_name is defined %}
+        <h3 class="font-bold text-lg flex-1 truncate">#{{ channel_name }}</h3>
+    {% elif source_type == 'whatsapp' and chat_name is defined %}
+        <h3 class="font-bold text-lg flex-1 truncate">{{ chat_name }}</h3>
+    {% elif (source_type == 'plaud' or source_type == 'tactiq') and title is defined %}
+        <h3 class="font-bold text-lg flex-1 truncate">{{ title }}</h3>
+    {% endif %}
+
+    <span class="text-xs text-base-content/50">
+        {% if total is defined %}{{ total }}
+            {% if source_type in ('plaud', 'tactiq') %}segments{% else %}messages{% endif %}
+        {% endif %}
+    </span>
+</div>
+
+{# ─── Email thread ─── #}
+{% if source_type == 'email' and messages is defined %}
+<div class="space-y-3 overflow-y-auto max-h-[60vh]">
+    {% for msg in messages %}
+    <div class="chat {{ 'chat-end' if is_owner_sender(msg.from) else 'chat-start' }}">
+        <div class="chat-header text-xs">
+            {{ msg.from }}
+            <time class="text-base-content/40 ml-1">{{ msg.date[:16] if msg.date else '' }}</time>
+            {% if msg.has_attachments %}
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+            </svg>
+            {% endif %}
+        </div>
+        <div class="chat-bubble chat-bubble-{{ 'primary' if is_owner_sender(msg.from) else 'neutral' }} text-sm whitespace-pre-wrap max-w-[90%]">{{ msg.body[:2000] }}{% if msg.body|length > 2000 %}...{% endif %}</div>
+        {% if msg.to %}
+        <div class="chat-footer text-xs text-base-content/30">To: {{ msg.to[:80] }}{% if msg.to|length > 80 %}...{% endif %}</div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+{# ─── Slack thread ─── #}
+{% elif source_type == 'slack' and messages is defined %}
+<div class="space-y-2 overflow-y-auto max-h-[60vh]">
+    {% for msg in messages %}
+    <div class="chat {{ 'chat-end' if is_owner_sender(msg.user) else 'chat-start' }}">
+        <div class="chat-header text-xs font-bold">
+            {{ msg.user }}
+            {% if msg.ts %}
+            <time class="text-base-content/40 ml-1 font-normal">{{ msg.ts }}</time>
+            {% endif %}
+        </div>
+        <div class="chat-bubble text-sm whitespace-pre-wrap max-w-[90%]">{{ msg.text[:1500] }}{% if msg.text|length > 1500 %}...{% endif %}</div>
+        {% if msg.reactions %}
+        <div class="chat-footer">
+            {% for r in msg.reactions %}
+            <span class="badge badge-xs badge-ghost mr-1">{{ r }}</span>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+
+{# ─── WhatsApp thread ─── #}
+{% elif source_type == 'whatsapp' and messages is defined %}
+{% if date_start is defined and date_end is defined %}
+<div class="text-xs text-base-content/50 mb-3">{{ date_start[:10] if date_start else '' }} - {{ date_end[:10] if date_end else '' }}</div>
+{% endif %}
+<div class="space-y-2 overflow-y-auto max-h-[60vh]">
+    {% for msg in messages[-200:] %}
+    <div class="chat {{ 'chat-end' if is_owner_sender(msg.sender) else 'chat-start' }}">
+        <div class="chat-header text-xs font-bold">
+            {{ msg.sender }}
+            <time class="text-base-content/40 ml-1 font-normal">{{ msg.date }}</time>
+        </div>
+        <div class="chat-bubble text-sm whitespace-pre-wrap max-w-[90%]">{{ msg.text[:1000] }}{% if msg.text|length > 1000 %}...{% endif %}</div>
+    </div>
+    {% endfor %}
+    {% if messages|length > 200 %}
+    <div class="text-center text-xs text-base-content/40 py-2">
+        Showing last 200 of {{ messages|length }} messages
+    </div>
+    {% endif %}
+</div>
+
+{# ─── Meeting transcript (Plaud/Tactiq) ─── #}
+{% elif source_type in ('plaud', 'tactiq') and segments is defined %}
+{% if duration_min is defined and duration_min %}
+<div class="text-xs text-base-content/50 mb-3">Duration: {{ duration_min }} min</div>
+{% endif %}
+<div class="space-y-2 overflow-y-auto max-h-[60vh]">
+    {% for seg in segments %}
+    <div class="chat {{ 'chat-end' if is_owner_sender(seg.speaker) else 'chat-start' }}">
+        <div class="chat-header text-xs font-bold">
+            {{ seg.speaker }}
+            {% if seg.timestamp %}
+            <time class="text-base-content/40 ml-1 font-normal">
+                {% set ts = seg.timestamp %}
+                {% if ts is number and ts > 1000 %}
+                    {{ '%d:%02d'|format(ts // 60000, (ts % 60000) // 1000) }}
+                {% elif ts is number %}
+                    {{ '%d:%02d'|format(ts // 60, ts % 60) }}
+                {% else %}
+                    {{ ts }}
+                {% endif %}
+            </time>
+            {% endif %}
+        </div>
+        <div class="chat-bubble text-sm whitespace-pre-wrap max-w-[90%]">{{ seg.text }}</div>
+    </div>
+    {% endfor %}
+</div>
+
+{% else %}
+<div class="text-center text-base-content/50 py-8">No content found.</div>
+{% endif %}
+
+{% endif %}

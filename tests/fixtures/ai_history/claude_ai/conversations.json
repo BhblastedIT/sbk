@@ -1,0 +1,67 @@
+[
+ {
+  "uuid": "ca-conv-1",
+  "name": "Pricing page",
+  "created_at": "2026-03-04T12:00:00.000000Z",
+  "updated_at": "2026-03-04T12:10:00.000000Z",
+  "account": {
+   "uuid": "acc-demo"
+  },
+  "project_uuid": "proj-demo-1",
+  "chat_messages": [
+   {
+    "uuid": "c1",
+    "sender": "human",
+    "text": "ignored when content exists",
+    "content": [
+     {
+      "type": "text",
+      "text": "Rewrite the pricing page in a friendlier tone."
+     }
+    ],
+    "created_at": "2026-03-04T12:00:10.000000Z",
+    "attachments": [],
+    "files": []
+   },
+   {
+    "uuid": "c2",
+    "sender": "assistant",
+    "text": "Here is a friendlier version.",
+    "content": [
+     {
+      "type": "text",
+      "text": "Here is a friendlier version."
+     }
+    ],
+    "created_at": "2026-03-04T12:00:20.000000Z"
+   },
+   {
+    "uuid": "c3",
+    "sender": "human",
+    "text": "Use this AWS key in the example: {{AWS_KEY}}",
+    "content": [],
+    "created_at": "2026-03-04T12:01:00.000000Z",
+    "attachments": [
+     {
+      "file_name": "notes.txt",
+      "extracted_content": "Attached text, not typed."
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "uuid": "ca-conv-2",
+  "name": "Empty",
+  "created_at": "2026-03-05T08:00:00Z",
+  "chat_messages": [
+   {
+    "uuid": "d1",
+    "sender": "human",
+    "text": "",
+    "content": [],
+    "created_at": "2026-03-05T08:00:01Z"
+   }
+  ]
+ }
+]

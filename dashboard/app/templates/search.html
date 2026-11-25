@@ -1,0 +1,498 @@
+{% extends "base.html" %}
+
+{% block title %}SBK Search{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">Search</h1>
+</div>
+
+<!-- Search Form -->
+<form id="search-form" class="mb-6 space-y-3">
+    <div class="join w-full">
+        <input type="text" name="query" id="search-query" placeholder="Search SBK data..."
+               class="input input-bordered join-item flex-1" required>
+        <button type="submit" class="btn btn-primary join-item">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+            </svg>
+            Search
+        </button>
+        <button type="button" onclick="unifiedSearch()" class="btn btn-secondary join-item">Search everywhere</button>
+    </div>
+
+    <!-- Filters -->
+    <div class="flex gap-3 flex-wrap items-end">
+        <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Source</span></label>
+            <select name="source" class="select select-bordered select-sm">
+                <option value="">All</option>
+                <option value="email">Email</option>
+                <option value="plaud">Plaud</option>
+                <option value="tactiq">Tactiq</option>
+                <option value="slack">Slack</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="notion">Notion</option>
+                <option value="network">Network</option>
+            </select>
+        </div>
+        <div class="form-control">
+            <label class="label"><span class="label-text text-xs">After</span></label>
+            <input type="date" name="after" class="input input-bordered input-sm">
+        </div>
+        <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Before</span></label>
+            <input type="date" name="before" class="input input-bordered input-sm">
+        </div>
+        <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Person</span></label>
+            <input type="text" name="person" placeholder="Nome..." class="input input-bordered input-sm w-40">
+        </div>
+        <div class="form-control">
+            <label class="label"><span class="label-text text-xs">Results</span></label>
+            <select name="top_k" class="select select-bordered select-sm">
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+            </select>
+        </div>
+    </div>
+</form>
+
+<!-- Tabs -->
+<div role="tablist" class="tabs tabs-bordered mb-4">
+    <a role="tab" class="tab tab-active" onclick="switchSearchTab('semantic')" id="tab-semantic">Semantic Search <span id="badge-semantic" class="badge badge-xs badge-primary ml-1 hidden"></span></a>
+    <a role="tab" class="tab" onclick="switchSearchTab('facts')" id="tab-facts">Fact Search <span id="badge-facts" class="badge badge-xs badge-primary ml-1 hidden"></span></a>
+    <a role="tab" class="tab" onclick="switchSearchTab('deep')" id="tab-deep">Deep Intelligence <span id="badge-deep" class="badge badge-xs badge-primary ml-1 hidden"></span></a>
+</div>
+
+<!-- Semantic Search Results -->
+<div id="semantic-tab">
+    <div id="search-results" class="mb-6"></div>
+    <div id="synthesis-container"></div>
+    <div id="search-loading" class="hidden text-center py-8">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+        <div class="text-sm text-base-content/50 mt-2">Searching...</div>
+    </div>
+</div>
+
+<!-- Fact Search Tab -->
+<div id="facts-tab" class="hidden">
+    <form id="fact-search-form" class="mb-4 space-y-3">
+        <div class="join w-full">
+            <input type="text" name="fact_query" id="fact-query" placeholder="e.g. AI, CTO, finance, startup..."
+                   class="input input-bordered join-item flex-1" required>
+            <select name="fact_predicate" class="select select-bordered join-item">
+                <option value="">All predicates</option>
+                <option value="WORKING_ON">WORKING_ON</option>
+                <option value="LOOKING_FOR">LOOKING_FOR</option>
+                <option value="INTERESTED_IN">INTERESTED_IN</option>
+                <option value="BACKGROUND">BACKGROUND</option>
+                <option value="STRUGGLING_WITH">STRUGGLING_WITH</option>
+                <option value="INVESTED_IN">INVESTED_IN</option>
+                <option value="FAMILY_OF">FAMILY_OF</option>
+                <option value="KNOWS_FROM">KNOWS_FROM</option>
+                <option value="PREFERENCE">PREFERENCE</option>
+                <option value="HOBBY">HOBBY</option>
+            </select>
+            <button type="submit" class="btn btn-primary join-item">Search Facts</button>
+        </div>
+    </form>
+    <div id="fact-results"></div>
+    <div id="fact-loading" class="hidden text-center py-8">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+    </div>
+</div>
+
+<!-- Deep Intelligence Tab -->
+<div id="deep-tab" class="hidden">
+    <form id="deep-search-form" class="mb-4 space-y-3">
+        <div class="flex gap-2 flex-wrap">
+            <div class="form-control flex-1">
+                <input type="text" name="q" id="deep-query" placeholder="Search deep intelligence (person, company, topic)..."
+                       class="input input-bordered w-full" required>
+            </div>
+            <div class="form-control">
+                <select name="category" class="select select-bordered">
+                    <option value="">All categories</option>
+                    <option value="financial">Financial</option>
+                    <option value="deal">Deal</option>
+                    <option value="commitment">Commitment</option>
+                    <option value="negotiation">Negotiation</option>
+                    <option value="strategic">Strategic</option>
+                    <option value="operational">Operational</option>
+                </select>
+            </div>
+            <div class="form-control">
+                <select name="min_confidence" class="select select-bordered">
+                    <option value="">Any confidence</option>
+                    <option value="high">Solo high</option>
+                    <option value="medium">Medium+</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+    </form>
+    <div id="deep-results"></div>
+    <div id="deep-loading" class="hidden text-center py-8">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+    </div>
+</div>
+
+<script>
+// Predicate labels for display
+const PREDICATE_LABELS = {
+    "WORKS_WITH": "works with", "INTRODUCED_BY": "introduced by", "INTRODUCED_TO": "introduced to",
+    "BACKGROUND": "background", "HAS_ROLE": "role", "WORKS_AT": "works at",
+    "FOUNDED": "founded", "FOUNDER_OF": "founder of", "INVESTED_IN": "invested in",
+    "PARTNER_OF": "partner of", "ADVISOR_TO": "advisor to", "REPORTS_TO": "reports to",
+    "MANAGES": "manages", "MENTOR_OF": "mentor of", "EXPERTISE": "expertise",
+    "INTERESTED_IN": "interested in", "LOOKING_FOR": "looking for", "WORKING_ON": "working on",
+    "STRUGGLING_WITH": "struggling with"
+};
+function predicateLabel(val) {
+    if (!val) return '';
+    return PREDICATE_LABELS[val.toUpperCase()] || val.toLowerCase().replace(/_/g, ' ');
+}
+
+let lastSearchResults = [];
+let lastSearchQuery = '';
+
+document.getElementById('search-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = new FormData(this);
+    const query = form.get('query').trim();
+    if (!query) return;
+
+    lastSearchQuery = query;
+    const loading = document.getElementById('search-loading');
+    const resultsDiv = document.getElementById('search-results');
+    const synthDiv = document.getElementById('synthesis-container');
+
+    loading.classList.remove('hidden');
+    resultsDiv.innerHTML = '';
+    synthDiv.innerHTML = '';
+
+    try {
+        const resp = await fetch('/api/search/query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                query: query,
+                source: form.get('source') || '',
+                after: form.get('after') || '',
+                before: form.get('before') || '',
+                person: form.get('person') || '',
+                top_k: parseInt(form.get('top_k')) || 10,
+            })
+        });
+
+        loading.classList.add('hidden');
+
+        if (!resp.ok) {
+            let errMsg = 'Server error (HTTP ' + resp.status + ')';
+            try {
+                const errData = await resp.json();
+                if (errData.error) errMsg = errData.error;
+            } catch(e) {}
+            resultsDiv.innerHTML = '<div class="alert alert-error">' + errMsg + '</div>';
+            console.error('Search API error:', errMsg);
+            return;
+        }
+
+        const data = await resp.json();
+        lastSearchResults = data.results || [];
+
+        if (data.error) {
+            resultsDiv.innerHTML = '<div class="alert alert-error">' + data.error + '</div>';
+            return;
+        }
+
+        if (!data.results || data.results.length === 0) {
+            resultsDiv.innerHTML = '<div class="text-center text-base-content/40 py-8">No results found.</div>';
+            return;
+        }
+
+        // Render results
+        htmx.ajax('POST', '/partials/search_results', {
+            target: '#search-results',
+            swap: 'innerHTML',
+            values: {results_json: JSON.stringify(data)}
+        });
+
+    } catch(err) {
+        loading.classList.add('hidden');
+        resultsDiv.innerHTML = '<div class="alert alert-error">Connection error: ' + err.message + '</div>';
+        console.error('Search fetch error:', err);
+    }
+});
+
+async function synthesizeResults() {
+    if (!lastSearchResults.length || !lastSearchQuery) return;
+    const synthDiv = document.getElementById('synthesis-container');
+    synthDiv.innerHTML = '<div class="text-center py-4"><span class="loading loading-spinner loading-md text-secondary"></span><div class="text-sm mt-2">Synthesizing with Claude...</div></div>';
+
+    try {
+        const resp = await fetch('/api/search/synthesize', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: lastSearchQuery, results: lastSearchResults})
+        });
+        const data = await resp.json();
+
+        if (data.ok) {
+            htmx.ajax('POST', '/partials/synthesis', {
+                target: '#synthesis-container',
+                swap: 'innerHTML',
+                values: {answer: data.answer}
+            });
+        } else {
+            synthDiv.innerHTML = '<div class="alert alert-warning">Synthesis not available: ' + (data.error || 'unknown error') + '</div>';
+        }
+    } catch(err) {
+        synthDiv.innerHTML = '<div class="alert alert-error">Connection error</div>';
+    }
+}
+
+// ─── Tab switching ───────────────────────────────────────────────
+function switchSearchTab(tab) {
+    document.getElementById('tab-semantic').classList.toggle('tab-active', tab === 'semantic');
+    document.getElementById('tab-facts').classList.toggle('tab-active', tab === 'facts');
+    document.getElementById('tab-deep').classList.toggle('tab-active', tab === 'deep');
+    document.getElementById('semantic-tab').classList.toggle('hidden', tab !== 'semantic');
+    document.getElementById('facts-tab').classList.toggle('hidden', tab !== 'facts');
+    document.getElementById('deep-tab').classList.toggle('hidden', tab !== 'deep');
+}
+
+// ─── Fact Search ─────────────────────────────────────────────────
+document.getElementById('fact-search-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = new FormData(this);
+    const query = form.get('fact_query').trim();
+    if (!query) return;
+
+    const predicate = form.get('fact_predicate') || '';
+    const loading = document.getElementById('fact-loading');
+    const resultsDiv = document.getElementById('fact-results');
+
+    loading.classList.remove('hidden');
+    resultsDiv.innerHTML = '';
+
+    try {
+        const params = new URLSearchParams({q: query, predicate: predicate, limit: '20'});
+        const resp = await fetch('/api/person/facts/search?' + params);
+        loading.classList.add('hidden');
+
+        if (!resp.ok) {
+            resultsDiv.innerHTML = '<div class="alert alert-error">Error (HTTP ' + resp.status + ')</div>';
+            return;
+        }
+        const data = await resp.json();
+        const results = data.results || [];
+
+        if (!results.length) {
+            resultsDiv.innerHTML = '<div class="text-center text-base-content/40 py-8">No facts found.</div>';
+            return;
+        }
+
+        let html = '<div class="overflow-x-auto"><table class="table table-sm"><thead><tr>' +
+            '<th>Person</th><th>Predicate</th><th>Fact</th><th>Source</th><th>Date</th><th>Conf.</th>' +
+            '</tr></thead><tbody>';
+        for (const r of results) {
+            var srcLink = r.source_link ? ' <a href="' + escapeHtml(r.source_link) + '" class="text-primary hover:underline">&#128279;</a>' : '';
+            html += '<tr class="hover">' +
+                '<td class="font-medium">' + escapeHtml(r.person_name) + '</td>' +
+                '<td><span class="badge badge-xs badge-primary">' + escapeHtml(predicateLabel(r.predicate)) + '</span></td>' +
+                '<td>' + escapeHtml(r.value) + '</td>' +
+                '<td class="text-xs">' + escapeHtml(r.source_type) + srcLink + '</td>' +
+                '<td class="text-xs">' + escapeHtml(r.source_date) + '</td>' +
+                '<td><span class="badge badge-xs ' + (r.confidence === 'high' ? 'badge-success' : 'badge-warning') + '">' + r.confidence + '</span></td>' +
+                '</tr>';
+        }
+        html += '</tbody></table></div>';
+        resultsDiv.innerHTML = html;
+    } catch(err) {
+        loading.classList.add('hidden');
+        resultsDiv.innerHTML = '<div class="alert alert-error">Error: ' + err.message + '</div>';
+    }
+});
+
+// ─── Deep Intelligence Search ────────────────────────────────────
+function deepCategoryColor(cat) {
+    var colors = {financial: 'badge-success', deal: 'badge-primary', commitment: 'badge-warning', negotiation: 'badge-error', strategic: 'badge-info', operational: 'badge-ghost'};
+    return colors[cat] || 'badge-ghost';
+}
+
+document.getElementById('deep-search-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var form = new FormData(this);
+    var query = form.get('q').trim();
+    if (!query) return;
+
+    var category = form.get('category') || '';
+    var minConf = form.get('min_confidence') || '';
+    var loading = document.getElementById('deep-loading');
+    var resultsDiv = document.getElementById('deep-results');
+
+    loading.classList.remove('hidden');
+    resultsDiv.innerHTML = '';
+
+    try {
+        var params = new URLSearchParams({q: query, category: category, min_confidence: minConf});
+        var resp = await fetch('/api/person/deep-facts?' + params);
+        loading.classList.add('hidden');
+
+        if (!resp.ok) {
+            resultsDiv.innerHTML = '<div class="alert alert-error">Error (HTTP ' + resp.status + ')</div>';
+            return;
+        }
+        var data = await resp.json();
+        var facts = data.facts || [];
+
+        if (!facts.length) {
+            resultsDiv.innerHTML = '<div class="text-center text-base-content/40 py-8">No results found.</div>';
+            return;
+        }
+
+        var html = '<div class="text-sm text-base-content/50 mb-2">' + facts.length + ' results</div>';
+        html += '<div class="overflow-x-auto"><table class="table table-sm"><thead><tr>' +
+            '<th>Person</th><th>Category</th><th>Fact</th><th>Amount</th><th>Counterparty</th><th>Date</th><th>Conf.</th>' +
+            '</tr></thead><tbody>';
+        for (var i = 0; i < facts.length; i++) {
+            var f = facts[i];
+            var amountStr = f.amount && f.amount !== 'nan' && f.amount !== '' ? escapeHtml(f.amount) + ' ' + escapeHtml(f.currency || '') : '';
+            var deepSrcLink = f.source_link ? ' <a href="' + escapeHtml(f.source_link) + '" class="text-primary hover:underline">&#128279;</a>' : '';
+            html += '<tr class="hover">' +
+                '<td class="font-medium">' + escapeHtml(f.subject || '') + '</td>' +
+                '<td><span class="badge badge-xs ' + deepCategoryColor(f.category) + '">' + escapeHtml(f.category || '') + '</span></td>' +
+                '<td>' + escapeHtml(predicateLabel(f.predicate || '')) + ': ' + escapeHtml(f.object || '') + '</td>' +
+                '<td class="text-xs">' + amountStr + '</td>' +
+                '<td class="text-xs">' + escapeHtml(f.counterparty || '') + deepSrcLink + '</td>' +
+                '<td class="text-xs">' + escapeHtml((f.source_date || '').substring(0, 10)) + '</td>' +
+                '<td><span class="badge badge-xs ' + (f.confidence === 'high' ? 'badge-success' : f.confidence === 'medium' ? 'badge-warning' : 'badge-ghost') + '">' + escapeHtml(f.confidence || '') + '</span></td>' +
+                '</tr>';
+        }
+        html += '</tbody></table></div>';
+        resultsDiv.innerHTML = html;
+    } catch(err) {
+        loading.classList.add('hidden');
+        resultsDiv.innerHTML = '<div class="alert alert-error">Error: ' + err.message + '</div>';
+    }
+});
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function updateBadge(id, count) {
+    var el = document.getElementById(id);
+    if (count > 0) { el.textContent = count; el.classList.remove('hidden'); }
+    else { el.classList.add('hidden'); }
+}
+
+// RF-13: Unified search across all tabs
+async function unifiedSearch() {
+    var query = document.getElementById('search-query').value.trim();
+    if (!query) return;
+
+    // Show loading on all tabs
+    ['search-loading', 'fact-loading', 'deep-loading'].forEach(function(id) {
+        document.getElementById(id).classList.remove('hidden');
+    });
+    ['search-results', 'fact-results', 'deep-results', 'synthesis-container'].forEach(function(id) {
+        document.getElementById(id).innerHTML = '';
+    });
+
+    try {
+        var resp = await fetch('/api/search/unified', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: query})
+        });
+        var data = await resp.json();
+
+        // Hide all loading
+        ['search-loading', 'fact-loading', 'deep-loading'].forEach(function(id) {
+            document.getElementById(id).classList.add('hidden');
+        });
+
+        if (data.error) {
+            document.getElementById('search-results').innerHTML = '<div class="alert alert-error">' + escapeHtml(data.error) + '</div>';
+            return;
+        }
+
+        // Semantic results
+        var semResults = (data.semantic || {}).results || [];
+        updateBadge('badge-semantic', semResults.length);
+        if (semResults.length) {
+            lastSearchResults = semResults;
+            lastSearchQuery = query;
+            htmx.ajax('POST', '/partials/search_results', {
+                target: '#search-results', swap: 'innerHTML',
+                values: {results_json: JSON.stringify({results: semResults, count: semResults.length})}
+            });
+        } else {
+            document.getElementById('search-results').innerHTML = '<div class="text-center text-base-content/40 py-4">No semantic results.</div>';
+        }
+
+        // Fact results
+        var factResults = (data.facts || {}).results || [];
+        updateBadge('badge-facts', factResults.length);
+        if (factResults.length) {
+            var html = '<div class="overflow-x-auto"><table class="table table-sm"><thead><tr>' +
+                '<th>Person</th><th>Predicate</th><th>Fact</th><th>Source</th><th>Date</th><th>Conf.</th>' +
+                '</tr></thead><tbody>';
+            for (var i = 0; i < factResults.length; i++) {
+                var r = factResults[i];
+                var sl = r.source_link ? ' <a href="' + escapeHtml(r.source_link) + '" class="text-primary hover:underline">&#128279;</a>' : '';
+                html += '<tr class="hover">' +
+                    '<td class="font-medium">' + escapeHtml(r.person_name) + '</td>' +
+                    '<td><span class="badge badge-xs badge-primary">' + escapeHtml(predicateLabel(r.predicate)) + '</span></td>' +
+                    '<td>' + escapeHtml(r.value) + '</td>' +
+                    '<td class="text-xs">' + escapeHtml(r.source_type) + sl + '</td>' +
+                    '<td class="text-xs">' + escapeHtml(r.source_date) + '</td>' +
+                    '<td><span class="badge badge-xs ' + (r.confidence === 'high' ? 'badge-success' : 'badge-warning') + '">' + r.confidence + '</span></td></tr>';
+            }
+            html += '</tbody></table></div>';
+            document.getElementById('fact-results').innerHTML = html;
+        } else {
+            document.getElementById('fact-results').innerHTML = '<div class="text-center text-base-content/40 py-4">No facts found.</div>';
+        }
+
+        // Deep results
+        var deepResults = (data.deep || {}).results || [];
+        updateBadge('badge-deep', deepResults.length);
+        if (deepResults.length) {
+            var dhtml = '<div class="text-sm text-base-content/50 mb-2">' + deepResults.length + ' results</div>' +
+                '<div class="overflow-x-auto"><table class="table table-sm"><thead><tr>' +
+                '<th>Person</th><th>Category</th><th>Fact</th><th>Amount</th><th>Counterparty</th><th>Date</th><th>Conf.</th>' +
+                '</tr></thead><tbody>';
+            for (var j = 0; j < deepResults.length; j++) {
+                var f = deepResults[j];
+                var amt = f.amount && f.amount !== 'nan' && f.amount !== '' ? escapeHtml(f.amount) + ' ' + escapeHtml(f.currency || '') : '';
+                var dsl = f.source_link ? ' <a href="' + escapeHtml(f.source_link) + '" class="text-primary hover:underline">&#128279;</a>' : '';
+                dhtml += '<tr class="hover">' +
+                    '<td class="font-medium">' + escapeHtml(f.subject || '') + '</td>' +
+                    '<td><span class="badge badge-xs ' + deepCategoryColor(f.category) + '">' + escapeHtml(f.category || '') + '</span></td>' +
+                    '<td>' + escapeHtml(predicateLabel(f.predicate || '')) + ': ' + escapeHtml(f.object || '') + '</td>' +
+                    '<td class="text-xs">' + amt + '</td>' +
+                    '<td class="text-xs">' + escapeHtml(f.counterparty || '') + dsl + '</td>' +
+                    '<td class="text-xs">' + escapeHtml((f.source_date || '').substring(0, 10)) + '</td>' +
+                    '<td><span class="badge badge-xs ' + (f.confidence === 'high' ? 'badge-success' : f.confidence === 'medium' ? 'badge-warning' : 'badge-ghost') + '">' + escapeHtml(f.confidence || '') + '</span></td></tr>';
+            }
+            dhtml += '</tbody></table></div>';
+            document.getElementById('deep-results').innerHTML = dhtml;
+        } else {
+            document.getElementById('deep-results').innerHTML = '<div class="text-center text-base-content/40 py-4">No deep results.</div>';
+        }
+
+    } catch(err) {
+        ['search-loading', 'fact-loading', 'deep-loading'].forEach(function(id) {
+            document.getElementById(id).classList.add('hidden');
+        });
+        document.getElementById('search-results').innerHTML = '<div class="alert alert-error">Error: ' + err.message + '</div>';
+    }
+}
+</script>
+{% endblock %}

@@ -1,0 +1,102 @@
+<!-- Knowledge Review partial — conflict review with evidence and action buttons -->
+
+{% if conflicts %}
+<div class="space-y-3">
+    <p class="text-sm text-base-content/60 mb-2">{{ conflicts|length }} conflict{{ "s" if conflicts|length != 1 }} pending review</p>
+
+    {% for c in conflicts %}
+    <div class="card bg-base-100 shadow-sm" id="kh-conflict-{{ loop.index }}">
+        <div class="card-body p-4">
+            <div class="flex items-start justify-between">
+                <div>
+                    <h4 class="font-semibold">{{ c.entity_id }}</h4>
+                    <span class="badge badge-neutral badge-sm">{{ c.attribute }}</span>
+                </div>
+                {% set conf = c.get("confidence", c.get("new_fact", {}).get("confidence", 0)) %}
+                {% if conf >= 0.7 %}
+                <span class="badge badge-success badge-sm">{{ "%.0f"|format(conf * 100) }}%</span>
+                {% elif conf >= 0.5 %}
+                <span class="badge badge-warning badge-sm">{{ "%.0f"|format(conf * 100) }}%</span>
+                {% else %}
+                <span class="badge badge-error badge-sm">{{ "%.0f"|format(conf * 100) }}%</span>
+                {% endif %}
+            </div>
+
+            <!-- Evidence -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+                <div class="bg-base-200 rounded p-3">
+                    <div class="text-xs font-semibold text-base-content/60 mb-1">Current value</div>
+                    {% set existing = c.get("existing_fact", {}) %}
+                    <div class="text-sm font-medium">{{ existing.get("value", "N/A") }}</div>
+                    <div class="text-xs text-base-content/50 mt-1">Source: {{ existing.get("source", {}).get("source_type", "unknown") }}</div>
+                </div>
+                <div class="bg-base-200 rounded p-3">
+                    <div class="text-xs font-semibold text-base-content/60 mb-1">New value</div>
+                    {% set new_fact = c.get("new_fact", {}) %}
+                    <div class="text-sm font-medium">{{ new_fact.get("value", "N/A") }}</div>
+                    <div class="text-xs text-base-content/50 mt-1">Source: {{ new_fact.get("source", {}).get("source_type", "unknown") }}</div>
+                </div>
+            </div>
+
+            <!-- Action buttons -->
+            <div class="flex gap-2 mt-3">
+                <button class="btn btn-sm btn-success"
+                        onclick="resolveConflict('{{ c.conflict_id }}', 'accept_new', this)">
+                    Accept New
+                </button>
+                <button class="btn btn-sm btn-ghost"
+                        onclick="resolveConflict('{{ c.conflict_id }}', 'keep_old', this)">
+                    Keep Old
+                </button>
+                <button class="btn btn-sm btn-ghost"
+                        onclick="this.closest('.card').classList.add('opacity-30')">
+                    Skip
+                </button>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12 text-base-content/50">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto mb-3 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    <p class="font-medium">No conflicts pending review</p>
+    <p class="text-sm mt-1">All knowledge is consistent.</p>
+</div>
+{% endif %}
+
+<script>
+function resolveConflict(conflictId, action, btn) {
+    var card = btn.closest('.card');
+    card.classList.add('opacity-50');
+    btn.disabled = true;
+
+    fetch('/api/knowledge/conflicts/resolve', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-SBK-CSRF': '1'
+        },
+        body: JSON.stringify({
+            conflict_id: conflictId,
+            action: action
+        })
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+        if (data.status === 'resolved') {
+            card.innerHTML = '<div class="card-body p-4 text-center text-success text-sm">Resolved (' + action.replace('_', ' ') + ')</div>';
+        } else {
+            card.classList.remove('opacity-50');
+            btn.disabled = false;
+            if (typeof showToast === 'function') showToast(data.detail || 'Error', 'error');
+        }
+    })
+    .catch(function() {
+        card.classList.remove('opacity-50');
+        btn.disabled = false;
+    });
+}
+</script>

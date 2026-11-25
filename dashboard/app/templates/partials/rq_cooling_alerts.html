@@ -1,0 +1,38 @@
+<div class="card bg-base-100 shadow-sm">
+    <div class="card-body p-4">
+        <h3 class="card-title text-sm font-semibold text-error">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/>
+            </svg>
+            Cooling Relationships
+            <span class="badge badge-error badge-sm">{{ cooling_alerts|length }}</span>
+        </h3>
+        <div class="space-y-2 mt-2 max-h-64 overflow-y-auto">
+            {% for alert in cooling_alerts[:10] %}
+            <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50 hover:bg-base-200">
+                <div class="min-w-0 flex-1">
+                    <div class="font-medium text-sm truncate">{{ alert.person }}</div>
+                    <div class="text-xs text-base-content/60">
+                        {{ alert.relationship_type|default('', true)|replace('_', ' ')|title }}
+                        {% if alert.last_interaction %}
+                        &middot; Last: {{ alert.last_interaction[:10] }}
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="text-right shrink-0 ml-2">
+                    <span class="text-sm font-mono">
+                        {% if alert.previous_score and alert.previous_score != alert.score %}
+                        <span class="text-base-content/50">{{ "%.1f"|format(alert.previous_score) }}</span>
+                        <span class="text-error">&rarr; {{ "%.1f"|format(alert.score) }}</span>
+                        {% else %}
+                        <span class="text-error">{{ "%.1f"|format(alert.score) }}</span>
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+            {% else %}
+            <p class="text-sm text-base-content/50 py-4 text-center">No relationship cooling</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>

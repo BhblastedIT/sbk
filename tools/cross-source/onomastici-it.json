@@ -1,0 +1,710 @@
+{
+ "_schema": 1,
+ "_cosa": "Onomastici del calendario italiano per nome di battesimo, e soprannomi. Conoscenza generale, nessun dato personale. certezza alta = data univoca e diffusa; media = piu' santi o uso regionale, NON produce onomastici automatici. Si allarga solo da un calendario dei santi pubblicato, mai a memoria.",
+ "santi": {
+  "achille": {
+   "mmdd": "05-12",
+   "santo": "Santi Nereo e Achilleo",
+   "certezza": "media",
+   "nota": "santo poco festeggiato"
+  },
+  "agata": {
+   "mmdd": "02-05",
+   "santo": "Sant'Agata",
+   "certezza": "alta"
+  },
+  "agnese": {
+   "mmdd": "01-21",
+   "santo": "Sant'Agnese",
+   "certezza": "alta"
+  },
+  "agostino": {
+   "mmdd": "08-28",
+   "santo": "Sant'Agostino",
+   "certezza": "alta"
+  },
+  "alberto": {
+   "mmdd": "11-15",
+   "santo": "Sant'Alberto Magno",
+   "certezza": "alta"
+  },
+  "alfonso": {
+   "mmdd": "08-01",
+   "santo": "Sant'Alfonso Maria de' Liguori",
+   "certezza": "alta"
+  },
+  "ambrogio": {
+   "mmdd": "12-07",
+   "santo": "Sant'Ambrogio",
+   "certezza": "alta"
+  },
+  "andrea": {
+   "mmdd": "11-30",
+   "santo": "Sant'Andrea",
+   "certezza": "alta"
+  },
+  "angela": {
+   "mmdd": "01-27",
+   "santo": "Sant'Angela Merici",
+   "certezza": "alta"
+  },
+  "angelo": {
+   "mmdd": "10-02",
+   "santo": "Santi Angeli Custodi",
+   "certezza": "media",
+   "nota": "uso popolare"
+  },
+  "anna": {
+   "mmdd": "07-26",
+   "santo": "Santi Anna e Gioacchino",
+   "certezza": "alta"
+  },
+  "annunziata": {
+   "mmdd": "03-25",
+   "santo": "Annunciazione",
+   "certezza": "alta"
+  },
+  "anselmo": {
+   "mmdd": "04-21",
+   "santo": "Sant'Anselmo",
+   "certezza": "alta"
+  },
+  "antonella": {
+   "mmdd": "06-13",
+   "santo": "Sant'Antonio di Padova",
+   "certezza": "media",
+   "nota": "derivato da Antonio"
+  },
+  "antonio": {
+   "mmdd": "06-13",
+   "santo": "Sant'Antonio di Padova",
+   "certezza": "alta",
+   "alternative": [
+    "01-17"
+   ],
+   "nota": "il 17/01 e' Sant'Antonio abate; al sud si festeggia il 13/06"
+  },
+  "assunta": {
+   "mmdd": "08-15",
+   "santo": "Assunzione",
+   "certezza": "alta"
+  },
+  "barbara": {
+   "mmdd": "12-04",
+   "santo": "Santa Barbara",
+   "certezza": "alta"
+  },
+  "bartolomeo": {
+   "mmdd": "08-24",
+   "santo": "San Bartolomeo",
+   "certezza": "alta"
+  },
+  "benedetto": {
+   "mmdd": "07-11",
+   "santo": "San Benedetto",
+   "certezza": "alta",
+   "alternative": [
+    "03-21"
+   ],
+   "nota": "03-21 calendario vecchio"
+  },
+  "bernardo": {
+   "mmdd": "08-20",
+   "santo": "San Bernardo",
+   "certezza": "alta"
+  },
+  "biagio": {
+   "mmdd": "02-03",
+   "santo": "San Biagio",
+   "certezza": "alta"
+  },
+  "bruno": {
+   "mmdd": "10-06",
+   "santo": "San Bruno",
+   "certezza": "alta"
+  },
+  "camillo": {
+   "mmdd": "07-14",
+   "santo": "San Camillo de Lellis",
+   "certezza": "alta"
+  },
+  "carlo": {
+   "mmdd": "11-04",
+   "santo": "San Carlo Borromeo",
+   "certezza": "alta"
+  },
+  "carmela": {
+   "mmdd": "07-16",
+   "santo": "Madonna del Carmine",
+   "certezza": "alta"
+  },
+  "carmine": {
+   "mmdd": "07-16",
+   "santo": "Madonna del Carmine",
+   "certezza": "alta"
+  },
+  "caterina": {
+   "mmdd": "04-29",
+   "santo": "Santa Caterina da Siena",
+   "certezza": "alta",
+   "alternative": [
+    "11-25"
+   ],
+   "nota": "11-25 Caterina d'Alessandria"
+  },
+  "cecilia": {
+   "mmdd": "11-22",
+   "santo": "Santa Cecilia",
+   "certezza": "alta"
+  },
+  "chiara": {
+   "mmdd": "08-11",
+   "santo": "Santa Chiara",
+   "certezza": "alta"
+  },
+  "ciro": {
+   "mmdd": "01-31",
+   "santo": "San Ciro",
+   "certezza": "media"
+  },
+  "concetta": {
+   "mmdd": "12-08",
+   "santo": "Immacolata Concezione",
+   "certezza": "alta"
+  },
+  "cristina": {
+   "mmdd": "07-24",
+   "santo": "Santa Cristina",
+   "certezza": "alta"
+  },
+  "cristoforo": {
+   "mmdd": "07-25",
+   "santo": "San Cristoforo",
+   "certezza": "alta"
+  },
+  "david": {
+   "mmdd": "12-29",
+   "santo": "San Davide",
+   "certezza": "alta"
+  },
+  "davide": {
+   "mmdd": "12-29",
+   "santo": "San Davide",
+   "certezza": "alta"
+  },
+  "domenico": {
+   "mmdd": "08-08",
+   "santo": "San Domenico",
+   "certezza": "alta"
+  },
+  "edoardo": {
+   "mmdd": "10-13",
+   "santo": "Sant'Edoardo",
+   "certezza": "alta"
+  },
+  "egidio": {
+   "mmdd": "09-01",
+   "santo": "Sant'Egidio",
+   "certezza": "alta"
+  },
+  "elena": {
+   "mmdd": "08-18",
+   "santo": "Sant'Elena",
+   "certezza": "alta"
+  },
+  "elia": {
+   "mmdd": "07-20",
+   "santo": "Sant'Elia",
+   "certezza": "alta"
+  },
+  "enrico": {
+   "mmdd": "07-13",
+   "santo": "Sant'Enrico",
+   "certezza": "alta"
+  },
+  "federico": {
+   "mmdd": "07-18",
+   "santo": "San Federico",
+   "certezza": "media"
+  },
+  "felice": {
+   "mmdd": "01-14",
+   "santo": "San Felice",
+   "certezza": "media",
+   "nota": "piu' santi con questo nome"
+  },
+  "filippo": {
+   "mmdd": "05-26",
+   "santo": "San Filippo Neri",
+   "certezza": "media",
+   "alternative": [
+    "05-03"
+   ],
+   "nota": "05-03 Santi Filippo e Giacomo"
+  },
+  "francesca": {
+   "mmdd": "03-09",
+   "santo": "Santa Francesca Romana",
+   "certezza": "alta"
+  },
+  "francesco": {
+   "mmdd": "10-04",
+   "santo": "San Francesco d'Assisi",
+   "certezza": "alta"
+  },
+  "gabriele": {
+   "mmdd": "09-29",
+   "santo": "Santi Arcangeli",
+   "certezza": "alta"
+  },
+  "gaetana": {
+   "mmdd": "08-07",
+   "santo": "San Gaetano",
+   "certezza": "alta"
+  },
+  "gaetano": {
+   "mmdd": "08-07",
+   "santo": "San Gaetano",
+   "certezza": "alta"
+  },
+  "gennaro": {
+   "mmdd": "09-19",
+   "santo": "San Gennaro",
+   "certezza": "alta"
+  },
+  "giacomo": {
+   "mmdd": "07-25",
+   "santo": "San Giacomo",
+   "certezza": "alta"
+  },
+  "gianna": {
+   "mmdd": "04-28",
+   "santo": "Santa Gianna Beretta Molla",
+   "certezza": "media"
+  },
+  "giorgio": {
+   "mmdd": "04-23",
+   "santo": "San Giorgio",
+   "certezza": "alta"
+  },
+  "giovanna": {
+   "mmdd": "05-30",
+   "santo": "Santa Giovanna d'Arco",
+   "certezza": "media"
+  },
+  "giovanni": {
+   "mmdd": "06-24",
+   "santo": "San Giovanni Battista",
+   "certezza": "alta",
+   "alternative": [
+    "12-27"
+   ],
+   "nota": "12-27 Giovanni evangelista"
+  },
+  "girolamo": {
+   "mmdd": "09-30",
+   "santo": "San Girolamo",
+   "certezza": "alta"
+  },
+  "giulia": {
+   "mmdd": "05-22",
+   "santo": "Santa Giulia",
+   "certezza": "media"
+  },
+  "giuseppe": {
+   "mmdd": "03-19",
+   "santo": "San Giuseppe",
+   "certezza": "alta"
+  },
+  "giuseppina": {
+   "mmdd": "03-19",
+   "santo": "San Giuseppe",
+   "certezza": "alta"
+  },
+  "gregorio": {
+   "mmdd": "09-03",
+   "santo": "San Gregorio Magno",
+   "certezza": "alta"
+  },
+  "guglielmo": {
+   "mmdd": "06-25",
+   "santo": "San Guglielmo da Vercelli",
+   "certezza": "alta"
+  },
+  "ignazio": {
+   "mmdd": "07-31",
+   "santo": "Sant'Ignazio di Loyola",
+   "certezza": "alta"
+  },
+  "irene": {
+   "mmdd": "10-20",
+   "santo": "Sant'Irene",
+   "certezza": "media"
+  },
+  "isidoro": {
+   "mmdd": "04-04",
+   "santo": "Sant'Isidoro",
+   "certezza": "media",
+   "alternative": [
+    "05-15"
+   ],
+   "nota": "05-15 Isidoro agricoltore"
+  },
+  "leo": {
+   "mmdd": "11-06",
+   "santo": "San Leonardo",
+   "certezza": "media",
+   "nota": "derivato da Leonardo"
+  },
+  "leonardo": {
+   "mmdd": "11-06",
+   "santo": "San Leonardo",
+   "certezza": "alta"
+  },
+  "lidia": {
+   "mmdd": "08-03",
+   "santo": "Santa Lidia",
+   "certezza": "media"
+  },
+  "lorenzo": {
+   "mmdd": "08-10",
+   "santo": "San Lorenzo",
+   "certezza": "alta"
+  },
+  "luca": {
+   "mmdd": "10-18",
+   "santo": "San Luca",
+   "certezza": "alta"
+  },
+  "lucia": {
+   "mmdd": "12-13",
+   "santo": "Santa Lucia",
+   "certezza": "alta"
+  },
+  "ludovico": {
+   "mmdd": "08-25",
+   "santo": "San Ludovico",
+   "certezza": "alta"
+  },
+  "luigi": {
+   "mmdd": "06-21",
+   "santo": "San Luigi Gonzaga",
+   "certezza": "alta",
+   "alternative": [
+    "08-25"
+   ],
+   "nota": "08-25 Luigi IX re di Francia"
+  },
+  "marcello": {
+   "mmdd": "01-16",
+   "santo": "San Marcello",
+   "certezza": "alta"
+  },
+  "marco": {
+   "mmdd": "04-25",
+   "santo": "San Marco",
+   "certezza": "alta"
+  },
+  "margherita": {
+   "mmdd": "11-16",
+   "santo": "Santa Margherita di Scozia",
+   "certezza": "media",
+   "alternative": [
+    "10-16"
+   ]
+  },
+  "maria": {
+   "mmdd": "09-12",
+   "santo": "Santissimo Nome di Maria",
+   "certezza": "media",
+   "alternative": [
+    "08-15"
+   ],
+   "nota": "uso regionale: 15/08 in molte zone"
+  },
+  "mario": {
+   "mmdd": "01-19",
+   "santo": "San Mario",
+   "certezza": "alta"
+  },
+  "marta": {
+   "mmdd": "07-29",
+   "santo": "Santa Marta",
+   "certezza": "alta"
+  },
+  "martina": {
+   "mmdd": "01-30",
+   "santo": "Santa Martina",
+   "certezza": "alta"
+  },
+  "martino": {
+   "mmdd": "11-11",
+   "santo": "San Martino",
+   "certezza": "alta"
+  },
+  "matteo": {
+   "mmdd": "09-21",
+   "santo": "San Matteo",
+   "certezza": "alta"
+  },
+  "mattia": {
+   "mmdd": "05-14",
+   "santo": "San Mattia",
+   "certezza": "alta",
+   "alternative": [
+    "02-24"
+   ],
+   "nota": "02-24 calendario vecchio"
+  },
+  "maurizio": {
+   "mmdd": "09-22",
+   "santo": "San Maurizio",
+   "certezza": "alta"
+  },
+  "michele": {
+   "mmdd": "09-29",
+   "santo": "San Michele Arcangelo",
+   "certezza": "alta"
+  },
+  "miriam": {
+   "mmdd": "09-12",
+   "santo": "Santissimo Nome di Maria",
+   "certezza": "media",
+   "nota": "derivato da Maria"
+  },
+  "monica": {
+   "mmdd": "08-27",
+   "santo": "Santa Monica",
+   "certezza": "alta"
+  },
+  "nicola": {
+   "mmdd": "12-06",
+   "santo": "San Nicola",
+   "certezza": "alta"
+  },
+  "nicole": {
+   "mmdd": "12-06",
+   "santo": "San Nicola",
+   "certezza": "media",
+   "nota": "derivato da Nicola"
+  },
+  "olga": {
+   "mmdd": "07-11",
+   "santo": "Sant'Olga",
+   "certezza": "alta"
+  },
+  "paola": {
+   "mmdd": "01-26",
+   "santo": "Santa Paola",
+   "certezza": "media"
+  },
+  "paolo": {
+   "mmdd": "06-29",
+   "santo": "Santi Pietro e Paolo",
+   "certezza": "alta",
+   "alternative": [
+    "01-25"
+   ],
+   "nota": "01-25 conversione di San Paolo"
+  },
+  "pasquale": {
+   "mmdd": "05-17",
+   "santo": "San Pasquale Baylon",
+   "certezza": "alta"
+  },
+  "patrizio": {
+   "mmdd": "03-17",
+   "santo": "San Patrizio",
+   "certezza": "alta"
+  },
+  "pietro": {
+   "mmdd": "06-29",
+   "santo": "Santi Pietro e Paolo",
+   "certezza": "alta"
+  },
+  "pio": {
+   "mmdd": "09-23",
+   "santo": "San Pio da Pietrelcina",
+   "certezza": "alta"
+  },
+  "raffaele": {
+   "mmdd": "09-29",
+   "santo": "Santi Arcangeli",
+   "certezza": "alta"
+  },
+  "rita": {
+   "mmdd": "05-22",
+   "santo": "Santa Rita",
+   "certezza": "alta"
+  },
+  "roberto": {
+   "mmdd": "09-17",
+   "santo": "San Roberto Bellarmino",
+   "certezza": "media"
+  },
+  "rocco": {
+   "mmdd": "08-16",
+   "santo": "San Rocco",
+   "certezza": "alta"
+  },
+  "rosa": {
+   "mmdd": "08-23",
+   "santo": "Santa Rosa da Lima",
+   "certezza": "media",
+   "alternative": [
+    "09-04"
+   ],
+   "nota": "09-04 Santa Rosa da Viterbo"
+  },
+  "rosalia": {
+   "mmdd": "09-04",
+   "santo": "Santa Rosalia",
+   "certezza": "alta"
+  },
+  "rosaria": {
+   "mmdd": "10-07",
+   "santo": "Madonna del Rosario",
+   "certezza": "alta"
+  },
+  "rosario": {
+   "mmdd": "10-07",
+   "santo": "Madonna del Rosario",
+   "certezza": "alta"
+  },
+  "salvatore": {
+   "mmdd": "08-06",
+   "santo": "Trasfigurazione",
+   "certezza": "media",
+   "alternative": [
+    "03-18"
+   ],
+   "nota": "03-18 San Salvatore da Horta"
+  },
+  "sebastiano": {
+   "mmdd": "01-20",
+   "santo": "San Sebastiano",
+   "certezza": "alta"
+  },
+  "simone": {
+   "mmdd": "10-28",
+   "santo": "Santi Simone e Giuda",
+   "certezza": "alta"
+  },
+  "stefano": {
+   "mmdd": "12-26",
+   "santo": "Santo Stefano",
+   "certezza": "alta"
+  },
+  "teresa": {
+   "mmdd": "10-15",
+   "santo": "Santa Teresa d'Avila",
+   "certezza": "alta",
+   "alternative": [
+    "10-01"
+   ],
+   "nota": "10-01 Teresa di Lisieux"
+  },
+  "tommaso": {
+   "mmdd": "07-03",
+   "santo": "San Tommaso apostolo",
+   "certezza": "alta",
+   "alternative": [
+    "01-28"
+   ],
+   "nota": "01-28 Tommaso d'Aquino"
+  },
+  "valentino": {
+   "mmdd": "02-14",
+   "santo": "San Valentino",
+   "certezza": "alta"
+  },
+  "veronica": {
+   "mmdd": "07-09",
+   "santo": "Santa Veronica",
+   "certezza": "media"
+  },
+  "vincenzo": {
+   "mmdd": "04-05",
+   "santo": "San Vincenzo Ferrer",
+   "certezza": "media",
+   "alternative": [
+    "01-22",
+    "09-27"
+   ],
+   "nota": "altrove 22/01 o 27/09"
+  },
+  "vito": {
+   "mmdd": "06-15",
+   "santo": "San Vito",
+   "certezza": "alta"
+  },
+  "vittoria": {
+   "mmdd": "12-23",
+   "santo": "Santa Vittoria",
+   "certezza": "media"
+  }
+ },
+ "soprannomi": {
+  "enzo": {
+   "nomi": [
+    "Vincenzo",
+    "Lorenzo"
+   ],
+   "ambiguo": true
+  },
+  "franca": {
+   "nomi": [
+    "Francesca"
+   ],
+   "ambiguo": false
+  },
+  "gianluca": {
+   "nomi": [
+    "Luca"
+   ],
+   "ambiguo": false
+  },
+  "gigi": {
+   "nomi": [
+    "Luigi"
+   ],
+   "ambiguo": false
+  },
+  "miky": {
+   "nomi": [
+    "Michele"
+   ],
+   "ambiguo": false
+  },
+  "mimmo": {
+   "nomi": [
+    "Domenico"
+   ],
+   "ambiguo": false
+  },
+  "pasqualino": {
+   "nomi": [
+    "Pasquale"
+   ],
+   "ambiguo": false
+  },
+  "peppe": {
+   "nomi": [
+    "Giuseppe"
+   ],
+   "ambiguo": false
+  },
+  "peppino": {
+   "nomi": [
+    "Giuseppe"
+   ],
+   "ambiguo": false
+  },
+  "pino": {
+   "nomi": [
+    "Giuseppe"
+   ],
+   "ambiguo": false
+  }
+ }
+}

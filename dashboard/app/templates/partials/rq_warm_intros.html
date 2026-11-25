@@ -1,0 +1,28 @@
+<div class="card bg-base-100 shadow-sm">
+    <div class="card-body p-4">
+        <h3 class="card-title text-sm font-semibold">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+            </svg>
+            Warm Intro Paths
+            <span class="badge badge-sm">{{ warm_intros|length }}</span>
+        </h3>
+        <div class="space-y-2 mt-2 max-h-64 overflow-y-auto">
+            {% for intro in warm_intros[:8] %}
+            <div class="p-2 rounded-lg bg-base-200/50">
+                <div class="text-sm font-medium">{{ intro.target }}</div>
+                <div class="text-xs text-base-content/60">
+                    Via: <strong>{{ intro.bridge }}</strong>
+                    (score {{ "%.1f"|format(intro.bridge_score|default(0)) }})
+                </div>
+                <div class="text-xs text-base-content/50 mt-0.5">
+                    Path strength: {{ "%.1f"|format(intro.path_strength|default(0)) }}
+                    &middot; {{ intro.signals|default([])|length }} signals
+                </div>
+            </div>
+            {% else %}
+            <p class="text-sm text-base-content/50 py-4 text-center">No warm intro path available</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>

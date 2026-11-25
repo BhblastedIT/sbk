@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SBK — Entity Review</title>
+<style>
+:root {
+  --bg: #0d1117;
+  --bg2: #161b22;
+  --bg3: #1c2128;
+  --border: #2d333b;
+  --text: #cdd9e5;
+  --text2: #768390;
+  --text3: #545d68;
+  --blue: #539bf5;
+  --green: #57ab5a;
+  --red: #e5534b;
+  --yellow: #c69026;
+  --orange: #cc6b2c;
+  --purple: #b083f0;
+  --cyan: #39c5cf;
+  --mono: 'SF Mono','Consolas','Fira Code',monospace;
+  --sans: -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{height:100%;font-family:var(--sans);background:var(--bg);color:var(--text);font-size:13px;overflow:hidden;}
+.app{display:flex;flex-direction:column;height:100vh;}
+
+/* Top bar */
+.top{flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+.top h1{font-size:14px;font-weight:600;color:var(--blue);white-space:nowrap;}
+.top .info{font-size:12px;color:var(--text2);}
+.stats{display:flex;gap:12px;margin-left:auto;font-size:12px;color:var(--text2);}
+.stats span{white-space:nowrap;}
+.stats .n{font-weight:600;color:var(--text);}
+
+/* Filters */
+.filters{flex-shrink:0;background:var(--bg2);border-bottom:1px solid var(--border);padding:6px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+.filters input[type=text]{flex:1;max-width:280px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;outline:none;}
+.filters input[type=text]:focus{border-color:var(--blue);}
+.filters input[type=text]::placeholder{color:var(--text3);}
+.filters select{padding:4px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;outline:none;}
+.filters select option{background:var(--bg2);}
+.filters label{font-size:11px;color:var(--text2);}
+.sep{width:1px;height:18px;background:var(--border);}
+.fbtn{padding:4px 10px;border-radius:4px;border:1px solid var(--border);background:var(--bg3);color:var(--text);font-size:11px;cursor:pointer;white-space:nowrap;}
+.fbtn:hover{background:var(--border);}
+.fbtn.green{color:var(--green);border-color:rgba(87,171,90,0.4);}
+.fbtn.red{color:var(--red);border-color:rgba(229,83,75,0.4);}
+.fbtn.blue{color:var(--blue);border-color:rgba(83,155,245,0.4);}
+.fbtn.orange{color:var(--orange);border-color:rgba(204,107,44,0.4);}
+
+/* Table */
+.tbl-wrap{flex:1;overflow:auto;}
+.tbl-wrap::-webkit-scrollbar{width:6px;height:6px;}
+.tbl-wrap::-webkit-scrollbar-track{background:var(--bg);}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+table{width:100%;border-collapse:collapse;table-layout:fixed;}
+thead{position:sticky;top:0;z-index:10;}
+th{background:var(--bg2);border-bottom:2px solid var(--border);padding:6px 8px;text-align:left;font-size:11px;font-weight:600;color:var(--text2);text-transform:uppercase;letter-spacing:0.03em;cursor:pointer;white-space:nowrap;user-select:none;}
+th:hover{color:var(--text);}
+th.sorted{color:var(--blue);}
+th.sorted::after{content:' \u25B4';font-size:9px;}
+th.sorted.desc::after{content:' \u25BE';}
+td{padding:5px 8px;border-bottom:1px solid var(--border);vertical-align:top;font-size:12px;line-height:1.4;}
+tr{transition:background 80ms;}
+tr:hover{background:var(--bg3);}
+tr.active{background:rgba(83,155,245,0.08);}
+tr.merged{background:rgba(87,171,90,0.06);}
+tr.rejected{background:rgba(229,83,75,0.06);}
+tr.merged td,tr.rejected td{opacity:0.65;}
+tr.merged td:last-child,tr.rejected td:last-child{opacity:1;}
+
+/* Column widths */
+.c-idx{width:36px;text-align:center;}
+.c-score{width:56px;text-align:center;}
+.c-pa{width:22%;}
+.c-pb{width:22%;}
+.c-sig{width:auto;}
+.c-act{width:120px;text-align:center;}
+
+/* Cell content */
+.nm{font-weight:500;color:var(--text);}
+.em{font-family:var(--mono);font-size:11px;color:var(--text2);word-break:break-all;}
+.em .dh{color:var(--green);font-weight:500;}
+.org{font-size:11px;color:var(--text2);margin-top:1px;}
+.org .mh{color:var(--green);}
+.ph{font-size:11px;color:var(--text2);font-family:var(--mono);}
+.ph .mh{color:var(--green);}
+.inter{font-size:10px;color:var(--text3);margin-top:2px;}
+.lnk{font-size:10px;color:var(--cyan);text-decoration:none;}
+.lnk:hover{text-decoration:underline;}
+.lseen{font-size:10px;color:var(--text3);font-family:var(--mono);}
+
+/* Source pills small */
+.pills{display:flex;flex-wrap:wrap;gap:2px;margin-top:2px;}
+.pl{display:inline-block;padding:0 5px;border-radius:8px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.02em;line-height:16px;}
+.pl.email{background:rgba(83,155,245,0.15);color:var(--blue);}
+.pl.linkedin{background:rgba(57,197,207,0.15);color:var(--cyan);}
+.pl.slack{background:rgba(176,131,240,0.15);color:var(--purple);}
+.pl.iphone{background:rgba(87,171,90,0.15);color:var(--green);}
+.pl.attio{background:rgba(204,107,44,0.15);color:var(--orange);}
+.pl.calendar{background:rgba(198,144,38,0.15);color:var(--yellow);}
+.pl.whatsapp{background:rgba(37,211,102,0.15);color:#25d366;}
+.pl.plaud{background:rgba(46,168,138,0.15);color:#2ea88a;}
+.pl.tactiq{background:rgba(255,107,107,0.15);color:#ff6b6b;}
+.pl.personio{background:rgba(255,182,72,0.15);color:#ffb648;}
+.pl.docusign{background:rgba(255,214,0,0.15);color:#c8a800;}
+.pl.notion{background:rgba(255,255,255,0.08);color:var(--text2);}
+
+/* Score badge */
+.score{font-family:var(--mono);font-size:13px;font-weight:700;display:inline-block;width:32px;text-align:center;}
+.score.hi{color:var(--green);}
+.score.mi{color:var(--yellow);}
+.score.lo{color:var(--red);}
+.score-bar{display:block;height:3px;border-radius:2px;margin-top:3px;}
+.score-bar.hi{background:var(--green);}
+.score-bar.mi{background:var(--yellow);}
+.score-bar.lo{background:var(--red);}
+
+/* Auto-decision badge */
+.auto-badge{display:inline-block;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:0.03em;margin-bottom:3px;}
+.auto-badge.am{background:rgba(87,171,90,0.15);color:var(--green);border:1px solid rgba(87,171,90,0.3);}
+.auto-badge.ar{background:rgba(229,83,75,0.15);color:var(--red);border:1px solid rgba(229,83,75,0.3);}
+.auto-reason{font-size:9px;color:var(--text3);display:block;margin-top:1px;max-width:110px;line-height:1.2;}
+
+/* Signals */
+.sig{font-size:11px;line-height:1.5;}
+.sig-row{display:flex;align-items:flex-start;gap:4px;margin-bottom:1px;}
+.sig-icon{flex-shrink:0;font-size:10px;width:14px;text-align:center;margin-top:1px;}
+.sig-icon.pos{color:var(--green);}
+.sig-icon.neg{color:var(--red);}
+.sig-icon.neu{color:var(--yellow);}
+.sig-text{color:var(--text2);flex:1;}
+.sig-text.pos{color:var(--green);}
+.sig-text.neg{color:var(--red);}
+.sig-text.neu{color:var(--text2);}
+.rec{font-size:11px;font-weight:600;padding:3px 0;margin-bottom:3px;line-height:1.3;}
+.rec.rg{color:var(--green);}
+.rec.ry{color:var(--yellow);}
+.rec.rr{color:var(--red);}
+.surname-det{font-size:10px;color:var(--text3);font-family:var(--mono);margin-top:2px;padding-top:2px;border-top:1px solid var(--border);}
+
+/* Action btns */
+.abtn{padding:3px 10px;border-radius:3px;border:1px solid var(--border);background:transparent;font-size:11px;cursor:pointer;font-weight:500;transition:all 80ms;}
+.abtn.mg{color:var(--green);border-color:rgba(87,171,90,0.4);}
+.abtn.mg:hover{background:rgba(87,171,90,0.15);}
+.abtn.rj{color:var(--red);border-color:rgba(229,83,75,0.4);}
+.abtn.rj:hover{background:rgba(229,83,75,0.15);}
+.abtn.cfm{color:#fff;background:rgba(87,171,90,0.3);border-color:rgba(87,171,90,0.5);font-size:10px;}
+.abtn.cfm:hover{background:rgba(87,171,90,0.5);}
+.abtn.ovr{color:var(--text2);border-color:var(--border);font-size:10px;}
+.abtn.ovr:hover{background:var(--border);}
+.dbg{font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:3px;}
+.dbg.dm{color:var(--green);}
+.dbg.dr{color:var(--red);}
+.dbg .ub{background:none;border:none;color:inherit;cursor:pointer;font-size:13px;opacity:0.4;padding:0;}
+.dbg .ub:hover{opacity:1;}
+
+/* Drop zone */
+.dzo{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:var(--bg);}
+.dz{width:480px;max-width:90vw;padding:48px 36px;border:2px dashed var(--border);border-radius:12px;text-align:center;background:var(--bg2);}
+.dz.dragover{border-color:var(--blue);}
+.dz h2{font-size:18px;font-weight:600;margin-bottom:6px;color:var(--blue);}
+.dz p{color:var(--text2);margin-bottom:20px;font-size:13px;}
+.dz .fil{display:inline-block;padding:8px 24px;border-radius:6px;background:var(--blue);color:#fff;font-weight:600;font-size:13px;cursor:pointer;}
+.dz .fil:hover{opacity:0.9;}
+.dz input[type=file]{display:none;}
+.dz .fp{display:block;margin-top:12px;color:var(--text3);font-size:10px;font-family:var(--mono);}
+
+/* KB hint */
+.kbh{flex-shrink:0;background:var(--bg2);border-top:1px solid var(--border);padding:4px 16px;font-size:10px;color:var(--text3);display:flex;gap:12px;}
+.kbh kbd{padding:1px 4px;background:var(--bg3);border:1px solid var(--border);border-radius:2px;font-family:var(--mono);font-size:9px;color:var(--text2);}
+
+/* Toast */
+.tc{position:fixed;bottom:36px;right:16px;z-index:200;}
+.toast{padding:8px 14px;border-radius:4px;background:var(--bg3);border:1px solid var(--border);color:var(--text);font-size:12px;opacity:0;transform:translateX(16px);transition:all 0.25s;}
+.toast.show{opacity:1;transform:translateX(0);}
+
+.empty{text-align:center;padding:60px;color:var(--text3);font-size:13px;}
+.hidden{display:none!important;}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <div class="dzo" id="dzo">
+    <div class="dz" id="dz">
+      <h2>SBK Entity Review</h2>
+      <p>Load entity-review-enriched.json</p>
+      <label class="fil">Choose file<input type="file" id="fi" accept=".json"></label>
+      <span class="fp">~/.sbk-data/enriched/entity-review-enriched.json</span>
+    </div>
+  </div>
+
+  <div class="top hidden" id="top">
+    <h1>Entity Review</h1>
+    <span class="info" id="info"></span>
+    <div class="stats">
+      <span><span class="n" id="sT">0</span> total</span>
+      <span><span class="n" id="sP">0</span> pending</span>
+      <span style="color:var(--green)"><span class="n" id="sM">0</span> merged</span>
+      <span style="color:var(--red)"><span class="n" id="sR">0</span> rejected</span>
+      <span><span class="n" id="sF">0</span> visible</span>
+    </div>
+  </div>
+
+  <div class="filters hidden" id="filters">
+    <input type="text" id="q" placeholder="Search name, email, company, signal...">
+    <label>Status</label>
+    <select id="fSt"><option value="all">All</option><option value="pending">Pending</option><option value="merged">Merged</option><option value="rejected">Rejected</option></select>
+    <label>Auto</label>
+    <select id="fAu"><option value="all">All</option><option value="merge">Auto-merge</option><option value="reject">Auto-reject</option><option value="none">To verify</option></select>
+    <label>Score</label>
+    <select id="fSc"><option value="all">All</option><option value="80+">80+</option><option value="60+">60+</option><option value="40+">40+</option><option value="0-40">&lt;40</option><option value="0-60">&lt;60</option></select>
+    <label>Type</label>
+    <select id="fRe"><option value="all">All</option></select>
+    <div class="sep"></div>
+    <button class="fbtn green" id="bCAM" title="Confirm all auto-merge suggestions">Confirm auto-merge</button>
+    <button class="fbtn red" id="bCAR" title="Confirm all auto-reject suggestions">Confirm auto-reject</button>
+    <div class="sep"></div>
+    <button class="fbtn green" id="bMA">Merge visible</button>
+    <button class="fbtn red" id="bRA">Reject visible</button>
+    <div class="sep"></div>
+    <button class="fbtn blue" id="bEx">Export</button>
+    <button class="fbtn" id="bLd">Load</button>
+  </div>
+
+  <div class="tbl-wrap hidden" id="tw">
+    <table>
+      <thead><tr>
+        <th class="c-idx" data-col="idx">#</th>
+        <th class="c-score" data-col="score">Score</th>
+        <th class="c-pa" data-col="nameA">Person A</th>
+        <th class="c-pb" data-col="nameB">Person B</th>
+        <th class="c-sig">Signals</th>
+        <th class="c-act" data-col="auto">Action</th>
+      </tr></thead>
+      <tbody id="tb"></tbody>
+    </table>
+    <div class="empty hidden" id="emp">No results</div>
+  </div>
+
+  <div class="kbh hidden" id="kbh">
+    <span><kbd>M</kbd> Merge</span>
+    <span><kbd>R</kbd> Reject</span>
+    <span><kbd>C</kbd> Confirm auto</span>
+    <span><kbd>Space</kbd> Skip</span>
+    <span><kbd>U</kbd> Undo</span>
+    <span><kbd>&uarr;&darr;</kbd> Navigate</span>
+    <span><kbd>Ctrl+E</kbd> Export</span>
+    <span><kbd>Ctrl+F</kbd> Search</span>
+  </div>
+</div>
+<div class="tc" id="tc"></div>
+
+<script>
+(function(){
+'use strict';
+let items=[],decs={},filt=[],aRow=-1,sortCol='score',sortDir='desc';
+const SK='sbk-er-d',SH='sbk-er-h';
+const $=id=>document.getElementById(id);
+
+function esc(s){return s?s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function hsh(s){let h=0;for(let i=0;i<s.length;i++){h=((h<<5)-h)+s.charCodeAt(i);h|=0;}return h.toString(36)}
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;$('tc').appendChild(t);requestAnimationFrame(()=>t.classList.add('show'));setTimeout(()=>{t.classList.remove('show');setTimeout(()=>t.remove(),300)},2500)}
+
+function keys(it){return it.keys||it.emails||[]}
+function dom(k){return(k&&k.includes('@')&&!k.startsWith('nameonly:'))?k.split('@')[1]:''}
+function rpfx(r){if(!r)return'';const i=r.indexOf('(');return(i>0?r.substring(0,i):r).trim()}
+
+function gp(it,i){
+  if(it.persons&&it.persons[i])return it.persons[i];
+  const k=keys(it),n=it.names||[];
+  return{name:n[i]||null,key:k[i]||null,sources:[],organization:null,phone:null,linkedin_url:null,interaction_summary:null,last_seen:null,email_count:0,domain:null};
+}
+
+function fmtKey(k){
+  if(!k)return{d:'',s:'',e:false};
+  if(k.startsWith('nameonly:')){const p=k.split(':');return{d:p.slice(2).join(':'),s:p[1],e:false};}
+  if(k.startsWith('phone:'))return{d:k.substring(6),s:'phone',e:false};
+  if(k.startsWith('linkedin:'))return{d:k.substring(9),s:'linkedin',e:false};
+  return{d:k,s:'',e:k.includes('@')};
+}
+
+function plCls(s){
+  const l=s.toLowerCase();
+  if(l==='email')return'email';if(l==='linkedin')return'linkedin';if(l==='slack')return'slack';
+  if(l==='iphone'||l==='contacts')return'iphone';if(l==='attio')return'attio';if(l==='calendar')return'calendar';
+  if(l==='whatsapp')return'whatsapp';if(l==='plaud')return'plaud';if(l==='tactiq')return'tactiq';
+  if(l==='personio')return'personio';if(l==='docusign')return'docusign';if(l==='notion')return'notion';
+  return'';
+}
+
+function scoreCls(s){return s>=70?'hi':s>=40?'mi':'lo'}
+
+function cellPerson(p,other,sameDom){
+  let h='';
+  const fk=fmtKey(p.key);
+  const psrc=p.primary_source||fk.s||'';
+  if(psrc)h+='<div style="margin-bottom:2px"><span class="pl '+plCls(psrc)+'" style="font-size:8px">FROM '+esc(psrc.toUpperCase())+'</span></div>';
+  h+='<div class="nm">'+esc(p.name||'\u2014');
+  if(p.email_count>0)h+=' <span style="font-size:10px;color:var(--text3)">('+p.email_count+' email)</span>';
+  h+='</div>';
+  if(fk.d){
+    let kd=esc(fk.d);
+    if(sameDom&&fk.e){const at=fk.d.indexOf('@');if(at>0)kd=esc(fk.d.substring(0,at+1))+'<span class="dh">'+esc(fk.d.substring(at+1))+'</span>';}
+    h+='<div class="em">'+kd;
+    if(fk.s&&fk.s!==psrc.toLowerCase())h+=' <span style="color:var(--text3)">('+esc(fk.s)+')</span>';
+    h+='</div>';
+  }
+  if(p.organization){
+    const same=other&&other.organization&&p.organization.toLowerCase().trim()===other.organization.toLowerCase().trim();
+    h+='<div class="org">'+(same?'<span class="mh">':'')+'&#x1F3E2; '+esc(p.organization)+(same?'</span>':'')+'</div>';
+  }
+  if(p.phone){
+    const same=other&&other.phone&&p.phone===other.phone;
+    h+='<div class="ph">'+(same?'<span class="mh">':'')+'&#x1F4F1; '+esc(p.phone)+(same?'</span>':'')+'</div>';
+  }
+  if(p.linkedin_url){
+    const slug=p.linkedin_url.includes('/in/')?p.linkedin_url.split('/in/')[1]?.substring(0,25):'link';
+    const same=other&&other.linkedin_url&&p.linkedin_url===other.linkedin_url;
+    h+='<a class="lnk" href="'+esc(p.linkedin_url)+'" target="_blank">&#x1F517; '+esc(slug)+'</a>';
+    if(same)h+=' <span style="color:var(--green);font-size:9px;font-weight:600">SAME</span>';
+  }
+  if(p.interaction_summary)h+='<div class="inter">'+esc(p.interaction_summary)+'</div>';
+  if(p.last_seen)h+='<div class="lseen">'+esc(p.last_seen)+'</div>';
+  return h;
+}
+
+function cellSignals(it,pA,pB){
+  let h='<div class="sig">';
+  // Recommendation line
+  const rec=it.recommendation||'';
+  if(rec){
+    const rcls=rec.includes('stessa persona')?'rg':rec.includes('diverse')?'rr':'ry';
+    h+='<div class="rec '+rcls+'">'+esc(rec)+'</div>';
+  }
+  // Enriched signals from backend
+  if(it.signals&&it.signals.length){
+    const sorted=[...it.signals].sort((a,b)=>{
+      const order={positive:0,negative:1,neutral:2};
+      const oa=order[a.type]??2,ob=order[b.type]??2;
+      if(oa!==ob)return oa-ob;
+      return(b.weight||0)-(a.weight||0);
+    });
+    for(const s of sorted){
+      const icon=s.type==='positive'?'\u2713':s.type==='negative'?'\u2717':'\u25CB';
+      const icls=s.type==='positive'?'pos':s.type==='negative'?'neg':'neu';
+      h+='<div class="sig-row"><span class="sig-icon '+icls+'">'+icon+'</span><span class="sig-text '+icls+'">'+esc(s.text)+'</span></div>';
+    }
+  }
+  // Surname analysis detail
+  const sa=it.surname_analysis;
+  if(sa){
+    let parts=[];
+    if(sa.surname_a&&sa.surname_b)parts.push(esc(sa.surname_a)+' vs '+esc(sa.surname_b));
+    if(sa.edit_distance!==undefined&&sa.edit_distance!==null)parts.push('edit dist: '+sa.edit_distance);
+    if(sa.is_diminutive)parts.push('diminutive');
+    if(sa.category)parts.push(esc(sa.category));
+    if(parts.length)h+='<div class="surname-det">'+parts.join(' \u2022 ')+'</div>';
+  }
+  h+='</div>';
+  return h;
+}
+
+function cellAction(idx,d,it){
+  let h='';
+  const ad=it.auto_decision;
+  const ar=it.auto_reason;
+  if(d){
+    // Already decided
+    const bc=d==='merged'?'dm':'dr',lb=d==='merged'?'Merged':'Rejected';
+    h+='<span class="dbg '+bc+'">'+lb+' <button class="ub" data-a="undo" data-i="'+idx+'">&times;</button></span>';
+  }else if(ad){
+    // Auto-decision suggested: show badge + confirm/override
+    const bc=ad==='merge'?'am':'ar';
+    const lb=ad==='merge'?'AUTO-MERGE':'AUTO-REJECT';
+    h+='<div><span class="auto-badge '+bc+'">'+lb+'</span></div>';
+    if(ar)h+='<span class="auto-reason">'+esc(ar)+'</span>';
+    h+='<div style="margin-top:4px;display:flex;gap:3px;justify-content:center">';
+    const act=ad==='merge'?'merge':'reject';
+    h+='<button class="abtn cfm" data-a="'+act+'" data-i="'+idx+'">Confirm</button>';
+    const opp=ad==='merge'?'reject':'merge';
+    h+='<button class="abtn ovr" data-a="'+opp+'" data-i="'+idx+'">'+( opp==='merge'?'Merge':'Reject')+'</button>';
+    h+='</div>';
+  }else{
+    // No suggestion: standard buttons
+    h+='<button class="abtn mg" data-a="merge" data-i="'+idx+'">Merge</button> ';
+    h+='<button class="abtn rj" data-a="reject" data-i="'+idx+'">Reject</button>';
+  }
+  return h;
+}
+
+function renderTb(){
+  const tb=$('tb');
+  let h='';
+  for(let fi=0;fi<filt.length;fi++){
+    const idx=filt[fi],it=items[idx],d=decs[idx];
+    const pA=gp(it,0),pB=gp(it,1);
+    const k=keys(it);
+    const dA=dom(pA.key||k[0]||'')||pA.domain||'',dB=dom(pB.key||k[1]||'')||pB.domain||'';
+    const sd=dA&&dB&&dA===dB;
+    const sc=it.match_score??Math.round((it.confidence||0)*100);
+    const cls=(d?d:'')+(fi===aRow?' active':'');
+
+    h+='<tr class="'+cls+'" data-fi="'+fi+'" data-idx="'+idx+'">';
+    h+='<td class="c-idx" style="font-family:var(--mono);font-size:11px;color:var(--text3)">'+(idx+1)+'</td>';
+    h+='<td class="c-score"><span class="score '+scoreCls(sc)+'">'+sc+'</span><span class="score-bar '+scoreCls(sc)+'" style="width:'+Math.max(4,sc*0.48)+'px"></span></td>';
+    h+='<td>'+cellPerson(pA,pB,sd)+'</td>';
+    h+='<td>'+cellPerson(pB,pA,sd)+'</td>';
+    h+='<td>'+cellSignals(it,pA,pB)+'</td>';
+    h+='<td class="c-act">'+cellAction(idx,d,it)+'</td>';
+    h+='</tr>';
+  }
+  tb.innerHTML=h;
+  $('emp').classList.toggle('hidden',filt.length>0);
+}
+
+function updStats(){
+  let m=0,r=0;for(const d of Object.values(decs)){if(d==='merged')m++;if(d==='rejected')r++;}
+  $('sT').textContent=items.length;$('sP').textContent=items.length-m-r;
+  $('sM').textContent=m;$('sR').textContent=r;$('sF').textContent=filt.length;
+}
+
+function filter(){
+  const q=$('q').value.toLowerCase().trim();
+  const st=$('fSt').value,au=$('fAu').value,sc=$('fSc').value,re=$('fRe').value;
+  filt=[];
+  for(let i=0;i<items.length;i++){
+    const it=items[i],d=decs[i];
+    // Status filter
+    if(st==='pending'&&d)continue;
+    if(st==='merged'&&d!=='merged')continue;
+    if(st==='rejected'&&d!=='rejected')continue;
+    // Auto-decision filter
+    if(au!=='all'){
+      const ad=it.auto_decision;
+      if(au==='merge'&&ad!=='merge')continue;
+      if(au==='reject'&&ad!=='reject')continue;
+      if(au==='none'&&ad)continue;
+    }
+    // Score filter
+    if(sc!=='all'){
+      const ms=it.match_score??0;
+      if(sc==='80+'&&ms<80)continue;
+      if(sc==='60+'&&ms<60)continue;
+      if(sc==='40+'&&ms<40)continue;
+      if(sc==='0-40'&&ms>=40)continue;
+      if(sc==='0-60'&&ms>=60)continue;
+    }
+    // Reason filter
+    if(re!=='all'&&rpfx(it.reason)!==re)continue;
+    // Text search
+    if(q){
+      let txt=[...keys(it),...(it.names||[])].join(' ').toLowerCase();
+      if(it.match_explanation)txt+=' '+it.match_explanation.toLowerCase();
+      if(it.recommendation)txt+=' '+it.recommendation.toLowerCase();
+      if(it.auto_reason)txt+=' '+it.auto_reason.toLowerCase();
+      if(it.persons)it.persons.forEach(p=>{
+        if(p.organization)txt+=' '+p.organization.toLowerCase();
+        if(p.phone)txt+=' '+p.phone;
+        if(p.domain)txt+=' '+p.domain;
+        if(p.interaction_summary)txt+=' '+p.interaction_summary.toLowerCase();
+        if(p.primary_source)txt+=' '+p.primary_source.toLowerCase();
+      });
+      if(it.signals)it.signals.forEach(s=>{txt+=' '+s.text.toLowerCase();});
+      if(!txt.includes(q))continue;
+    }
+    filt.push(i);
+  }
+  // Sort
+  const dir=sortDir==='asc'?1:-1;
+  filt.sort((a,b)=>{
+    const ia=items[a],ib=items[b];
+    if(sortCol==='score')return((ia.match_score??0)-(ib.match_score??0))*dir;
+    if(sortCol==='nameA')return((ia.names?.[0]||'').localeCompare(ib.names?.[0]||''))*dir;
+    if(sortCol==='nameB')return((ia.names?.[1]||'').localeCompare(ib.names?.[1]||''))*dir;
+    if(sortCol==='auto'){
+      const oa=ia.auto_decision==='merge'?0:ia.auto_decision==='reject'?1:2;
+      const ob=ib.auto_decision==='merge'?0:ib.auto_decision==='reject'?1:2;
+      if(oa!==ob)return(oa-ob)*dir;
+      return((ia.match_score??0)-(ib.match_score??0))*dir;
+    }
+    if(sortCol==='reason')return(rpfx(ia.reason).localeCompare(rpfx(ib.reason)))*dir;
+    return(a-b)*dir;
+  });
+  renderTb();updStats();
+}
+
+function setActive(fi){
+  if(!filt.length){aRow=-1;return;}
+  aRow=Math.max(0,Math.min(fi,filt.length-1));
+  const rows=$('tb').querySelectorAll('tr');
+  rows.forEach(r=>r.classList.remove('active'));
+  if(rows[aRow]){rows[aRow].classList.add('active');rows[aRow].scrollIntoView({block:'nearest',behavior:'smooth'});}
+}
+
+function next(){
+  for(let i=aRow+1;i<filt.length;i++)if(!decs[filt[i]]){setActive(i);return;}
+  for(let i=0;i<aRow;i++)if(!decs[filt[i]]){setActive(i);return;}
+  if(aRow<filt.length-1)setActive(aRow+1);
+}
+
+function dec(idx,t){
+  if(t==='undo')delete decs[idx];else decs[idx]=t;
+  localStorage.setItem(SK,JSON.stringify(decs));
+  filter();
+}
+
+function confirmAuto(type){
+  const target=type==='merge'?'merged':'rejected';
+  let count=0;
+  for(let i=0;i<items.length;i++){
+    if(!decs[i]&&items[i].auto_decision===type){decs[i]=target;count++;}
+  }
+  if(!count){toast('No auto-'+type+' to confirm');return;}
+  localStorage.setItem(SK,JSON.stringify(decs));
+  filter();
+  toast(count+' auto-'+type+' confirmed');
+}
+
+function exp(){
+  const res={merge:[],reject:[]};
+  for(const[idx,d]of Object.entries(decs)){
+    const k=keys(items[parseInt(idx)]);
+    if(d==='merged')res.merge.push(k);else if(d==='rejected')res.reject.push(k);
+  }
+  const j=JSON.stringify(res,null,2),b=new Blob([j],{type:'application/json'}),a=document.createElement('a');
+  a.href=URL.createObjectURL(b);a.download='entity-decisions-'+new Date().toISOString().slice(0,10)+'.json';a.click();
+  URL.revokeObjectURL(a.href);toast(res.merge.length+' merge, '+res.reject.length+' reject exported');
+}
+
+function load(json){
+  try{items=JSON.parse(json);if(!Array.isArray(items))throw new Error('not array');}
+  catch(e){toast('Invalid JSON');return;}
+  const h=hsh(json.substring(0,2000)+json.length);
+  const sv=localStorage.getItem(SK),sh=localStorage.getItem(SH);
+  if(sv&&sh===h){try{decs=JSON.parse(sv);const n=Object.keys(decs).length;if(n)toast(n+' decisions restored');}catch(e){decs={};}}else{decs={};}
+  localStorage.setItem(SH,h);
+  const reasons=new Set();items.forEach(it=>reasons.add(rpfx(it.reason)));
+  const rf=$('fRe');rf.innerHTML='<option value="all">All</option>';
+  Array.from(reasons).sort().forEach(r=>{const o=document.createElement('option');o.value=r;o.textContent=r;rf.appendChild(o);});
+  // Auto stats
+  let am=0,ar=0;items.forEach(it=>{if(it.auto_decision==='merge')am++;if(it.auto_decision==='reject')ar++;});
+  const pend=items.length-am-ar;
+  $('info').textContent=items.length+' match | '+am+' auto-merge, '+ar+' auto-reject, '+pend+' to verify';
+  $('dzo').classList.add('hidden');
+  ['top','filters','tw','kbh'].forEach(id=>$(id).classList.remove('hidden'));
+  // Default sort: score desc
+  sortCol='score';sortDir='desc';
+  document.querySelectorAll('th').forEach(t=>{t.classList.remove('sorted','desc')});
+  const sth=document.querySelector('th[data-col="score"]');
+  if(sth){sth.classList.add('sorted','desc');}
+  filter();if(filt.length)setActive(0);
+}
+
+function readF(f){if(!f.name.endsWith('.json')){toast('JSON files only');return;}const r=new FileReader();r.onload=e=>load(e.target.result);r.readAsText(f);}
+
+// Events
+$('fi').addEventListener('change',e=>{if(e.target.files[0])readF(e.target.files[0])});
+$('dz').addEventListener('dragover',e=>{e.preventDefault();$('dz').classList.add('dragover')});
+$('dz').addEventListener('dragleave',()=>$('dz').classList.remove('dragover'));
+$('dz').addEventListener('drop',e=>{e.preventDefault();$('dz').classList.remove('dragover');if(e.dataTransfer.files[0])readF(e.dataTransfer.files[0])});
+$('bLd').addEventListener('click',()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.addEventListener('change',e=>{if(e.target.files[0])readF(e.target.files[0])});i.click()});
+
+$('tb').addEventListener('click',e=>{
+  const b=e.target.closest('[data-a]');
+  if(b){const a=b.dataset.a,i=parseInt(b.dataset.i);if(a==='merge')dec(i,'merged');else if(a==='reject')dec(i,'rejected');else if(a==='undo')dec(i,'undo');next();return;}
+  const tr=e.target.closest('tr');if(tr&&tr.dataset.fi!==undefined)setActive(parseInt(tr.dataset.fi));
+});
+
+// Column sort
+document.querySelectorAll('th[data-col]').forEach(th=>{
+  th.addEventListener('click',()=>{
+    const col=th.dataset.col;
+    if(sortCol===col)sortDir=sortDir==='asc'?'desc':'asc';else{sortCol=col;sortDir=col==='score'?'desc':'asc';}
+    document.querySelectorAll('th').forEach(t=>{t.classList.remove('sorted','desc')});
+    th.classList.add('sorted');if(sortDir==='desc')th.classList.add('desc');
+    filter();
+  });
+});
+
+let sTO;
+$('q').addEventListener('input',()=>{clearTimeout(sTO);sTO=setTimeout(()=>{filter();if(filt.length)setActive(0)},150)});
+$('fSt').addEventListener('change',()=>{filter();if(filt.length)setActive(0)});
+$('fAu').addEventListener('change',()=>{filter();if(filt.length)setActive(0)});
+$('fSc').addEventListener('change',()=>{filter();if(filt.length)setActive(0)});
+$('fRe').addEventListener('change',()=>{filter();if(filt.length)setActive(0)});
+
+$('bCAM').addEventListener('click',()=>{const n=items.filter((_,i)=>!decs[i]&&items[i].auto_decision==='merge').length;if(!n){toast('No auto-merge to confirm');return;}if(!confirm('Confirm '+n+' auto-merge?'))return;confirmAuto('merge')});
+$('bCAR').addEventListener('click',()=>{const n=items.filter((_,i)=>!decs[i]&&items[i].auto_decision==='reject').length;if(!n){toast('No auto-reject to confirm');return;}if(!confirm('Confirm '+n+' auto-reject?'))return;confirmAuto('reject')});
+$('bMA').addEventListener('click',()=>{const p=filt.filter(i=>!decs[i]);if(!p.length){toast('No pending');return;}if(!confirm('Merge '+p.length+' visible?'))return;p.forEach(i=>decs[i]='merged');localStorage.setItem(SK,JSON.stringify(decs));filter();toast(p.length+' merged')});
+$('bRA').addEventListener('click',()=>{const p=filt.filter(i=>!decs[i]);if(!p.length){toast('No pending');return;}if(!confirm('Reject '+p.length+' visible?'))return;p.forEach(i=>decs[i]='rejected');localStorage.setItem(SK,JSON.stringify(decs));filter();toast(p.length+' rejected')});
+$('bEx').addEventListener('click',exp);
+
+document.addEventListener('keydown',e=>{
+  if(['INPUT','SELECT','TEXTAREA'].includes(e.target.tagName)){if(e.key==='Escape')e.target.blur();return;}
+  if(!items.length)return;
+  const idx=aRow>=0&&aRow<filt.length?filt[aRow]:-1;
+  switch(e.key){
+    case'm':case'M':if(idx>=0&&!decs[idx]){dec(idx,'merged');next();}e.preventDefault();break;
+    case'r':if(idx>=0&&!decs[idx]){dec(idx,'rejected');next();}e.preventDefault();break;
+    case'c':case'C':
+      // C = confirm auto-decision for current item
+      if(idx>=0&&!decs[idx]&&items[idx].auto_decision){
+        const ad=items[idx].auto_decision;
+        dec(idx,ad==='merge'?'merged':'rejected');next();
+      }
+      e.preventDefault();break;
+    case' ':case's':case'S':if(aRow>=0){let n=aRow+1;if(n>=filt.length)n=0;setActive(n);}e.preventDefault();break;
+    case'ArrowDown':if(aRow<filt.length-1)setActive(aRow+1);e.preventDefault();break;
+    case'ArrowUp':if(aRow>0)setActive(aRow-1);e.preventDefault();break;
+    case'u':case'U':if(idx>=0&&decs[idx])dec(idx,'undo');e.preventDefault();break;
+    case'e':if(e.ctrlKey||e.metaKey){exp();e.preventDefault();}break;
+    case'f':if(e.ctrlKey||e.metaKey){$('q').focus();e.preventDefault();}break;
+  }
+});
+window.addEventListener('keydown',e=>{if(e.key===' '&&e.target===document.body)e.preventDefault()});
+})();
+</script>
+</body>
+</html>

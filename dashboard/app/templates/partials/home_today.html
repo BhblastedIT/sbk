@@ -1,0 +1,61 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-lg">Today</h2>
+            <p class="widget-description text-xs text-base-content/40">Summary of today</p>
+            <div class="flex items-center gap-2">
+                {% if tldr.date and not tldr.stale %}
+                    <span class="badge badge-ghost badge-sm">{{ tldr.date }}</span>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if tldr.stale %}
+        <!-- Stale: not today's date -->
+        <div class="text-sm text-base-content/50 py-4 text-center">
+            No briefing for today.
+        </div>
+        {% else %}
+        <!-- TL;DR -->
+        {% if tldr.tldr %}
+            <div class="mb-4">
+                <div class="text-sm text-base-content/80 whitespace-pre-line">{{ tldr.tldr }}</div>
+            </div>
+        {% endif %}
+
+        <!-- Urgent -->
+        {% if tldr.urgente %}
+            <div class="alert alert-error mb-4 py-2 px-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+                <div class="text-sm whitespace-pre-line">{{ tldr.urgente }}</div>
+            </div>
+        {% endif %}
+
+        <!-- Top Stories -->
+        {% if stories.available and stories.stories %}
+            <div class="divider text-xs text-base-content/40 my-2">Top Stories</div>
+            <div class="space-y-2">
+                {% for story in stories.stories[:3] %}
+                <div class="flex items-start gap-3 p-2 rounded-lg bg-base-200/50">
+                    <div class="flex-1">
+                        <div class="text-sm font-medium {{ story.priority_class }}">
+                            {{ story.headline }}
+                        </div>
+                        {% if story.summary %}
+                            <div class="text-xs text-base-content/60 mt-1">{{ story.summary[:120] }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-1 shrink-0">
+                        {% for badge_class in story.badge_classes %}
+                            <span class="badge {{ badge_class }} badge-xs">{{ story.sources[loop.index0] }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% endif %}
+    </div>
+</div>

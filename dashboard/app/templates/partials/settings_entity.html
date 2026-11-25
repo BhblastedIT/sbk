@@ -1,0 +1,85 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body">
+        <h2 class="card-title text-lg mb-4">Entity Resolution</h2>
+        <p class="text-sm text-base-content/60 mb-4">
+            Thresholds for fuzzy matching and the minimum confidence in the review queue.
+        </p>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text font-medium">Fuzzy Threshold</span>
+                    <span class="label-text-alt" id="fuzzy-val">{{ settings.entity_resolution.fuzzy_threshold }}</span>
+                </label>
+                <input type="range"
+                       id="entity-fuzzy_threshold"
+                       value="{{ settings.entity_resolution.fuzzy_threshold }}"
+                       min="50" max="100" step="1"
+                       class="range range-primary range-sm"
+                       oninput="document.getElementById('fuzzy-val').textContent = this.value">
+                <div class="flex justify-between text-xs text-base-content/40 px-1 mt-1">
+                    <span>50</span>
+                    <span>75</span>
+                    <span>100</span>
+                </div>
+            </div>
+
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text font-medium">Same Domain Threshold</span>
+                    <span class="label-text-alt" id="domain-val">{{ settings.entity_resolution.same_domain_threshold }}</span>
+                </label>
+                <input type="range"
+                       id="entity-same_domain_threshold"
+                       value="{{ settings.entity_resolution.same_domain_threshold }}"
+                       min="50" max="100" step="1"
+                       class="range range-primary range-sm"
+                       oninput="document.getElementById('domain-val').textContent = this.value">
+                <div class="flex justify-between text-xs text-base-content/40 px-1 mt-1">
+                    <span>50</span>
+                    <span>75</span>
+                    <span>100</span>
+                </div>
+            </div>
+
+            <div class="form-control">
+                <label class="label">
+                    <span class="label-text font-medium">Review Confidence Min</span>
+                    <span class="label-text-alt" id="confidence-val">{{ settings.entity_resolution.review_confidence_min }}</span>
+                </label>
+                <input type="range"
+                       id="entity-review_confidence_min"
+                       value="{{ settings.entity_resolution.review_confidence_min }}"
+                       min="0" max="1" step="0.05"
+                       class="range range-accent range-sm"
+                       oninput="document.getElementById('confidence-val').textContent = parseFloat(this.value).toFixed(2)">
+                <div class="flex justify-between text-xs text-base-content/40 px-1 mt-1">
+                    <span>0</span>
+                    <span>0.5</span>
+                    <span>1.0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-actions justify-end mt-6">
+            <button class="btn btn-ghost btn-sm" onclick="resetSection('entity_resolution')">
+                Reset default
+            </button>
+            <button class="btn btn-primary btn-sm" onclick="saveEntity()">
+                Save
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+function saveEntity() {
+    saveSection('entity_resolution', function() {
+        return {
+            fuzzy_threshold: parseInt(document.getElementById('entity-fuzzy_threshold').value) || 85,
+            same_domain_threshold: parseInt(document.getElementById('entity-same_domain_threshold').value) || 90,
+            review_confidence_min: parseFloat(document.getElementById('entity-review_confidence_min').value) || 0.5
+        };
+    });
+}
+</script>

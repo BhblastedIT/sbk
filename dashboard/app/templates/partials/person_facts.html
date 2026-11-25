@@ -1,0 +1,33 @@
+{% if facts %}
+<div class="space-y-1 max-h-96 overflow-y-auto pr-1">
+    {% for f in facts %}
+    <div class="flex items-start gap-2 text-sm py-1.5 border-b border-base-300/30 last:border-0">
+        <span class="badge badge-xs mt-1 shrink-0
+            {% if f.fact_type == 'need' %}badge-warning
+            {% elif f.fact_type == 'relationship_fact' %}badge-info
+            {% elif f.fact_type == 'personal_detail' %}badge-accent
+            {% elif f.fact_type == 'introduction' %}badge-secondary
+            {% else %}badge-ghost{% endif %}">
+            {{ f.fact_type[:3] }}
+        </span>
+        <div class="flex-1 min-w-0">
+            <div>
+                <span class="font-medium text-primary text-xs">{{ f.predicate|predicate_label }}</span>
+                <span class="text-base-content">{{ f.object }}</span>
+            </div>
+            {% if f.context and f.context != 'nan' %}
+            <div class="text-xs text-base-content/40 truncate">{{ f.context }}</div>
+            {% endif %}
+        </div>
+        <div class="text-right shrink-0">
+            <div class="badge badge-xs badge-ghost">{{ f.source_type }}{% if f.source_link %} <a href="{{ f.source_link }}" class="text-primary hover:underline text-xs">&#128279;</a>{% endif %}</div>
+            {% if f.source_date and f.source_date != 'nan' %}
+            <div class="text-xs text-base-content/30">{{ f.source_date }}</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No facts extracted for this person.</div>
+{% endif %}

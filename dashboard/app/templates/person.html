@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}SBK Person Lookup{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">Person Lookup</h1>
+</div>
+
+<!-- Search Bar -->
+<div class="form-control mb-6 relative">
+    <div class="join w-full max-w-xl">
+        <input type="text" id="person-query" placeholder="Search by name or email..."
+               class="input input-bordered join-item flex-1"
+               hx-get="/api/person/suggest"
+               hx-trigger="keyup changed delay:300ms"
+               hx-target="#suggestions"
+               hx-swap="innerHTML"
+               name="q"
+               autocomplete="off">
+        <button class="btn btn-primary join-item" onclick="doPersonLookup()">Search</button>
+    </div>
+    <!-- Autocomplete dropdown -->
+    <div id="suggestions" class="absolute top-full left-0 z-50 w-full max-w-xl mt-1"></div>
+</div>
+
+<!-- Person Card -->
+<div id="person-card-container">
+    {% if person %}
+        {% include "partials/person_card.html" %}
+    {% endif %}
+</div>
+
+<script>
+function doPersonLookup() {
+    const q = document.getElementById('person-query').value.trim();
+    if (!q) return;
+    document.getElementById('suggestions').innerHTML = '';
+    htmx.ajax('GET', '/partials/person_card?q=' + encodeURIComponent(q), {
+        target: '#person-card-container',
+        swap: 'innerHTML'
+    });
+}
+
+document.getElementById('person-query').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') { e.preventDefault(); doPersonLookup(); }
+});
+
+// Handle suggestion clicks
+document.getElementById('suggestions').addEventListener('htmx:afterSwap', function() {
+    document.querySelectorAll('.suggestion-item').forEach(function(el) {
+        el.addEventListener('click', function() {
+            document.getElementById('person-query').value = this.dataset.email || this.dataset.name;
+            document.getElementById('suggestions').innerHTML = '';
+            doPersonLookup();
+        });
+    });
+});
+
+// Submit annotation
+function submitAnnotation(email) {
+    const input = document.getElementById('annotation-text');
+    const text = input.value.trim();
+    if (!text) return;
+
+    fetch('/api/person/annotate', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({email: email, text: text})
+    })
+    .then(function(resp) { return resp.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            input.value = '';
+            var ann = data.annotation;
+            // Add annotation to the list
+            var list = document.getElementById('annotations-list');
+            var typeClass = ann.type === 'merge' ? 'badge-error' : ann.type === 'enrichment' ? 'badge-info' : 'badge-ghost';
+            var details = ann.details ? '<div class="text-xs text-base-content/40">' + ann.details + '</div>' : '';
+            var html = '<div class="flex items-start gap-2 mb-2 text-sm bg-base-200 rounded-box p-2">' +
+                '<span class="badge badge-xs mt-1 ' + typeClass + '">' + ann.type + '</span>' +
+                '<div class="flex-1"><div>' + ann.text + '</div>' + details +
+                '<div class="text-xs text-base-content/30">' + ann.timestamp.slice(0,16) + '</div></div></div>';
+
+            // Remove "no annotation" placeholder if present
+            var empty = list.querySelector('.text-base-content\\/40');
+            if (empty && (empty.textContent.includes('No ') || empty.textContent.includes('Nessuna'))) { empty.remove(); }
+
+            list.insertAdjacentHTML('beforeend', html);
+            if (typeof showToast === 'function') {
+                showToast('Annotation saved (' + ann.type + ')', 'success');
+            }
+        } else {
+            if (typeof showToast === 'function') {
+                showToast(data.error || 'Error', 'error');
+            }
+        }
+    })
+    .catch(function() {
+        if (typeof showToast === 'function') {
+            showToast('Network error', 'error');
+        }
+    });
+}
+
+// Auto-search from query param (e.g. from decay table click)
+(function() {
+    const params = new URLSearchParams(window.location.search);
+    const auto = params.get('auto');
+    if (auto) {
+        document.getElementById('person-query').value = auto;
+        doPersonLookup();
+    }
+})();
+</script>
+{% endblock %}

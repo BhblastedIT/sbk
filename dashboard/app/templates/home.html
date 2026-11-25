@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{% block title %}SBK Command Center{% endblock %}
+{% block content %}
+<!-- Header -->
+<div class="flex items-center justify-between mb-6">
+    <div>
+        <h1 class="text-2xl font-bold" id="home-greeting">Command Center</h1>
+        <p class="text-sm text-base-content/50">{{ today }}</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="/chat" class="btn btn-sm btn-ghost" title="Chat AI">Chat</a>
+        <button class="btn btn-sm btn-outline" onclick="openSlackMsg()">Slack</button>
+        <div hx-get="/partials/monitor_health" hx-trigger="every 60s" hx-swap="innerHTML">
+            <span class="loading loading-spinner loading-xs"></span>
+        </div>
+    </div>
+</div>
+
+<!-- 2-column layout -->
+<div class="flex flex-col lg:flex-row gap-6">
+    <!-- Left column (main) -->
+    <div class="flex-1 lg:w-2/3 space-y-6">
+        <!-- Focus Mode: top 3 priorities (auto-refresh 2min) -->
+        <section id="focus-container"
+            hx-get="/partials/home_focus" hx-trigger="load, every 120s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Today: TL;DR + Stories (auto-refresh 5min) -->
+        <section
+            hx-get="/partials/home_today" hx-trigger="load, every 300s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Priority actions (auto-refresh 2min) -->
+        <section
+            hx-get="/partials/home_actions" hx-trigger="load, every 120s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Activity Feed (auto-refresh 60s, P1 delay) -->
+        <section
+            hx-get="/partials/home_activity" hx-trigger="load delay:200ms, every 60s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+    </div>
+
+    <!-- Right column (sidebar) -->
+    <div class="lg:w-1/3 space-y-6">
+        <!-- People to get in touch with (auto-refresh 5min, P1 delay) -->
+        <section
+            hx-get="/partials/home_reachout" hx-trigger="load delay:200ms, every 300s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Inbox (auto-refresh 30s, P1 delay) -->
+        <section
+            hx-get="/partials/home_inbox" hx-trigger="load delay:250ms, every 30s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- To answer (auto-refresh 5min, P2 delay) -->
+        <section id="needs-reply-container"
+            hx-get="/partials/emails_needs_reply" hx-trigger="load delay:500ms, every 300s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Commitment Radar (auto-refresh 5min, P2 delay) -->
+        <section id="commitments-container"
+            hx-get="/partials/home_commitments" hx-trigger="load delay:600ms, every 300s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Signal Amplifier (auto-refresh 5min, P2 delay) -->
+        <section id="signals-container"
+            hx-get="/partials/home_signals" hx-trigger="load delay:700ms, every 300s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Suggested reconnections (auto-refresh 5min, P3 delay) -->
+        <section id="reconnection-container"
+            hx-get="/partials/reconnection_suggestions?limit=8" hx-trigger="load delay:1s, every 300s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <h3 class="font-semibold text-sm mb-2">Suggested reconnections</h3>
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Daily Briefing (auto-refresh 5min, P3 delay) -->
+        <section id="briefing-container"
+            hx-get="/api/briefing/partial" hx-trigger="load delay:1.2s, every 300s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- Weekly Insights (auto-refresh 10min, P3 delay) -->
+        <section id="weekly-insights-container"
+            hx-get="/api/insights/weekly/partial" hx-trigger="load delay:1.5s, every 600s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <h3 class="font-semibold text-sm mb-2">Weekly insights</h3>
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+
+        <!-- System (auto-refresh 60s, P1 delay) -->
+        <section
+            hx-get="/partials/home_health" hx-trigger="load delay:300ms, every 60s" hx-swap="innerHTML">
+            <div class="card bg-base-100 shadow p-6">
+                <span class="loading loading-spinner loading-md"></span>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- Thread viewer modal (used by needs-reply widget) -->
+<dialog id="thread-modal" class="modal">
+    <div class="modal-box w-11/12 max-w-3xl">
+        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">X</button></form>
+        <div id="modal-body"><span class="loading loading-spinner loading-md"></span></div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<!-- Smart Reply modal -->
+{% include "partials/smart_reply.html" %}
+
+<!-- Slack Quick Message dialog -->
+<dialog id="slack-msg-modal" class="modal">
+    <div class="modal-box max-w-lg">
+        <form method="dialog"><button class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">X</button></form>
+        <h3 class="font-bold text-lg mb-4">Send on Slack</h3>
+        <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Recipient</span></label>
+            <input type="text" id="slack-recipient" class="input input-bordered input-sm w-full"
+                   placeholder="User ID o Channel ID (es. U0123456789)">
+        </div>
+        <div class="form-control mb-3">
+            <label class="label"><span class="label-text">Thread (optional)</span></label>
+            <input type="text" id="slack-thread-ts" class="input input-bordered input-sm w-full"
+                   placeholder="Thread timestamp (es. 1700000000.000100)">
+        </div>
+        <div class="form-control mb-4">
+            <label class="label"><span class="label-text">Message</span></label>
+            <textarea id="slack-msg-text" class="textarea textarea-bordered w-full" rows="4"
+                      placeholder="Write the message..."></textarea>
+        </div>
+        <div id="slack-send-status" class="text-sm mb-2"></div>
+        <div class="text-xs text-gray-500 mb-2">
+            <span id="slack-limit-info"></span>
+        </div>
+        <div class="modal-action">
+            <button id="slack-send-btn" class="btn btn-primary btn-sm" onclick="sendSlackMsg()">Send</button>
+            <form method="dialog"><button class="btn btn-ghost btn-sm">Cancel</button></form>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+
+<script>
+(function() {
+    var h = new Date().getHours();
+    var name = {{ owner_first_name|tojson }};
+    var greeting = (h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening") + (name ? ", " + name : "");
+    var el = document.getElementById('home-greeting');
+    if (el) el.textContent = greeting;
+})();
+
+function openSlackMsg(channelId, threadTs) {
+    var modal = document.getElementById('slack-msg-modal');
+    if (channelId) document.getElementById('slack-recipient').value = channelId;
+    if (threadTs) document.getElementById('slack-thread-ts').value = threadTs;
+    document.getElementById('slack-msg-text').value = '';
+    document.getElementById('slack-send-status').textContent = '';
+    document.getElementById('slack-send-btn').disabled = false;
+    modal.showModal();
+    document.getElementById('slack-msg-text').focus();
+    updateSlackLimitInfo();
+}
+
+function updateSlackLimitInfo() {
+    fetch('/api/slack/limit-status')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            var info = document.getElementById('slack-limit-info');
+            var remaining = data.limit_hour - data.messages_sent_hour;
+            info.textContent = 'Messages sent this hour: ' + data.messages_sent_hour + '/' + data.limit_hour + '. Remaining: ' + remaining;
+            if (!data.can_send) {
+                info.innerHTML += ' <span class="text-warning">(limit reached)</span>';
+            }
+        })
+        .catch(function(e) {
+            // Fail silently, don't block the UI
+        });
+}
+
+function generateUUID() {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+function sendSlackMsg() {
+    var btn = document.getElementById('slack-send-btn');
+    var channelId = document.getElementById('slack-recipient').value.trim();
+    var text = document.getElementById('slack-msg-text').value.trim();
+    var threadTs = document.getElementById('slack-thread-ts').value.trim();
+    var status = document.getElementById('slack-send-status');
+
+    if (!channelId || !text) {
+        status.innerHTML = '<span class="text-error">Recipient and message required</span>';
+        return;
+    }
+
+    if (btn.disabled) {
+        status.innerHTML = '<span class="text-warning">Please wait before sending another message...</span>';
+        return;
+    }
+
+    status.innerHTML = '<span class="loading loading-spinner loading-xs"></span> Sending...';
+
+    // Disable button for 3 seconds (client-side debounce)
+    btn.disabled = true;
+    var originalText = btn.textContent;
+    btn.textContent = 'Please wait...';
+
+    setTimeout(function() {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    }, 3000);
+
+    var body = {
+        channel_id: channelId,
+        text: text,
+        idempotency_key: generateUUID()
+    };
+    if (threadTs) body.thread_ts = threadTs;
+
+    fetch('/api/slack/send', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'X-SBK-CSRF': '1'},
+        body: JSON.stringify(body)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.status === 'sent') {
+            status.innerHTML = '<span class="text-success">Sent!</span>';
+            updateSlackLimitInfo();
+            setTimeout(function() {
+                document.getElementById('slack-msg-modal').close();
+            }, 1000);
+        } else {
+            var errMsg = data.error || 'unknown';
+            if (errMsg.includes('rate limit') || errMsg.includes('Too many')) {
+                status.innerHTML = '<span class="text-error">Limit reached. Please wait a few minutes.</span>';
+            } else if (errMsg.includes('Duplicate')) {
+                status.innerHTML = '<span class="text-warning">Message already sent recently. Please wait.</span>';
+            } else {
+                status.innerHTML = '<span class="text-error">Error: ' + errMsg + '</span>';
+            }
+            updateSlackLimitInfo();
+        }
+    })
+    .catch(function(e) {
+        status.innerHTML = '<span class="text-error">Network error: ' + e + '</span>';
+    });
+}
+// HTMX error fallback: show error card when partials fail to load
+document.addEventListener('htmx:responseError', function(e) {
+    if (e.detail.target) {
+        e.detail.target.innerHTML = '<div class="alert alert-error text-sm p-2 rounded">Error loading widget</div>';
+    }
+});
+</script>
+{% endblock %}

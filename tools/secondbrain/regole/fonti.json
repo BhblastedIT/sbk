@@ -1,0 +1,40 @@
+{
+ "verificate": "2026-01-01",
+ "ricontrollate": "2026-01-01",
+ "ricontrollate_cosa": "example rules of the template",
+ "come": "Example entries. Document your sources' and stages' rules here.",
+ "fonti": [
+  {
+   "sorgente": "email",
+   "cosa_scarica": "the mail from the connected mailboxes",
+   "incrementale": "yes, by date",
+   "cosa_salta": "messages already seen",
+   "dove_scrive": "~/.sbk-data/emails/",
+   "limiti": "nothing in particular",
+   "regole_di_owner": [
+    "Connect only the mailboxes you need."
+   ],
+   "prove": [
+    "The pipeline re-reads the folder on the next run."
+   ],
+   "note": "Demo example. Put your source's rules here.",
+   "errori_catalogo": []
+  },
+  {
+   "sorgente": "slack",
+   "cosa_scarica": "conversations and threads",
+   "incrementale": "yes",
+   "cosa_salta": "the excluded channels",
+   "dove_scrive": "~/.sbk-data/slack/",
+   "limiti": "the service's rate limit",
+   "regole_di_owner": [
+    "Respect the service's limits."
+   ],
+   "prove": [
+    "Demo example."
+   ],
+   "note": "Demo example.",
+   "errori_catalogo": []
+  }
+ ]
+}

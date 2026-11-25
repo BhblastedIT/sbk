@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}SBK — Health Overview{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">Health Overview</h1>
+            <p class="text-base-content/60 text-sm mt-1">Status of all data sources — auto-refresh every 30s</p>
+        </div>
+        <div class="flex items-center gap-3">
+            {% if summary.critical > 0 %}
+                <span class="badge badge-error badge-lg">{{ summary.critical }} CRITICAL</span>
+            {% endif %}
+            {% if summary.stale > 0 %}
+                <span class="badge badge-warning badge-lg">{{ summary.stale }} STALE</span>
+            {% endif %}
+            {% if summary.critical == 0 and summary.stale == 0 %}
+                <span class="badge badge-success badge-lg">All OK</span>
+            {% endif %}
+            <span class="text-xs text-base-content/40">{{ summary.ok }}/{{ summary.total }} OK</span>
+        </div>
+    </div>
+
+    <!-- Source cards (HTMX auto-refresh) -->
+    <div hx-get="/partials/health_cards" hx-trigger="load, every 30s" hx-swap="innerHTML">
+        <div class="flex justify-center py-12">
+            <span class="loading loading-spinner loading-lg"></span>
+        </div>
+    </div>
+</div>
+{% endblock %}

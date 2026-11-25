@@ -1,0 +1,1026 @@
+{% extends "base.html" %}
+
+{% block title %}Performance — SBK{% endblock %}
+
+{% block content %}
+<div class="p-4 space-y-4 max-w-7xl mx-auto">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <h1 class="text-2xl font-bold">Performance</h1>
+        <div class="text-sm opacity-60" id="perf-meta">
+            Phase: {{ meta.active_phase if meta else '?' }} |
+            {{ meta.whoop_days if meta else '?' }} days of data
+        </div>
+    </div>
+
+    <!-- Heatmap Calendar (full width) -->
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-4">
+            <h2 class="card-title text-lg">Recovery Calendar</h2>
+            <div id="perf-heatmap">
+                <div class="flex justify-center py-8">
+                    <span class="loading loading-spinner loading-md"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Anomalies (populated by JS only when present) -->
+    <div id="perf-anomalies"></div>
+
+    <!-- Weekly Score + Circadian (half + half) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Weekly Score -->
+        <div class="card bg-base-200 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title text-lg">Weekly Score</h2>
+                <div id="perf-weekly-score">
+                    <div class="flex justify-center py-4">
+                        <span class="loading loading-spinner loading-sm"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Circadian -->
+        <div class="card bg-base-200 shadow-sm">
+            <div class="card-body p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="card-title text-lg">Circadian alignment</h2>
+                    <select class="select select-bordered select-sm" onchange="loadCircadian(this.value)">
+                        <option value="meetings" selected>Meeting</option>
+                        <option value="emails">Email</option>
+                    </select>
+                </div>
+                <div id="perf-circadian" style="height: 300px;">
+                    <div class="flex justify-center py-4">
+                        <span class="loading loading-spinner loading-sm"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Timeline Overlay (full width) -->
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="card-title text-lg">Timeline</h2>
+                <div class="btn-group btn-group-sm" id="timeline-buttons">
+                    <button class="btn btn-sm" onclick="loadTimeline(7)">7d</button>
+                    <button class="btn btn-sm" onclick="loadTimeline(14)">14d</button>
+                    <button class="btn btn-sm btn-active" onclick="loadTimeline(30)">30d</button>
+                    <button class="btn btn-sm" onclick="loadTimeline(90)">90d</button>
+                    <button class="btn btn-sm" onclick="loadTimeline(365)">1y</button>
+                </div>
+            </div>
+            <div id="perf-timeline" style="height: 350px;">
+                <div class="flex justify-center py-8">
+                    <span class="loading loading-spinner loading-md"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Correlation Matrix (full width) -->
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="card-title text-lg">Correlation matrix</h2>
+                <div class="flex items-center gap-2">
+                    <label class="text-sm opacity-60">Min |r|:</label>
+                    <input type="range" min="0" max="50" value="0" class="range range-xs w-24"
+                        id="matrix-min-r" oninput="loadCorrelationMatrix(this.value/100)">
+                    <span class="text-sm font-mono" id="matrix-min-r-label">0.00</span>
+                </div>
+            </div>
+            <div id="perf-corr-matrix" style="height: 450px;">
+                <div class="flex justify-center py-8">
+                    <span class="loading loading-spinner loading-md"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Correlations List + Scatter (half + half) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Correlations -->
+        <div class="card bg-base-200 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title text-lg">Correlations</h2>
+                <div id="perf-correlations">
+                    <div class="flex justify-center py-4">
+                        <span class="loading loading-spinner loading-sm"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scatter (shown inline) -->
+        <div class="card bg-base-200 shadow-sm" id="perf-scatter-container">
+            <div class="card-body p-4">
+                <h2 class="card-title text-lg">Scatter Plot</h2>
+                <div id="perf-scatter" style="height: 300px;">
+                    <p class="text-sm opacity-50 py-8 text-center">Click a correlation to view</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blood Panel Longitudinal (full width) -->
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="card-title text-lg">Blood Panel</h2>
+                <div class="tabs tabs-boxed tabs-sm" id="blood-panel-tabs">
+                    <a class="tab tab-active" onclick="loadBloodPanel('all')">All</a>
+                    <a class="tab" onclick="loadBloodPanel('metabolic')">Metabolic</a>
+                    <a class="tab" onclick="loadBloodPanel('lipids')">Lipids</a>
+                    <a class="tab" onclick="loadBloodPanel('thyroid')">Thyroid</a>
+                    <a class="tab" onclick="loadBloodPanel('vitamins')">Vitamine</a>
+                    <a class="tab" onclick="loadBloodPanel('iron')">Iron</a>
+                    <a class="tab" onclick="loadBloodPanel('hormones')">Hormones</a>
+                </div>
+            </div>
+            <div id="perf-blood-panel">
+                <div class="flex justify-center py-8">
+                    <span class="loading loading-spinner loading-md"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Intervention Timeline (full width) -->
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-4">
+            <div class="flex items-center justify-between mb-2">
+                <h2 class="card-title text-lg">Interventions timeline</h2>
+                <select class="select select-bordered select-sm" id="intervention-marker-select"
+                    onchange="loadInterventionTimeline(this.value)">
+                    <!-- marker options: populate from the data present; generic defaults below -->
+                    <option value="glucose" selected>Glucose</option>
+                    <option value="cholesterol_total">Cholesterol</option>
+                    <option value="hemoglobin">Hemoglobin</option>
+                    <option value="ferritin">Ferritin</option>
+                    <option value="tsh">TSH</option>
+                </select>
+            </div>
+            <div id="perf-intervention" style="height: 350px;">
+                <div class="flex justify-center py-8">
+                    <span class="loading loading-spinner loading-md"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Behavioral Pattern + Data Coverage (half + half) -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <!-- Behavioral Pattern Radar -->
+        <div class="card bg-base-200 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title text-lg">Behavioural pattern</h2>
+                <div id="perf-behavioral" style="height: 350px;">
+                    <div class="flex justify-center py-4">
+                        <span class="loading loading-spinner loading-sm"></span>
+                    </div>
+                </div>
+                <div id="perf-behavioral-insights"></div>
+            </div>
+        </div>
+
+        <!-- Data Coverage -->
+        <div class="card bg-base-200 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title text-lg">Data Coverage</h2>
+                <div id="perf-coverage">
+                    <div class="flex justify-center py-4">
+                        <span class="loading loading-spinner loading-sm"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Blood Trends (legacy, kept for backward compat) -->
+    <div class="card bg-base-200 shadow-sm">
+        <div class="card-body p-4">
+            <h2 class="card-title text-lg">Single marker trend</h2>
+            <div id="perf-blood-trends">
+                <div class="flex justify-center py-4">
+                    <span class="loading loading-spinner loading-sm"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daily Detail Modal -->
+    <dialog id="perf-daily-modal" class="modal">
+        <div class="modal-box max-w-2xl">
+            <div id="perf-daily-detail">
+            </div>
+            <div class="modal-action">
+                <form method="dialog"><button class="btn">Close</button></form>
+            </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+    </dialog>
+</div>
+
+<!-- ECharts -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+<script>
+/* ── Utility ─────────────────────────────────────────────── */
+function escapeHtml(text) {
+    if (!text) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(text)));
+    return d.innerHTML;
+}
+
+var _charts = [];
+window.addEventListener('resize', function() {
+    _charts.forEach(function(c) { if (c && !c.isDisposed()) c.resize(); });
+});
+
+function _disposeChart(ref) {
+    if (ref) {
+        ref.dispose();
+        _charts = _charts.filter(function(c) { return c !== ref; });
+    }
+    return null;
+}
+
+/* ── Heatmap ─────────────────────────────────────────────── */
+function fetchHeatmap() {
+    fetch('/api/performance/heatmap')
+        .then(function(r) { return r.json(); })
+        .then(renderHeatmap)
+        .catch(function() {
+            document.getElementById('perf-heatmap').innerHTML =
+                '<p class="text-sm opacity-50 py-4">Error loading heatmap</p>';
+        });
+}
+
+function renderHeatmap(data) {
+    var el = document.getElementById('perf-heatmap');
+    if (!data || !data.length) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-4">No recovery data available</p>';
+        return;
+    }
+    var colorMap = {red: 'bg-error', yellow: 'bg-warning', green: 'bg-success', gray: 'bg-base-300'};
+    var html = '<div class="overflow-x-auto"><div class="flex flex-wrap gap-1 min-w-[600px]">';
+    data.forEach(function(d) {
+        var score = d.recovery_score != null ? d.recovery_score.toFixed(0) : 'N/A';
+        html += '<div class="w-4 h-4 rounded cursor-pointer tooltip '
+            + (colorMap[d.zone] || 'bg-base-300')
+            + '" data-tip="' + escapeHtml(d.date) + ': ' + score
+            + '" onclick="showDailyDetail(\'' + escapeHtml(d.date) + '\')"></div>';
+    });
+    html += '</div><div class="flex gap-4 mt-2 text-xs opacity-60">';
+    html += '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-error"></span> &le; 33</span>';
+    html += '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-warning"></span> 34-66</span>';
+    html += '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-success"></span> &gt; 66</span>';
+    html += '<span class="flex items-center gap-1"><span class="w-3 h-3 rounded bg-base-300"></span> N/A</span>';
+    html += '</div></div>';
+    el.innerHTML = html;
+}
+
+/* ── Anomalies ───────────────────────────────────────────── */
+function fetchAnomalies() {
+    fetch('/api/performance/anomalies')
+        .then(function(r) { return r.json(); })
+        .then(renderAnomalies)
+        .catch(function() {});
+}
+
+function renderAnomalies(data) {
+    var el = document.getElementById('perf-anomalies');
+    if (!data || !data.length) { el.innerHTML = ''; return; }
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+    var html = '<div class="space-y-2">';
+    data.forEach(function(a) {
+        var cls = a.severity === 'high' ? 'alert-error' : 'alert-warning';
+        html += '<div class="alert ' + cls + ' py-2">' + svg
+            + '<span>' + escapeHtml(a.description) + '</span></div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+/* ── Weekly Score ────────────────────────────────────────── */
+function fetchWeeklyScore() {
+    fetch('/api/performance/weekly-score?weeks=12')
+        .then(function(r) { return r.json(); })
+        .then(renderWeeklyScore)
+        .catch(function() {
+            document.getElementById('perf-weekly-score').innerHTML =
+                '<p class="text-sm opacity-50 py-4">Error loading score</p>';
+        });
+}
+
+function renderWeeklyScore(data) {
+    var el = document.getElementById('perf-weekly-score');
+    if (!data || !data.current_week) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-4">Not enough data</p>';
+        return;
+    }
+    var cw = data.current_week;
+    var zoneColor = {red: 'text-error', yellow: 'text-warning', green: 'text-success'};
+    var html = '<div class="flex items-start gap-4">';
+    /* Big score */
+    html += '<div class="text-center">';
+    html += '<div class="text-5xl font-bold ' + (zoneColor[cw.zone] || '') + '">' + cw.score.toFixed(0) + '</div>';
+    html += '<div class="text-xs opacity-60">/100</div>';
+    if (data.wow_delta != null) {
+        var dCls = data.wow_delta >= 0 ? 'text-success' : 'text-error';
+        var dSign = data.wow_delta >= 0 ? '+' : '';
+        html += '<div class="text-sm ' + dCls + ' mt-1">' + dSign + data.wow_delta.toFixed(1) + ' WoW</div>';
+    }
+    html += '</div>';
+    /* Components */
+    html += '<div class="flex-1 space-y-1">';
+    var compNames = {recovery:'Recovery',sleep:'Sleep',hrv:'HRV',email_productivity:'Email',meeting_efficiency:'Meeting',relationship_engagement:'Relationships',content_output:'Output'};
+    for (var k in cw.components) {
+        var v = cw.components[k];
+        var label = compNames[k] || k;
+        html += '<div class="flex items-center gap-2 text-xs">';
+        html += '<span class="w-16 opacity-60">' + escapeHtml(label) + '</span>';
+        html += '<progress class="progress progress-sm flex-1" value="' + v + '" max="100"></progress>';
+        html += '<span class="font-mono w-8 text-right">' + v.toFixed(0) + '</span>';
+        html += '</div>';
+    }
+    html += '</div></div>';
+    /* Sparkline */
+    if (data.trend && data.trend.length > 1) {
+        html += '<div id="weekly-sparkline" style="height:60px;margin-top:8px"></div>';
+    }
+    el.innerHTML = html;
+
+    if (data.trend && data.trend.length > 1) {
+        var sparkEl = document.getElementById('weekly-sparkline');
+        var sparkChart = echarts.init(sparkEl);
+        _charts.push(sparkChart);
+        sparkChart.setOption({
+            grid: {top:5,bottom:5,left:5,right:5},
+            xAxis: {type:'category', show:false, data: data.trend.map(function(t){return t.week;})},
+            yAxis: {type:'value', show:false, min:0, max:100},
+            series: [{type:'line', data: data.trend.map(function(t){return t.score;}), smooth:true, symbol:'none',
+                areaStyle:{opacity:0.15}, lineStyle:{width:2}}]
+        });
+    }
+}
+
+/* ── Circadian ───────────────────────────────────────────── */
+var _circadianChart = null;
+
+function loadCircadian(metric) {
+    var el = document.getElementById('perf-circadian');
+    el.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-spinner loading-md"></span></div>';
+    fetch('/api/performance/circadian?period=90&metric=' + encodeURIComponent(metric || 'meetings'))
+        .then(function(r) { return r.json(); })
+        .then(renderCircadian)
+        .catch(function() {
+            el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">Error loading circadian</p>';
+        });
+}
+
+function renderCircadian(data) {
+    var el = document.getElementById('perf-circadian');
+    if (!data.hours || !data.hours.length) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">No circadian data available</p>';
+        return;
+    }
+    _circadianChart = _disposeChart(_circadianChart);
+    el.innerHTML = '';
+    _circadianChart = echarts.init(el);
+    _charts.push(_circadianChart);
+
+    var hours = [];
+    for (var h = 6; h <= 22; h++) hours.push(h + ':00');
+    var days = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'];
+    var chartData = data.hours.map(function(d) {
+        return [d.hour - 6, d.dow, d.count, d.avg_recovery];
+    });
+    var maxCount = Math.max.apply(null, chartData.map(function(d){return d[2];})) || 1;
+
+    _circadianChart.setOption({
+        tooltip: {
+            formatter: function(p) {
+                return days[p.data[1]] + ' ' + hours[p.data[0]]
+                    + '<br>Count: ' + p.data[2]
+                    + (p.data[3] != null ? '<br>Recovery: ' + p.data[3] : '');
+            }
+        },
+        xAxis: {type:'category', data:hours, name:'Hour'},
+        yAxis: {type:'category', data:days},
+        visualMap: {
+            min: 0, max: 100, show: true, orient: 'horizontal', left: 'center', bottom: 0,
+            inRange: {color: ['#ef4444','#eab308','#22c55e']},
+            text: ['High recovery', 'Low']
+        },
+        series: [{
+            type: 'scatter',
+            data: chartData,
+            symbolSize: function(val) { return Math.max(8, (val[2] / maxCount) * 30); },
+            itemStyle: {
+                color: function(p) {
+                    var rec = p.data[3];
+                    if (rec == null) return '#888';
+                    if (rec <= 33) return '#ef4444';
+                    if (rec <= 66) return '#eab308';
+                    return '#22c55e';
+                }
+            }
+        }]
+    });
+}
+
+/* ── Timeline ────────────────────────────────────────────── */
+var _timelineChart = null;
+
+function loadTimeline(days) {
+    var label = days >= 365 ? '1y' : days + 'd';
+    document.querySelectorAll('#timeline-buttons .btn').forEach(function(b) {
+        b.classList.toggle('btn-active', b.textContent.trim() === label);
+    });
+    var el = document.getElementById('perf-timeline');
+    el.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-spinner loading-md"></span></div>';
+    fetch('/api/performance/timeline?period=' + days)
+        .then(function(r) { return r.json(); })
+        .then(renderTimeline)
+        .catch(function() {
+            el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">Error loading timeline</p>';
+        });
+}
+
+function renderTimeline(data) {
+    var el = document.getElementById('perf-timeline');
+    if (!data.dates || !data.dates.length) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">No timeline data available</p>';
+        return;
+    }
+    _timelineChart = _disposeChart(_timelineChart);
+    el.innerHTML = '';
+    _timelineChart = echarts.init(el);
+    _charts.push(_timelineChart);
+
+    var bioMetrics = ['recovery_score', 'sleep_score', 'hrv_rmssd_ms', 'strain_score'];
+    var series = data.series.map(function(s) {
+        var isBio = bioMetrics.indexOf(s.name) >= 0;
+        return {name: s.name, type: isBio ? 'line' : 'bar', yAxisIndex: isBio ? 0 : 1, data: s.data, smooth: true};
+    });
+
+    _timelineChart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: data.series.map(function(s) { return s.name; }), bottom: 0, type: 'scroll' },
+        grid: { bottom: 60, left: 60, right: 60 },
+        xAxis: { type: 'category', data: data.dates, axisLabel: { rotate: 45 } },
+        yAxis: [
+            { type: 'value', name: 'Biometric', min: 0 },
+            { type: 'value', name: 'Count', min: 0 }
+        ],
+        series: series
+    });
+}
+
+/* ── Correlation Matrix ──────────────────────────────────── */
+var _matrixChart = null;
+
+function loadCorrelationMatrix(minR) {
+    if (minR == null) minR = 0;
+    document.getElementById('matrix-min-r-label').textContent = minR.toFixed(2);
+    var el = document.getElementById('perf-corr-matrix');
+    fetch('/api/performance/correlation-matrix?min_r=' + minR)
+        .then(function(r) { return r.json(); })
+        .then(renderCorrelationMatrix)
+        .catch(function() {
+            el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">Error loading matrix</p>';
+        });
+}
+
+function renderCorrelationMatrix(data) {
+    var el = document.getElementById('perf-corr-matrix');
+    if (!data.metrics || !data.metrics.length) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">No correlation available</p>';
+        return;
+    }
+    _matrixChart = _disposeChart(_matrixChart);
+    el.innerHTML = '';
+    _matrixChart = echarts.init(el);
+    _charts.push(_matrixChart);
+
+    var metrics = data.metrics;
+    var chartData = [];
+    for (var i = 0; i < metrics.length; i++) {
+        for (var j = 0; j < metrics.length; j++) {
+            chartData.push([j, i, data.matrix[i][j]]);
+        }
+    }
+
+    var shortNames = metrics.map(function(m) {
+        return m.length > 12 ? m.substring(0,12) + '..' : m;
+    });
+
+    _matrixChart.setOption({
+        tooltip: {
+            formatter: function(p) {
+                return escapeHtml(metrics[p.data[1]]) + ' x ' + escapeHtml(metrics[p.data[0]])
+                    + '<br>r = ' + p.data[2].toFixed(3)
+                    + (data.significant[p.data[1]][p.data[0]] ? ' *' : '');
+            }
+        },
+        grid: {top: 80, bottom: 30, left: 120, right: 30},
+        xAxis: {type:'category', data:shortNames, axisLabel:{rotate:45, fontSize:9}, splitArea:{show:true}},
+        yAxis: {type:'category', data:shortNames, axisLabel:{fontSize:9}, splitArea:{show:true}},
+        visualMap: {
+            min: -1, max: 1, calculable: true, orient: 'horizontal', left: 'center', top: 0,
+            inRange: {color: ['#ef4444','#fca5a5','#ffffff','#93c5fd','#3b82f6']},
+            text: ['+1', '-1']
+        },
+        series: [{
+            type: 'heatmap', data: chartData,
+            emphasis: {itemStyle: {borderColor: '#333', borderWidth: 1}},
+            label: {show: metrics.length <= 10, formatter: function(p){return p.data[2].toFixed(1);}, fontSize:9}
+        }]
+    });
+
+    _matrixChart.on('click', function(params) {
+        if (params.data) {
+            var mA = metrics[params.data[1]];
+            var mB = metrics[params.data[0]];
+            if (mA !== mB) showScatter(mA, mB);
+        }
+    });
+}
+
+/* ── Correlations List ───────────────────────────────────── */
+function fetchCorrelations() {
+    fetch('/api/performance/correlations')
+        .then(function(r) { return r.json(); })
+        .then(renderCorrelations)
+        .catch(function() {
+            document.getElementById('perf-correlations').innerHTML =
+                '<p class="text-sm opacity-50 py-4">Error loading correlations</p>';
+        });
+}
+
+function renderCorrelations(data) {
+    var el = document.getElementById('perf-correlations');
+    if (!data || !data.length) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-4">No significant correlation</p>';
+        return;
+    }
+    var html = '<div class="space-y-2 max-h-[350px] overflow-y-auto">';
+    data.forEach(function(c) {
+        var r = c.correlation_r != null ? c.correlation_r.toFixed(2) : '?';
+        var dir = c.correlation_r > 0 ? 'text-success' : 'text-error';
+        var arrow = c.correlation_r > 0 ? '&#8593;' : '&#8595;';
+        html += '<div class="flex items-center justify-between p-2 bg-base-100 rounded cursor-pointer hover:bg-base-300 transition-colors" onclick="showScatter(\''
+            + escapeHtml(c.metric_a) + '\', \'' + escapeHtml(c.metric_b) + '\')">';
+        html += '<div class="text-sm"><span class="font-mono">' + escapeHtml(c.metric_a)
+            + '</span> &times; <span class="font-mono">' + escapeHtml(c.metric_b) + '</span>';
+        if (c.lag_days) html += ' <span class="opacity-50">(lag ' + c.lag_days + 'd)</span>';
+        html += '</div>';
+        html += '<div class="' + dir + ' font-bold font-mono">' + arrow + ' ' + r + '</div>';
+        html += '</div>';
+    });
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+/* ── Scatter ─────────────────────────────────────────────── */
+var _scatterChart = null;
+
+function showScatter(metricA, metricB) {
+    fetch('/api/performance/scatter?metric_a=' + encodeURIComponent(metricA)
+        + '&metric_b=' + encodeURIComponent(metricB))
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderScatter(data, metricA, metricB); })
+        .catch(function() {
+            var el = document.getElementById('perf-scatter');
+            if (el) el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">Error loading scatter</p>';
+        });
+}
+
+function renderScatter(points, xLabel, yLabel) {
+    var el = document.getElementById('perf-scatter');
+    _scatterChart = _disposeChart(_scatterChart);
+    el.innerHTML = '';
+    var chart = echarts.init(el);
+    _charts.push(chart);
+    _scatterChart = chart;
+    var colorMap = { red: '#ef4444', yellow: '#eab308', green: '#22c55e' };
+    chart.setOption({
+        tooltip: {
+            trigger: 'item',
+            formatter: function(p) {
+                return escapeHtml(p.data[3]) + '<br>'
+                    + escapeHtml(xLabel) + ': ' + p.data[0] + '<br>'
+                    + escapeHtml(yLabel) + ': ' + p.data[1];
+            }
+        },
+        xAxis: { name: xLabel, type: 'value' },
+        yAxis: { name: yLabel, type: 'value' },
+        series: [{
+            type: 'scatter',
+            data: points.map(function(p) { return [p.x, p.y, p.zone || 'green', p.date]; }),
+            itemStyle: { color: function(p) { return colorMap[p.data[2]] || '#888'; } }
+        }]
+    });
+}
+
+/* ── Blood Panel ─────────────────────────────────────────── */
+var _bloodPanelSparklines = [];
+function loadBloodPanel(panel) {
+    /* Update active tab */
+    document.querySelectorAll('#blood-panel-tabs .tab').forEach(function(t) {
+        t.classList.remove('tab-active');
+    });
+    event.target.classList.add('tab-active');
+
+    var el = document.getElementById('perf-blood-panel');
+    el.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-spinner loading-md"></span></div>';
+    fetch('/api/performance/blood-panel?panel=' + encodeURIComponent(panel))
+        .then(function(r) { return r.json(); })
+        .then(renderBloodPanel)
+        .catch(function() {
+            el.innerHTML = '<p class="text-sm opacity-50 py-4">Error loading panel</p>';
+        });
+}
+
+function renderBloodPanel(data) {
+    var el = document.getElementById('perf-blood-panel');
+    /* Dispose previous sparklines to prevent memory leak */
+    _bloodPanelSparklines.forEach(function(c) {
+        if (c && !c.isDisposed()) c.dispose();
+        _charts = _charts.filter(function(ch) { return ch !== c; });
+    });
+    _bloodPanelSparklines = [];
+    if (!data.panels || !data.panels.length) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-4">No data available</p>';
+        return;
+    }
+    var html = '';
+    data.panels.forEach(function(panel) {
+        html += '<div class="mb-4"><h3 class="font-semibold text-sm opacity-70 mb-2">' + escapeHtml(panel.display) + '</h3>';
+        html += '<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">';
+        panel.markers.forEach(function(m) {
+            var trendIcon = {improving:'text-success', declining:'text-error', stable:'text-warning'};
+            var trendArrow = {improving:'&uarr;', declining:'&darr;', stable:'&rarr;'};
+            html += '<div class="bg-base-100 rounded p-3">';
+            html += '<div class="flex items-center justify-between mb-1">';
+            html += '<span class="text-sm font-medium">' + escapeHtml(m.display_name) + '</span>';
+            html += '<span class="text-xs ' + (trendIcon[m.trend]||'') + '">' + (trendArrow[m.trend]||'') + ' ' + m.trend + '</span>';
+            html += '</div>';
+            if (m.latest != null) {
+                html += '<div class="text-2xl font-bold">' + m.latest.toFixed(1) + ' <span class="text-xs opacity-60">' + escapeHtml(m.unit) + '</span></div>';
+                if (m.ref_min != null || m.ref_max != null) {
+                    html += '<div class="text-xs opacity-50">Range: ' + (m.ref_min != null ? m.ref_min : '-') + ' - ' + (m.ref_max != null ? m.ref_max : '-') + '</div>';
+                }
+            } else {
+                html += '<div class="text-sm opacity-50">N/A</div>';
+            }
+            html += '<div id="bp-chart-' + m.name + '" style="height:60px"></div>';
+            html += '</div>';
+        });
+        html += '</div></div>';
+    });
+    el.innerHTML = html;
+
+    /* Render mini sparklines */
+    data.panels.forEach(function(panel) {
+        panel.markers.forEach(function(m) {
+            if (!m.points || m.points.length < 2) return;
+            var chartEl = document.getElementById('bp-chart-' + m.name);
+            if (!chartEl) return;
+            var chart = echarts.init(chartEl);
+            _charts.push(chart);
+            _bloodPanelSparklines.push(chart);
+            var dates = m.points.map(function(p){return p.date;});
+            var vals = m.points.map(function(p){return p.value;});
+            var opt = {
+                grid:{top:2,bottom:2,left:2,right:2},
+                xAxis:{type:'category',show:false,data:dates},
+                yAxis:{type:'value',show:false},
+                series:[{type:'line',data:vals,symbol:'circle',symbolSize:4,smooth:true,lineStyle:{width:1.5},
+                    itemStyle:{color:function(p){return m.points[p.dataIndex]&&m.points[p.dataIndex].is_anomaly?'#ef4444':'#3b82f6';}}}]
+            };
+            if (m.ref_min != null && m.ref_max != null) {
+                opt.series.push({type:'line',data:dates.map(function(){return m.ref_max;}),lineStyle:{opacity:0},symbol:'none',silent:true,
+                    markArea:{silent:true,data:[[{yAxis:m.ref_min},{yAxis:m.ref_max}]],itemStyle:{color:'rgba(34,197,94,0.08)'}}});
+            }
+            chart.setOption(opt);
+        });
+    });
+}
+
+/* ── Intervention Timeline ───────────────────────────────── */
+var _interventionChart = null;
+
+function loadInterventionTimeline(marker) {
+    var el = document.getElementById('perf-intervention');
+    el.innerHTML = '<div class="flex justify-center py-8"><span class="loading loading-spinner loading-md"></span></div>';
+    fetch('/api/performance/intervention-timeline?marker=' + encodeURIComponent(marker) + '&months=24')
+        .then(function(r) { return r.json(); })
+        .then(renderInterventionTimeline)
+        .catch(function() {
+            el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">Error loading timeline</p>';
+        });
+}
+
+function renderInterventionTimeline(data) {
+    var el = document.getElementById('perf-intervention');
+    if (!data.points || !data.points.length) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">No data for ' + escapeHtml(data.marker) + '</p>';
+        return;
+    }
+    _interventionChart = _disposeChart(_interventionChart);
+    el.innerHTML = '';
+    _interventionChart = echarts.init(el);
+    _charts.push(_interventionChart);
+
+    var dates = data.points.map(function(p){return p.date;});
+    var vals = data.points.map(function(p){return p.value;});
+
+    var markLines = [];
+    if (data.interventions) {
+        data.interventions.forEach(function(iv) {
+            if (iv.start_date) {
+                markLines.push({xAxis: iv.start_date, label: {formatter: escapeHtml(iv.supplement) + ' start', fontSize: 9}});
+            }
+            if (iv.end_date) {
+                markLines.push({xAxis: iv.end_date, label: {formatter: escapeHtml(iv.supplement) + ' stop', fontSize: 9}, lineStyle: {type: 'dashed', color: '#ef4444'}});
+            }
+        });
+    }
+
+    var opt = {
+        tooltip: {trigger:'axis'},
+        grid: {bottom: 40, left: 60, right: 30},
+        xAxis: {type:'category', data:dates, axisLabel:{rotate:30}},
+        yAxis: {type:'value', name: data.unit || ''},
+        series: [{
+            type:'line', data:vals, symbol:'circle', symbolSize:8,
+            markLine: markLines.length ? {data: markLines, symbol: 'none', lineStyle:{type:'dashed'}} : undefined,
+            itemStyle: {color: function(p) {
+                return data.points[p.dataIndex] && data.points[p.dataIndex].is_anomaly ? '#ef4444' : '#3b82f6';
+            }}
+        }]
+    };
+
+    if (data.ref_min != null && data.ref_max != null) {
+        opt.series.push({
+            type:'line', data:dates.map(function(){return data.ref_max;}),
+            lineStyle:{opacity:0}, symbol:'none', silent:true,
+            markArea:{silent:true, data:[[{yAxis:data.ref_min},{yAxis:data.ref_max}]], itemStyle:{color:'rgba(34,197,94,0.08)'}}
+        });
+    }
+
+    if (data.bsts && data.bsts.available && data.bsts.causal_impact != null) {
+        opt.title = {text: 'BSTS Causal Impact: ' + data.bsts.causal_impact.toFixed(2), textStyle:{fontSize:11,fontWeight:'normal'}, right:10, top:5};
+    }
+
+    _interventionChart.setOption(opt);
+}
+
+/* ── Behavioral Pattern Radar ────────────────────────────── */
+var _radarChart = null;
+
+function fetchBehavioralPattern() {
+    fetch('/api/performance/behavioral-pattern?min_weeks=8&percentile=25')
+        .then(function(r) { return r.json(); })
+        .then(renderBehavioralPattern)
+        .catch(function() {
+            document.getElementById('perf-behavioral').innerHTML =
+                '<p class="text-sm opacity-50 py-4">Error loading pattern</p>';
+        });
+}
+
+function renderBehavioralPattern(data) {
+    var el = document.getElementById('perf-behavioral');
+    var insEl = document.getElementById('perf-behavioral-insights');
+    if (!data.sufficient_data) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">Insufficient data (need min 8 weeks, found: ' + (data.weeks_analyzed||0) + ')</p>';
+        insEl.innerHTML = '';
+        return;
+    }
+    _radarChart = _disposeChart(_radarChart);
+    el.innerHTML = '';
+    _radarChart = echarts.init(el);
+    _charts.push(_radarChart);
+
+    var indicator = data.dimensions.map(function(d) { return {name:d, max:100}; });
+
+    _radarChart.setOption({
+        legend: {data: ['Best weeks', 'Worst weeks'], bottom: 0},
+        radar: {indicator: indicator, radius: '65%'},
+        series: [{
+            type: 'radar',
+            data: [
+                {value: data.good_profile, name: 'Best weeks', areaStyle: {opacity: 0.15, color: '#22c55e'}, lineStyle: {color: '#22c55e'}},
+                {value: data.bad_profile, name: 'Worst weeks', areaStyle: {opacity: 0.15, color: '#ef4444'}, lineStyle: {color: '#ef4444'}}
+            ]
+        }]
+    });
+
+    /* Insights */
+    if (data.insights && data.insights.length) {
+        var ihtml = '<div class="space-y-1 mt-2">';
+        data.insights.forEach(function(ins) {
+            ihtml += '<div class="text-xs bg-base-100 rounded p-2">' + escapeHtml(ins) + '</div>';
+        });
+        ihtml += '</div>';
+        insEl.innerHTML = ihtml;
+    } else {
+        insEl.innerHTML = '';
+    }
+}
+
+/* ── Data Coverage ───────────────────────────────────────── */
+function fetchDataCoverage() {
+    fetch('/api/performance/data-coverage')
+        .then(function(r) { return r.json(); })
+        .then(renderDataCoverage)
+        .catch(function() {
+            document.getElementById('perf-coverage').innerHTML =
+                '<p class="text-sm opacity-50 py-4">Error loading coverage</p>';
+        });
+}
+
+function renderDataCoverage(data) {
+    var el = document.getElementById('perf-coverage');
+    if (!data.sources) {
+        el.innerHTML = '<p class="text-sm opacity-50 py-4">No data</p>';
+        return;
+    }
+    var statusColor = {fresh:'badge-success', ok:'badge-info', stale:'badge-warning', outdated:'badge-error'};
+    var html = '<div class="space-y-3">';
+    /* Source freshness */
+    html += '<div class="space-y-2">';
+    data.sources.forEach(function(s) {
+        html += '<div class="flex items-center justify-between p-2 bg-base-100 rounded">';
+        html += '<span class="text-sm">' + escapeHtml(s.source) + '</span>';
+        html += '<div class="flex items-center gap-2">';
+        if (s.days_ago != null) html += '<span class="text-xs opacity-50">' + s.days_ago.toFixed(0) + 'd fa</span>';
+        html += '<span class="badge badge-sm ' + (statusColor[s.status]||'') + '">' + s.status + '</span>';
+        html += '</div></div>';
+    });
+    html += '</div>';
+    /* Recommendations */
+    if (data.recommendations && data.recommendations.length) {
+        html += '<div class="mt-2">';
+        data.recommendations.forEach(function(r) {
+            html += '<div class="text-xs text-warning py-1">&bull; ' + escapeHtml(r) + '</div>';
+        });
+        html += '</div>';
+    }
+    /* Column completeness (top 5 worst) */
+    if (data.column_coverage && data.column_coverage.length) {
+        var sorted = data.column_coverage.slice().sort(function(a,b){return b.nan_pct - a.nan_pct;});
+        var worst = sorted.slice(0,5);
+        html += '<div class="mt-2"><div class="text-xs font-semibold opacity-60 mb-1">Columns with the most NaN</div>';
+        worst.forEach(function(c) {
+            var pct = (100 - c.nan_pct);
+            html += '<div class="flex items-center gap-2 text-xs">';
+            html += '<span class="w-32 truncate opacity-60">' + escapeHtml(c.column) + '</span>';
+            html += '<progress class="progress progress-xs flex-1" value="' + pct + '" max="100"></progress>';
+            html += '<span class="font-mono w-12 text-right">' + c.nan_pct.toFixed(0) + '% NaN</span>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+/* ── Blood Trends (legacy single marker) ─────────────────── */
+var _bloodChart = null;
+
+function fetchBloodTrends(marker) {
+    fetch('/api/performance/blood-trends?marker=' + encodeURIComponent(marker))
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderBloodTrends(data, marker); })
+        .catch(function() {
+            document.getElementById('perf-blood-trends').innerHTML =
+                '<p class="text-sm opacity-50 py-4">Error loading blood values</p>';
+        });
+}
+
+function renderBloodTrends(data, selectedMarker) {
+    var el = document.getElementById('perf-blood-trends');
+    var markers = [
+        ['glucose', 'Glucose'], ['cholesterol_total', 'Total Cholesterol'],
+        ['hemoglobin', 'Hemoglobin'], ['ferritin', 'Ferritin'],
+        ['tsh', 'TSH']
+    ];
+    var html = '<div class="mb-2"><select class="select select-bordered select-sm" onchange="fetchBloodTrends(this.value)">';
+    markers.forEach(function(m) {
+        html += '<option value="' + m[0] + '"' + (selectedMarker === m[0] ? ' selected' : '') + '>' + m[1] + '</option>';
+    });
+    html += '</select></div>';
+    html += '<div id="blood-chart" style="width: 100%; height: 250px;"></div>';
+    el.innerHTML = html;
+
+    var chartEl = document.getElementById('blood-chart');
+    if (!data.points || !data.points.length) {
+        chartEl.innerHTML = '<p class="text-sm opacity-50 py-8 text-center">No data for this marker</p>';
+        return;
+    }
+    _bloodChart = _disposeChart(_bloodChart);
+    _bloodChart = echarts.init(chartEl);
+    _charts.push(_bloodChart);
+
+    var dates = data.points.map(function(p) { return p.date; });
+    var values = data.points.map(function(p) { return p.value; });
+    var option = {
+        tooltip: { trigger: 'axis' },
+        xAxis: { type: 'category', data: dates },
+        yAxis: { type: 'value', name: data.unit || '' },
+        series: [{
+            type: 'line', data: values, symbol: 'circle', symbolSize: 8,
+            itemStyle: {
+                color: function(params) {
+                    return data.points[params.dataIndex] && data.points[params.dataIndex].is_anomaly
+                        ? '#ef4444' : '#3b82f6';
+                }
+            }
+        }]
+    };
+    if (data.ref_min != null && data.ref_max != null) {
+        option.series.push({
+            type: 'line', data: dates.map(function() { return data.ref_max; }),
+            lineStyle: { opacity: 0 }, symbol: 'none', silent: true,
+            markArea: {
+                silent: true,
+                data: [[{ yAxis: data.ref_min }, { yAxis: data.ref_max }]],
+                itemStyle: { color: 'rgba(34,197,94,0.08)' }
+            }
+        });
+    }
+    _bloodChart.setOption(option);
+}
+
+/* ── Daily Detail ────────────────────────────────────────── */
+function showDailyDetail(dateStr) {
+    var el = document.getElementById('perf-daily-detail');
+    el.innerHTML = '<div class="flex justify-center py-4"><span class="loading loading-spinner loading-md"></span></div>';
+    document.getElementById('perf-daily-modal').showModal();
+    fetch('/api/performance/daily/' + encodeURIComponent(dateStr))
+        .then(function(r) { return r.json(); })
+        .then(renderDailyDetail)
+        .catch(function() {
+            el.innerHTML = '<div class="alert alert-warning">Error loading details</div>';
+        });
+}
+
+function renderDailyDetail(detail) {
+    var el = document.getElementById('perf-daily-detail');
+    var html = '<h3 class="text-lg font-bold mb-3">' + escapeHtml(detail.date) + '</h3>';
+    if (detail.error) {
+        html += '<div class="alert alert-warning">' + escapeHtml(detail.error) + '</div>';
+    } else {
+        html += '<div class="grid grid-cols-1 md:grid-cols-2 gap-4">';
+        html += '<div><h4 class="font-semibold mb-2">Biometric</h4>';
+        if (detail.biometric && Object.keys(detail.biometric).length) {
+            html += '<table class="table table-sm">';
+            for (var k in detail.biometric) {
+                html += '<tr><td class="opacity-60">' + escapeHtml(k)
+                    + '</td><td class="font-mono text-right">' + detail.biometric[k].toFixed(1) + '</td></tr>';
+            }
+            html += '</table>';
+        } else { html += '<p class="text-sm opacity-50">No biometric data</p>'; }
+        html += '</div>';
+        html += '<div><h4 class="font-semibold mb-2">Behavioural</h4>';
+        if (detail.behavioral && Object.keys(detail.behavioral).length) {
+            html += '<table class="table table-sm">';
+            for (var k2 in detail.behavioral) {
+                html += '<tr><td class="opacity-60">' + escapeHtml(k2)
+                    + '</td><td class="font-mono text-right">' + detail.behavioral[k2].toFixed(1) + '</td></tr>';
+            }
+            html += '</table>';
+        } else { html += '<p class="text-sm opacity-50">No behavioral data</p>'; }
+        html += '</div></div>';
+    }
+    el.innerHTML = html;
+}
+
+/* ── Init ────────────────────────────────────────────────── */
+document.addEventListener('DOMContentLoaded', function() {
+    fetchHeatmap();
+    fetchAnomalies();
+    fetchWeeklyScore();
+    loadCircadian('meetings');
+    loadTimeline(30);
+    loadCorrelationMatrix(0);
+    fetchCorrelations();
+    loadBloodPanel('all');
+    var _mkSel = document.getElementById('intervention-marker-select');
+    var _defaultMarker = _mkSel ? _mkSel.value : '';
+    loadInterventionTimeline(_defaultMarker);
+    fetchBehavioralPattern();
+    fetchDataCoverage();
+    fetchBloodTrends(_defaultMarker);
+});
+</script>
+{% endblock %}

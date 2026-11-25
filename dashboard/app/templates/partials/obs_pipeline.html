@@ -1,0 +1,71 @@
+<!-- Observability: Pipeline Metrics (INF-081) -->
+
+<!-- Stat cards -->
+<div class="stats shadow w-full mb-6">
+    <div class="stat">
+        <div class="stat-title">Total Runs</div>
+        <div class="stat-value text-primary">{{ data.total }}</div>
+        <div class="stat-desc">Last {{ data.hours }}h</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Completed</div>
+        <div class="stat-value text-success">{{ data.by_status.get('completed', 0) }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Failed</div>
+        <div class="stat-value text-error">{{ data.by_status.get('failed', 0) + data.by_status.get('timeout', 0) }}</div>
+    </div>
+    <div class="stat">
+        <div class="stat-title">Avg Duration</div>
+        <div class="stat-value">{{ data.avg_duration_s }}s</div>
+    </div>
+</div>
+
+<!-- Recent runs table -->
+{% if data.recent_runs %}
+<div class="card bg-base-200 shadow-sm">
+    <div class="card-body">
+        <h3 class="card-title text-lg mb-4">Recent Runs</h3>
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Script</th>
+                        <th>Stage</th>
+                        <th>Status</th>
+                        <th>Duration</th>
+                        <th>Exit</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for run in data.recent_runs | reverse %}
+                    <tr>
+                        <td class="font-mono text-xs">{{ run.ts[11:] if run.ts|length > 11 else run.ts }}</td>
+                        <td class="text-xs">{{ run.script }}</td>
+                        <td><span class="badge badge-outline badge-sm">{{ run.stage }}</span></td>
+                        <td>
+                            {% if run.status == 'completed' %}
+                                <span class="badge badge-success badge-sm">OK</span>
+                            {% elif run.status == 'failed' %}
+                                <span class="badge badge-error badge-sm">FAIL</span>
+                            {% elif run.status == 'timeout' %}
+                                <span class="badge badge-warning badge-sm">TIMEOUT</span>
+                            {% else %}
+                                <span class="badge badge-ghost badge-sm">{{ run.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-right">{{ run.duration_s }}s</td>
+                        <td class="text-center">{{ run.exit_code if run.exit_code is not none else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% else %}
+<div class="alert alert-info">
+    No metrics recorded. Data will populate with upcoming pipeline runs.
+</div>
+{% endif %}

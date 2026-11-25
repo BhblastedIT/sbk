@@ -1,0 +1,52 @@
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-5">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-lg">Relationships</h2>
+            {% if alerts %}
+                <span class="badge badge-warning badge-sm">{{ alerts|length }} alert</span>
+            {% endif %}
+        </div>
+
+        {% if alerts %}
+            <div class="space-y-2">
+                {% for alert in alerts %}
+                <div class="flex items-center justify-between p-2 rounded-lg bg-base-200/50">
+                    <div class="flex items-center gap-3">
+                        <a href="/person?auto={{ alert.name|urlencode }}" class="link link-hover font-medium text-sm">
+                            {{ alert.name or alert.person_id }}
+                        </a>
+                        {% if alert.tier %}
+                            {% if alert.tier == "inner" %}
+                                <span class="badge badge-primary badge-xs">inner</span>
+                            {% elif alert.tier == "sympathy" %}
+                                <span class="badge badge-secondary badge-xs">sympathy</span>
+                            {% elif alert.tier == "affinity" %}
+                                <span class="badge badge-accent badge-xs">affinity</span>
+                            {% else %}
+                                <span class="badge badge-ghost badge-xs">{{ alert.tier }}</span>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                    <div class="flex items-center gap-3 text-sm">
+                        <span class="text-base-content/60">{{ alert.days_since or "" }}g fa</span>
+                        {% set decay_pct = alert.decay_pct|default(0)|float %}
+                        {% if decay_pct > 50 %}
+                            <span class="text-error font-semibold">{{ "%.0f"|format(decay_pct) }}%</span>
+                        {% elif decay_pct > 30 %}
+                            <span class="text-warning font-semibold">{{ "%.0f"|format(decay_pct) }}%</span>
+                        {% else %}
+                            <span class="text-success">{{ "%.0f"|format(decay_pct) }}%</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="text-base-content/50 text-sm">No active decay alerts.</p>
+        {% endif %}
+
+        <div class="card-actions justify-end mt-3">
+            <a href="/decay" class="btn btn-ghost btn-xs">View full decay</a>
+        </div>
+    </div>
+</div>

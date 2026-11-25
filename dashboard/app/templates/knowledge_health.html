@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}SBK — Knowledge Health{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">Knowledge Health</h1>
+            <p class="text-base-content/60 text-sm mt-1">Entity profiles, domain health, conflict review</p>
+        </div>
+        <span id="kh-spinner" class="loading loading-spinner loading-sm htmx-indicator"></span>
+    </div>
+
+    <!-- Tab navigation -->
+    <div class="tabs tabs-boxed mb-6" id="kh-tabs">
+        <button class="tab tab-active" data-tab="overview" onclick="switchKhTab('overview')">Overview</button>
+        <button class="tab" data-tab="people" onclick="switchKhTab('people')">People</button>
+        <button class="tab" data-tab="companies" onclick="switchKhTab('companies')">Companies</button>
+        <button class="tab" data-tab="review" onclick="switchKhTab('review')">Review</button>
+    </div>
+
+    <!-- Tab panels -->
+    <div id="kh-tab-overview" class="kh-tab-panel">
+        <div hx-get="/partials/knowledge_overview"
+             hx-trigger="load, every 60s"
+             hx-swap="innerHTML"
+             hx-indicator="#kh-spinner">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="kh-tab-people" class="kh-tab-panel hidden">
+        <div hx-get="/partials/knowledge_domain?domain=person"
+             hx-trigger="revealed"
+             hx-swap="innerHTML"
+             hx-indicator="#kh-spinner">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="kh-tab-companies" class="kh-tab-panel hidden">
+        <div hx-get="/partials/knowledge_domain?domain=organization"
+             hx-trigger="revealed"
+             hx-swap="innerHTML"
+             hx-indicator="#kh-spinner">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="kh-tab-review" class="kh-tab-panel hidden">
+        <div hx-get="/partials/knowledge_review"
+             hx-trigger="revealed"
+             hx-swap="innerHTML"
+             hx-indicator="#kh-spinner">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchKhTab(name) {
+    document.querySelectorAll('.kh-tab-panel').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('#kh-tabs .tab').forEach(t => t.classList.remove('tab-active'));
+    const panel = document.getElementById('kh-tab-' + name);
+    if (panel) panel.classList.remove('hidden');
+    const tab = document.querySelector('#kh-tabs [data-tab="' + name + '"]');
+    if (tab) tab.classList.add('tab-active');
+}
+</script>
+{% endblock %}

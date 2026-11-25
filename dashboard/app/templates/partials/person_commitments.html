@@ -1,0 +1,53 @@
+{% if commitments %}
+<div class="space-y-2">
+    {% for c in commitments %}
+    <div class="flex items-start gap-2 text-xs bg-base-200 rounded-box p-2 group">
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-1 mb-0.5">
+                {% if c.status == 'BROKEN' %}
+                <span class="badge badge-error badge-xs">BROKEN</span>
+                {% elif c.status == 'KEPT' %}
+                <span class="badge badge-success badge-xs">KEPT</span>
+                {% elif c.status == 'EXPIRED' %}
+                <span class="badge badge-ghost badge-xs">EXPIRED</span>
+                {% elif c.status == 'DISMISSED' %}
+                <span class="badge badge-ghost badge-xs">DISMISSED</span>
+                {% else %}
+                <span class="badge badge-warning badge-xs">PENDING</span>
+                {% endif %}
+                {% if c.deadline %}
+                <span class="text-base-content/50">{{ c.deadline }}</span>
+                {% endif %}
+                <span class="text-base-content/40">{{ c.source_type }}</span>
+            </div>
+            <div class="text-sm">
+                <span class="font-medium">{{ c.who or '?' }}</span>
+                <span class="text-base-content/40">&rarr;</span>
+                <span class="font-medium">{{ c.to_whom or '?' }}</span>:
+                {{ (c.what or '')[:200] }}
+            </div>
+            {% if c.source_date %}
+            <div class="text-base-content/30 mt-0.5">{{ c.source_date }}</div>
+            {% endif %}
+        </div>
+        {% if c.status == 'PENDING' %}
+        <div class="dropdown dropdown-end">
+            <label tabindex="0" class="btn btn-ghost btn-xs opacity-0 group-hover:opacity-100">...</label>
+            <ul tabindex="0" class="dropdown-content z-50 menu p-1 shadow bg-base-100 rounded-box text-xs w-32">
+                <li><a hx-put="/api/commitments/{{ c.commitment_id }}/status"
+                       hx-vals='{"status": "KEPT"}'
+                       hx-headers='{"Content-Type": "application/json"}'
+                       hx-swap="none">Kept</a></li>
+                <li><a hx-put="/api/commitments/{{ c.commitment_id }}/status"
+                       hx-vals='{"status": "DISMISSED"}'
+                       hx-headers='{"Content-Type": "application/json"}'
+                       hx-swap="none">Ignore</a></li>
+            </ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No commitment tracked for this person.</div>
+{% endif %}

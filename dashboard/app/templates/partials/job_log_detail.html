@@ -1,0 +1,47 @@
+<!-- Job log detail partial: structured log for a completed job -->
+{% if error %}
+<div class="alert alert-error text-sm">{{ error }}</div>
+{% elif parsed_lines %}
+<div class="bg-neutral text-neutral-content rounded-box p-4 font-mono text-sm max-h-[500px] overflow-y-auto">
+  <div class="flex items-center justify-between mb-2">
+    <span class="font-bold text-base">Log: {{ job_id }}</span>
+    <button class="btn btn-xs btn-ghost" onclick="document.getElementById('log-area').innerHTML='<span class=\'text-base-content/40\'>Select a source and click a button to start...</span>'">Close</button>
+  </div>
+
+  {% if summary %}
+  <div class="border-l-4 {{ 'border-success' if status == 'completed' else 'border-error' }} bg-base-200 text-base-content rounded-box p-3 mb-3 text-sm">
+    <div class="flex flex-wrap gap-4 text-xs">
+      <span>Rows: <b>{{ summary.total_lines }}</b></span>
+      {% if summary.error_count %}<span class="text-error">Errori: <b>{{ summary.error_count }}</b></span>{% endif %}
+      {% if summary.warning_count %}<span class="text-warning">Warning: <b>{{ summary.warning_count }}</b></span>{% endif %}
+      {% if summary.stages %}<span>Stages: <b>{{ summary.stages|join(' > ') }}</b></span>{% endif %}
+    </div>
+    {% if summary.metrics %}
+    <div class="flex flex-wrap gap-2 mt-2">
+      {% for k, v in summary.metrics.items() %}
+      <span class="badge badge-sm">{{ k }}: {{ "{:,}".format(v) if v is number else v }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% for pl in parsed_lines %}
+  <div class="flex items-start gap-2 leading-tight py-px">
+    {% if pl.timestamp %}
+    <span class="text-neutral-content/30 select-none shrink-0">{{ pl.timestamp }}</span>
+    {% endif %}
+    <span class="{% if pl.is_stage_header %}font-bold border-b border-primary/30 text-primary w-full pb-px mt-1{% endif %} {{ 'text-error' if pl.severity == 'error' else 'text-warning' if pl.severity == 'warning' else 'text-success' if pl.severity == 'success' else 'text-neutral-content/40' if pl.severity == 'debug' else '' }}">
+      {{ pl.message }}
+      {% if pl.metrics %}
+        {% for k, v in pl.metrics.items() %}
+        <span class="badge badge-outline badge-xs ml-2 font-mono">{{ k }}: {{ "{:,}".format(v) if v is number else v }}</span>
+        {% endfor %}
+      {% endif %}
+    </span>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-base-content/50 text-sm p-4">No log lines found.</div>
+{% endif %}

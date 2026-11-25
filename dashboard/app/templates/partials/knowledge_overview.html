@@ -1,0 +1,82 @@
+<!-- Knowledge Overview partial — loaded via HTMX -->
+
+<!-- Health stat cards per domain -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+{% for domain in ["person", "organization", "deal", "commitment"] %}
+{% set d = health.get(domain, {}) %}
+{% set score = d.get("health_score", 1.0) %}
+{% set pct = (score * 100)|int %}
+{% if pct >= 85 %}
+    {% set color = "text-success" %}
+    {% set badge = "badge-success" %}
+{% elif pct >= 70 %}
+    {% set color = "text-warning" %}
+    {% set badge = "badge-warning" %}
+{% else %}
+    {% set color = "text-error" %}
+    {% set badge = "badge-error" %}
+{% endif %}
+<div class="card bg-base-100 shadow-sm">
+    <div class="card-body p-4 text-center">
+        <div class="text-2xl font-bold {{ color }}">{{ pct }}%</div>
+        <div class="badge {{ badge }} badge-sm mt-1">{{ domain }}</div>
+        <div class="text-xs text-base-content/50 mt-1">
+            {{ d.get("entity_count", 0) }} entities / {{ d.get("fact_count", 0) }} facts
+        </div>
+        {% if d.get("uncertain_facts", 0) > 0 %}
+        <div class="text-xs text-warning">{{ d.get("uncertain_facts", 0) }} uncertain</div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+</div>
+
+<!-- Pending review badge -->
+{% if pending_review_count > 0 %}
+<div class="alert alert-warning mb-6 cursor-pointer" onclick="switchKhTab('review')">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+    </svg>
+    <span>{{ pending_review_count }} conflict{{ "s" if pending_review_count != 1 }} pending review</span>
+    <span class="badge badge-warning">Review</span>
+</div>
+{% endif %}
+
+<!-- Recent changes feed -->
+<div class="card bg-base-100 shadow-sm">
+    <div class="card-body p-4">
+        <h3 class="font-semibold mb-3">Recent Changes (7 days)</h3>
+        {% if changes %}
+        <div class="overflow-x-auto">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Entity</th>
+                        <th>Change</th>
+                        <th>Attribute</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for c in changes[:10] %}
+                    <tr>
+                        <td class="font-medium">{{ c.entity }}</td>
+                        <td>
+                            {% if c.change_type == "new_fact" %}
+                            <span class="badge badge-success badge-xs">new</span>
+                            {% else %}
+                            <span class="badge badge-error badge-xs">expired</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-sm">{{ c.attribute }}</td>
+                        <td class="text-xs text-base-content/50">{{ c.date[:10] if c.date else "" }}</td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-base-content/50 text-sm">No changes in the last 7 days.</p>
+        {% endif %}
+    </div>
+</div>

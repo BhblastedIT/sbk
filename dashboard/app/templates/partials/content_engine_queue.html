@@ -1,0 +1,132 @@
+<!-- Queue cards partial — loaded via HTMX -->
+<div class="space-y-3">
+    <!-- Platform sub-tabs -->
+    <div class="flex gap-2">
+        <button class="btn btn-sm" id="queue-tab-all" onclick="filterQueue('')">All</button>
+        <button class="btn btn-sm btn-outline" id="queue-tab-twitter" onclick="filterQueue('twitter')">Twitter</button>
+        <button class="btn btn-sm btn-outline" id="queue-tab-linkedin" onclick="filterQueue('linkedin')">LinkedIn</button>
+        <button class="btn btn-sm btn-outline" id="queue-tab-substack" onclick="filterQueue('substack')">Substack</button>
+    </div>
+
+    <!-- Draft cards container -->
+    <div id="queue-cards" class="grid gap-3">
+        <div class="text-center py-8 text-base-content/50">Loading...</div>
+    </div>
+
+    <div id="queue-count" class="text-xs text-base-content/50"></div>
+</div>
+
+<script>
+var _queuePlatform = '';
+
+function filterQueue(platform) {
+    _queuePlatform = platform;
+    // Update tab buttons
+    ['all', 'twitter', 'linkedin', 'substack'].forEach(function(t) {
+        var btn = document.getElementById('queue-tab-' + t);
+        if (!btn) return;
+        var isActive = (t === 'all' && !platform) || t === platform;
+        btn.classList.toggle('btn-outline', !isActive);
+        btn.classList.toggle('btn-primary', isActive);
+    });
+    loadQueue();
+}
+
+function loadQueue() {
+    var params = new URLSearchParams();
+    if (_queuePlatform) params.set('platform', _queuePlatform);
+
+    fetch('/api/content-engine/queue?' + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderQueueCards(data); })
+        .catch(function(e) { console.error('Queue fetch error:', e); });
+}
+
+function renderQueueCards(data) {
+    var container = document.getElementById('queue-cards');
+    var drafts = data.drafts || [];
+
+    if (drafts.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-base-content/50">No draft in queue. Generate seeds first, then drafts.</div>';
+        document.getElementById('queue-count').textContent = '0 drafts';
+        return;
+    }
+
+    var html = '';
+    drafts.forEach(function(d) {
+        var statusBadge = '';
+        switch (d.status) {
+            case 'approved': statusBadge = '<span class="badge badge-sm badge-success">Approved</span>'; break;
+            case 'skipped': statusBadge = '<span class="badge badge-sm badge-ghost">Skipped</span>'; break;
+            default: statusBadge = '<span class="badge badge-sm badge-info">Pending</span>';
+        }
+
+        var platformBadge = '';
+        switch (d.platform) {
+            case 'twitter': platformBadge = '<span class="badge badge-sm badge-primary">Twitter</span>'; break;
+            case 'linkedin': platformBadge = '<span class="badge badge-sm badge-secondary">LinkedIn</span>'; break;
+            case 'substack': platformBadge = '<span class="badge badge-sm badge-accent">Substack</span>'; break;
+        }
+
+        var sensitivityBadge = d.sensitivity === 'green'
+            ? '<span class="badge badge-sm badge-success">GREEN</span>'
+            : '<span class="badge badge-sm badge-warning">YELLOW</span>';
+
+        var content = escapeHtmlQ(d.content || d.text || '');
+        var preview = content.substring(0, 300);
+        if (content.length > 300) preview += '...';
+
+        html += '<div class="card bg-base-100 shadow-sm border border-base-300">';
+        html += '<div class="card-body p-4">';
+
+        // Header
+        html += '<div class="flex items-center gap-2 mb-2">';
+        html += platformBadge + ' ' + statusBadge + ' ' + sensitivityBadge;
+        if (d.seed_id) {
+            html += '<span class="text-xs text-base-content/40 ml-auto">seed: ' + d.seed_id.substring(0, 8) + '</span>';
+        }
+        html += '</div>';
+
+        // Content preview
+        html += '<div class="text-sm whitespace-pre-wrap">' + preview + '</div>';
+
+        // Twitter variants
+        if (d.platform === 'twitter' && d.variants && d.variants.length > 1) {
+            html += '<div class="mt-2 text-xs text-base-content/50">' + d.variants.length + ' variants available</div>';
+        }
+
+        // Actions
+        if (d.status !== 'approved' && d.status !== 'skipped') {
+            html += '<div class="flex gap-2 mt-3">';
+            html += '<button class="btn btn-xs btn-success" onclick="updateDraft(\'' + d.draft_id + '\', \'approved\')">Approve</button>';
+            html += '<button class="btn btn-xs btn-ghost" onclick="updateDraft(\'' + d.draft_id + '\', \'skipped\')">Skip</button>';
+            html += '</div>';
+        }
+
+        html += '</div></div>';
+    });
+
+    container.innerHTML = html;
+    document.getElementById('queue-count').textContent = data.total + ' drafts' + (data.generated_at ? ' (generated ' + data.generated_at.substring(0, 19) + ')' : '');
+}
+
+function updateDraft(draftId, newStatus) {
+    fetch('/api/content-engine/queue/' + draftId, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({status: newStatus})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function() { loadQueue(); })
+    .catch(function(e) { console.error('Update error:', e); });
+}
+
+function escapeHtmlQ(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Initial load
+loadQueue();
+</script>

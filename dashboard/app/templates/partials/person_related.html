@@ -1,0 +1,23 @@
+{% if related %}
+<table class="table table-xs w-full">
+    <thead>
+        <tr>
+            <th class="text-xs">Nome</th>
+            <th class="text-xs">Email</th>
+            <th class="text-xs w-20 text-right">Weight</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for r in related %}
+        <tr class="hover cursor-pointer"
+            onclick="document.getElementById('person-query').value='{{ r.email or r.name }}'; doPersonLookup();">
+            <td class="text-sm font-medium">{{ r.name }}</td>
+            <td class="text-xs text-base-content/60">{{ r.email }}</td>
+            <td class="text-xs text-right">{{ r.weight }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="text-xs text-base-content/40 py-2">No related person in the graph.</div>
+{% endif %}

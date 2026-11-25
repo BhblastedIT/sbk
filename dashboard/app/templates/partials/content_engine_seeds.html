@@ -1,0 +1,142 @@
+<!-- Seeds table partial — loaded via HTMX -->
+<div class="space-y-3">
+    <!-- Filters -->
+    <div class="flex flex-wrap gap-3 items-end">
+        <div class="form-control w-40">
+            <label class="label py-0"><span class="label-text text-xs">Pillar</span></label>
+            <!-- Pillars are placeholders; load the real set from user config (content.pillars) -->
+            <select id="seed-filter-pillar" class="select select-sm select-bordered"
+                    onchange="reloadSeeds()">
+                <option value="">All</option>
+                <option value="pillar_a">Pillar A</option>
+                <option value="pillar_b">Pillar B</option>
+                <option value="pillar_c">Pillar C</option>
+            </select>
+        </div>
+        <div class="form-control w-32">
+            <label class="label py-0"><span class="label-text text-xs">Min Score</span></label>
+            <input type="number" id="seed-filter-score" class="input input-sm input-bordered w-full"
+                   value="0" min="0" max="1" step="0.1" onchange="reloadSeeds()">
+        </div>
+        <div class="form-control w-36">
+            <label class="label py-0"><span class="label-text text-xs">Sensitivity</span></label>
+            <select id="seed-filter-sensitivity" class="select select-sm select-bordered"
+                    onchange="reloadSeeds()">
+                <option value="">All</option>
+                <option value="green">Green</option>
+                <option value="yellow">Yellow</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div id="seeds-table-container" class="overflow-x-auto">
+        <table class="table table-sm table-zebra w-full">
+            <thead>
+                <tr>
+                    <th class="w-16">Score</th>
+                    <th class="w-28">Pillar</th>
+                    <th>Subject</th>
+                    <th>Core Text</th>
+                    <th class="w-20">Sensitivity</th>
+                    <th class="w-36">Platform Scores</th>
+                </tr>
+            </thead>
+            <tbody id="seeds-tbody">
+                <tr><td colspan="6" class="text-center py-8 text-base-content/50">Loading...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="seeds-count" class="text-xs text-base-content/50"></div>
+</div>
+
+<script>
+function reloadSeeds() {
+    var pillar = document.getElementById('seed-filter-pillar').value;
+    var score = document.getElementById('seed-filter-score').value;
+    var sensitivity = document.getElementById('seed-filter-sensitivity').value;
+
+    var params = new URLSearchParams();
+    if (pillar) params.set('pillar', pillar);
+    if (parseFloat(score) > 0) params.set('min_score', score);
+    if (sensitivity) params.set('sensitivity', sensitivity);
+
+    fetch('/api/content-engine/seeds?' + params.toString())
+        .then(function(r) { return r.json(); })
+        .then(function(data) { renderSeedsTable(data); })
+        .catch(function(e) { console.error('Seeds fetch error:', e); });
+}
+
+function renderSeedsTable(data) {
+    var tbody = document.getElementById('seeds-tbody');
+    var seeds = data.seeds || [];
+
+    if (seeds.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-base-content/50">No seed found</td></tr>';
+        document.getElementById('seeds-count').textContent = '0 seeds';
+        return;
+    }
+
+    var html = '';
+    seeds.forEach(function(s) {
+        var coreText = (s.core_text || '').substring(0, 120);
+        if ((s.core_text || '').length > 120) coreText += '...';
+
+        var sensitivityBadge = s.sensitivity === 'green'
+            ? '<span class="badge badge-sm badge-success">GREEN</span>'
+            : '<span class="badge badge-sm badge-warning">YELLOW</span>';
+
+        var pillarLabel = (s.pillar || '').replace(/_/g, ' ');
+
+        var ps = s.platform_scores || {};
+        var platformHtml = '<div class="flex gap-1 text-xs">';
+        ['twitter', 'linkedin', 'substack'].forEach(function(p) {
+            var v = (ps[p] || 0).toFixed(2);
+            var cls = parseFloat(v) > 0.5 ? 'text-success' : 'text-base-content/40';
+            platformHtml += '<span class="' + cls + '">' + p[0].toUpperCase() + ':' + v + '</span> ';
+        });
+        platformHtml += '</div>';
+
+        html += '<tr class="hover cursor-pointer" onclick="toggleSeedDetail(\'' + s.seed_id + '\')">';
+        html += '<td class="font-mono text-sm">' + (s.content_score || 0).toFixed(3) + '</td>';
+        html += '<td class="capitalize text-xs">' + pillarLabel + '</td>';
+        html += '<td class="text-sm font-medium">' + escapeHtml(s.subject || '') + '</td>';
+        html += '<td class="text-xs text-base-content/70">' + escapeHtml(coreText) + '</td>';
+        html += '<td>' + sensitivityBadge + '</td>';
+        html += '<td>' + platformHtml + '</td>';
+        html += '</tr>';
+
+        // Detail row (hidden)
+        html += '<tr id="seed-detail-' + s.seed_id + '" class="hidden bg-base-200">';
+        html += '<td colspan="6" class="p-4 text-sm">';
+        html += '<div class="grid grid-cols-2 gap-4">';
+        html += '<div><strong>Predicate</strong><br>' + escapeHtml(s.predicate || '') + '</div>';
+        html += '<div><strong>Context</strong><br>' + escapeHtml(s.context || '') + '</div>';
+        html += '<div><strong>Speaker</strong><br>' + escapeHtml(s.speaker || '') + '</div>';
+        html += '<div><strong>Source</strong><br>' + escapeHtml(s.source_type || '') + ' | ' + escapeHtml(s.source_date || '') + '</div>';
+        html += '<div><strong>Category</strong><br>' + escapeHtml(s.category || '') + (s.subcategory ? ' / ' + escapeHtml(s.subcategory) : '') + '</div>';
+        html += '<div><strong>Fact IDs</strong><br><span class="text-xs font-mono">' + (s.source_fact_ids || []).length + ' facts</span></div>';
+        html += '</div>';
+        html += '<div class="mt-3"><strong>Full Text</strong><br>' + escapeHtml(s.core_text || '') + '</div>';
+        html += '</td></tr>';
+    });
+
+    tbody.innerHTML = html;
+    document.getElementById('seeds-count').textContent = data.total + ' seeds' + (data.generated_at ? ' (generated ' + data.generated_at.substring(0, 19) + ')' : '');
+}
+
+function toggleSeedDetail(seedId) {
+    var row = document.getElementById('seed-detail-' + seedId);
+    if (row) row.classList.toggle('hidden');
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Initial load
+reloadSeeds();
+</script>

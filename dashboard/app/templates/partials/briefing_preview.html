@@ -1,0 +1,82 @@
+<!-- Briefing Preview Widget -->
+<div class="card bg-base-100 shadow">
+    <div class="card-body p-4">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="card-title text-base">Daily Briefing</h2>
+            {% if already_sent %}
+                <span class="badge badge-success badge-sm">Sent</span>
+            {% else %}
+                <span class="badge badge-ghost badge-sm">Not sent</span>
+            {% endif %}
+        </div>
+
+        {% if already_sent %}
+        <!-- Already sent: show summary -->
+        <div class="text-xs text-base-content/50 mb-2">
+            Sent to Slack at {{ sent_at[11:16] if sent_at and 'T' in sent_at else sent_at }}
+        </div>
+        {% if sections %}
+        <div class="grid grid-cols-2 gap-2">
+            <div class="stat bg-base-200/50 rounded-box p-2">
+                <div class="stat-title text-xs">Meeting</div>
+                <div class="stat-value text-sm">{{ sections.get('meetings_today', 0) }}</div>
+            </div>
+            <div class="stat bg-base-200/50 rounded-box p-2">
+                <div class="stat-title text-xs">Email</div>
+                <div class="stat-value text-sm">{{ sections.get('emails_pending', 0) }}</div>
+            </div>
+            <div class="stat bg-base-200/50 rounded-box p-2">
+                <div class="stat-title text-xs">Follow-up</div>
+                <div class="stat-value text-sm">{{ sections.get('followups_due', 0) }}</div>
+            </div>
+            <div class="stat bg-base-200/50 rounded-box p-2">
+                <div class="stat-title text-xs">Focus</div>
+                <div class="stat-value text-sm">{{ sections.get('focus_items', 0) }}</div>
+            </div>
+        </div>
+        {% endif %}
+        {% else %}
+        <!-- Not sent yet: show preview + send button -->
+        {% if sections %}
+        <div class="grid grid-cols-4 gap-2 mb-3">
+            <div class="text-center">
+                <div class="text-lg font-bold">{{ sections.get('meetings_today', 0) }}</div>
+                <div class="text-xs text-base-content/50">Meeting</div>
+            </div>
+            <div class="text-center">
+                <div class="text-lg font-bold">{{ sections.get('emails_pending', 0) }}</div>
+                <div class="text-xs text-base-content/50">Email</div>
+            </div>
+            <div class="text-center">
+                <div class="text-lg font-bold">{{ sections.get('followups_due', 0) }}</div>
+                <div class="text-xs text-base-content/50">Follow-up</div>
+            </div>
+            <div class="text-center">
+                <div class="text-lg font-bold">{{ sections.get('focus_items', 0) }}</div>
+                <div class="text-xs text-base-content/50">Focus</div>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if preview_text %}
+        <details class="collapse collapse-arrow bg-base-200/50 rounded-box mb-3">
+            <summary class="collapse-title text-xs font-medium py-2 min-h-0">Text preview</summary>
+            <div class="collapse-content">
+                <pre class="text-xs whitespace-pre-wrap overflow-auto max-h-48">{{ preview_text }}</pre>
+            </div>
+        </details>
+        {% endif %}
+
+        <button
+            class="btn btn-sm btn-primary w-full"
+            onclick="if(!confirm('Send the briefing to Slack?')) return;
+                     this.classList.add('loading');
+                     fetch('/api/briefing/send', {method:'POST', headers:{'X-SBK-CSRF':'1'}})
+                     .then(r => r.json())
+                     .then(() => htmx.ajax('GET', '/api/briefing/partial', {target:'#briefing-container', swap:'innerHTML'}))
+                     .catch(() => this.classList.remove('loading'))">
+            Send to Slack
+        </button>
+        {% endif %}
+    </div>
+</div>

@@ -1,0 +1,35 @@
+# Plaud — catena di adapter (Ingestion v2). Esemplare.
+source: plaud
+cadence_hours: 24
+probe: "plaud me (CLI) / list 1 file — verifica che il token OAuth sia vivo"
+sanity_baseline:
+  min_records_full: 1   # un full-scan con 0 file è sospetto
+
+adapters:
+  # PRIMARIO: CLI ufficiale @plaud-ai/cli — OAuth PKCE, refresh automatico, ToS-safe.
+  # Validated against the official CLI: transcript+audio OK.
+  - name: plaud-cli-official
+    type: official-cli
+    auth: oauth-pkce
+    tos: safe
+    priority: 1
+    config:
+      cli_bin: node_modules/.bin/plaud
+      tokens_file: ~/.plaud/tokens.json
+
+  # BACKUP: self-refresh del urtToken (reverse-eng) — rete se il primario cade.
+  # Endpoint POST /auth/refresh-user-token; lock anti-race con l'app desktop.
+  - name: plaud-selfrefresh-urt
+    type: reverse-eng
+    auth: urtToken
+    tos: violates
+    priority: 2
+    enabled: false   # attivare solo come rete d'emergenza
+
+  # ULTIMA SPIAGGIA: export GDPR (DSAR) per backfill storico.
+  - name: plaud-gdpr-export
+    type: manual-export
+    auth: dsar
+    tos: safe
+    priority: 9
+    enabled: false

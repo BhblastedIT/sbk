@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+{% block title %}Timeline — SBK{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header + Filters -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+            <h1 class="text-2xl font-bold">Timeline</h1>
+            <p class="text-sm text-base-content/60">Temporal map of interactions</p>
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+            <!-- Channel toggle -->
+            <div class="btn-group" id="channel-toggle">
+                <button class="btn btn-sm btn-active" data-channel="all">All</button>
+                <button class="btn btn-sm" data-channel="email">Email</button>
+                <button class="btn btn-sm" data-channel="slack">Slack</button>
+                <button class="btn btn-sm" data-channel="meeting">Meeting</button>
+            </div>
+            <!-- Person search -->
+            <div class="form-control">
+                <input type="text" id="person-search" placeholder="Search person..."
+                       class="input input-sm input-bordered w-48"
+                       autocomplete="off" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="stats shadow bg-base-100 w-full" id="stats-bar">
+        <div class="stat py-2 px-4">
+            <div class="stat-title text-xs">Total interactions</div>
+            <div class="stat-value text-lg" id="stat-total">-</div>
+        </div>
+        <div class="stat py-2 px-4">
+            <div class="stat-title text-xs">Peak day</div>
+            <div class="stat-value text-lg" id="stat-max-day">-</div>
+        </div>
+        <div class="stat py-2 px-4">
+            <div class="stat-title text-xs">Email</div>
+            <div class="stat-value text-lg text-info" id="stat-email">-</div>
+        </div>
+        <div class="stat py-2 px-4">
+            <div class="stat-title text-xs">Slack</div>
+            <div class="stat-value text-lg text-success" id="stat-slack">-</div>
+        </div>
+        <div class="stat py-2 px-4">
+            <div class="stat-title text-xs">Meeting</div>
+            <div class="stat-value text-lg text-warning" id="stat-meeting">-</div>
+        </div>
+    </div>
+
+    <!-- Calendar Heatmap -->
+    <div class="card bg-base-100 shadow-sm">
+        <div class="card-body p-4">
+            <h2 class="card-title text-base">Calendar Heatmap</h2>
+            <div id="heatmap-container" class="overflow-x-auto" style="min-height:180px">
+                <div class="flex items-center justify-center h-32 text-base-content/40">
+                    <span class="loading loading-spinner loading-md"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Matrix + Person Timeline -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Day/Hour Matrix -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title text-base">Activity by day/hour</h2>
+                <div id="matrix-chart" style="height:320px"></div>
+            </div>
+        </div>
+
+        <!-- Person Timeline -->
+        <div class="card bg-base-100 shadow-sm">
+            <div class="card-body p-4">
+                <h2 class="card-title text-base">Person timeline</h2>
+                <div id="person-timeline" style="height:320px">
+                    <div class="flex items-center justify-center h-full text-base-content/40 text-sm">
+                        Search for a person to view the timeline
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tooltip for heatmap -->
+<div id="heatmap-tooltip" class="fixed hidden bg-neutral text-neutral-content text-xs px-3 py-1.5 rounded shadow-lg z-50 pointer-events-none"></div>
+
+<!-- ECharts -->
+<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+
+<script>
+(function() {
+    // State
+    var currentChannel = 'all';
+    var currentPersonId = null;
+    var heatmapData = {};
+    var searchTimeout = null;
+
+    // --- Channel toggle ---
+    document.querySelectorAll('#channel-toggle .btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('#channel-toggle .btn').forEach(function(b) {
+                b.classList.remove('btn-active');
+            });
+            btn.classList.add('btn-active');
+            currentChannel = btn.dataset.channel;
+            loadHeatmap();
+            loadMatrix();
+        });
+    });
+
+    // --- Person search ---
+    var searchInput = document.getElementById('person-search');
+    searchInput.addEventListener('input', function() {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(function() {
+            var q = searchInput.value.trim();
+            if (q.length >= 2) {
+                lookupPerson(q);
+            } else {
+                currentPersonId = null;
+                loadHeatmap();
+                clearPersonTimeline();
+            }
+        }, 400);
+    });
+
+    function lookupPerson(query) {
+        fetch('/api/contacts/search?q=' + encodeURIComponent(query) + '&limit=1')
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                var results = data.results || data || [];
+                if (results.length > 0) {
+                    currentPersonId = results[0].person_id || results[0].id || null;
+                    if (currentPersonId) {
+                        loadHeatmap();
+                        loadPersonTimeline(currentPersonId);
+                    }
+                }
+            })
+            .catch(function() {});
+    }
+
+    function clearPersonTimeline() {
+        document.getElementById('person-timeline').innerHTML =
+            '<div class="flex items-center justify-center h-full text-base-content/40 text-sm">' +
+            'Search for a person to view the timeline</div>';
+    }
+
+    // --- Heatmap ---
+    function loadHeatmap() {
+        var url = '/api/timeline/heatmap?channel=' + currentChannel + '&months=12';
+        if (currentPersonId) url += '&person_id=' + encodeURIComponent(currentPersonId);
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                heatmapData = data;
+                renderHeatmap(data);
+                updateStats(data);
+            })
+            .catch(function() {
+                document.getElementById('heatmap-container').innerHTML =
+                    '<div class="text-center text-error text-sm py-8">Error loading data</div>';
+            });
+    }
+
+    function renderHeatmap(data) {
+        var container = document.getElementById('heatmap-container');
+        var entries = data.data || {};
+        var maxVal = data.max_day || 1;
+
+        if (Object.keys(entries).length === 0) {
+            container.innerHTML = '<div class="text-center text-base-content/40 text-sm py-8">No data available</div>';
+            return;
+        }
+
+        // Build GitHub-style heatmap with plain HTML
+        var today = new Date();
+        var startDate = new Date(today);
+        startDate.setFullYear(startDate.getFullYear() - 1);
+        // Align to Sunday
+        startDate.setDate(startDate.getDate() - startDate.getDay());
+
+        var weeks = [];
+        var d = new Date(startDate);
+        var currentWeek = [];
+        while (d <= today) {
+            currentWeek.push(new Date(d));
+            if (currentWeek.length === 7) {
+                weeks.push(currentWeek);
+                currentWeek = [];
+            }
+            d.setDate(d.getDate() + 1);
+        }
+        if (currentWeek.length > 0) weeks.push(currentWeek);
+
+        // Month labels
+        var monthLabels = [];
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        var lastMonth = -1;
+        weeks.forEach(function(week, wi) {
+            var mid = week[Math.floor(week.length / 2)];
+            if (mid.getMonth() !== lastMonth) {
+                lastMonth = mid.getMonth();
+                monthLabels.push({week: wi, label: months[lastMonth]});
+            }
+        });
+
+        var cellSize = 12;
+        var cellGap = 2;
+        var totalW = weeks.length * (cellSize + cellGap) + 40;
+
+        var html = '<div style="overflow-x:auto"><div style="min-width:' + totalW + 'px;position:relative;padding-top:20px;padding-left:30px">';
+
+        // Month labels
+        monthLabels.forEach(function(ml) {
+            html += '<span style="position:absolute;top:0;left:' + (30 + ml.week * (cellSize + cellGap)) + 'px;font-size:10px;color:oklch(var(--bc)/0.5)">' + ml.label + '</span>';
+        });
+
+        // Day labels
+        var dayLabels = ['', 'Mon', '', 'Wed', '', 'Fri', ''];
+        for (var di = 0; di < 7; di++) {
+            html += '<span style="position:absolute;left:0;top:' + (20 + di * (cellSize + cellGap)) + 'px;font-size:10px;color:oklch(var(--bc)/0.5);line-height:' + cellSize + 'px">' + dayLabels[di] + '</span>';
+        }
+
+        // Cells
+        var tooltip = document.getElementById('heatmap-tooltip');
+        weeks.forEach(function(week, wi) {
+            week.forEach(function(day, dayIdx) {
+                var key = day.toISOString().slice(0, 10);
+                var val = entries[key] || 0;
+                var intensity = val > 0 ? Math.min(Math.ceil((val / maxVal) * 4), 4) : 0;
+                var colors = ['oklch(var(--b3))','oklch(var(--su)/0.3)','oklch(var(--su)/0.5)','oklch(var(--su)/0.7)','oklch(var(--su))'];
+                var x = 30 + wi * (cellSize + cellGap);
+                var y = 20 + dayIdx * (cellSize + cellGap);
+                html += '<div data-date="' + key + '" data-count="' + val + '" style="position:absolute;left:' + x + 'px;top:' + y + 'px;width:' + cellSize + 'px;height:' + cellSize + 'px;background:' + colors[intensity] + ';border-radius:2px;cursor:pointer" class="hm-cell"></div>';
+            });
+        });
+
+        html += '</div></div>';
+        container.innerHTML = html;
+
+        // Tooltip events
+        container.querySelectorAll('.hm-cell').forEach(function(cell) {
+            cell.addEventListener('mouseenter', function(e) {
+                var date = cell.dataset.date;
+                var count = cell.dataset.count;
+                tooltip.textContent = date + ': ' + count + ' interactions';
+                tooltip.classList.remove('hidden');
+                tooltip.style.left = (e.pageX + 10) + 'px';
+                tooltip.style.top = (e.pageY - 30) + 'px';
+            });
+            cell.addEventListener('mouseleave', function() {
+                tooltip.classList.add('hidden');
+            });
+        });
+    }
+
+    function updateStats(data) {
+        document.getElementById('stat-total').textContent = (data.total || 0).toLocaleString();
+        document.getElementById('stat-max-day').textContent = (data.max_day || 0).toLocaleString();
+        var ch = data.channels || {};
+        document.getElementById('stat-email').textContent = (ch.email || 0).toLocaleString();
+        document.getElementById('stat-slack').textContent = (ch.slack || 0).toLocaleString();
+        document.getElementById('stat-meeting').textContent = (ch.meeting || 0).toLocaleString();
+    }
+
+    // --- Matrix ---
+    var matrixChart = null;
+
+    function loadMatrix() {
+        fetch('/api/timeline/matrix?channel=' + currentChannel + '&months=6')
+            .then(function(r) { return r.json(); })
+            .then(function(data) { renderMatrix(data); })
+            .catch(function() {});
+    }
+
+    function renderMatrix(data) {
+        var el = document.getElementById('matrix-chart');
+        if (!matrixChart) {
+            matrixChart = echarts.init(el, 'dark');
+            window.addEventListener('resize', function() { matrixChart.resize(); });
+        }
+
+        var matrix = data.matrix || [];
+        var labelsX = data.labels_x || [];
+        var labelsY = data.labels_y || [];
+
+        // Convert to ECharts format: [hour, day, value]
+        var edata = [];
+        var maxVal = 0;
+        for (var d = 0; d < matrix.length; d++) {
+            for (var h = 0; h < matrix[d].length; h++) {
+                var v = matrix[d][h];
+                edata.push([h, d, v]);
+                if (v > maxVal) maxVal = v;
+            }
+        }
+
+        matrixChart.setOption({
+            tooltip: {
+                position: 'top',
+                formatter: function(p) {
+                    return labelsY[p.value[1]] + ' ' + labelsX[p.value[0]] + ': ' + p.value[2] + ' interactions';
+                }
+            },
+            grid: { left: 50, right: 20, top: 10, bottom: 40 },
+            xAxis: {
+                type: 'category', data: labelsX, splitArea: { show: true },
+                axisLabel: { interval: 2, fontSize: 10 }
+            },
+            yAxis: {
+                type: 'category', data: labelsY, splitArea: { show: true },
+                axisLabel: { fontSize: 10 }
+            },
+            visualMap: {
+                min: 0, max: maxVal || 1, calculable: false, show: false,
+                inRange: { color: ['#1a1a2e', '#16a34a22', '#16a34a55', '#16a34a99', '#16a34a'] }
+            },
+            series: [{
+                type: 'heatmap', data: edata,
+                itemStyle: { borderRadius: 2 },
+                emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } }
+            }]
+        });
+    }
+
+    // --- Person Timeline ---
+    var personChart = null;
+
+    function loadPersonTimeline(personId) {
+        fetch('/api/timeline/person/' + encodeURIComponent(personId) + '?months=12')
+            .then(function(r) { return r.json(); })
+            .then(function(data) { renderPersonTimeline(data); })
+            .catch(function() {});
+    }
+
+    function renderPersonTimeline(data) {
+        var el = document.getElementById('person-timeline');
+        var touchpoints = data.touchpoints || [];
+
+        if (touchpoints.length === 0) {
+            el.innerHTML = '<div class="flex items-center justify-center h-full text-base-content/40 text-sm">No interaction found</div>';
+            return;
+        }
+
+        if (!personChart) {
+            personChart = echarts.init(el, 'dark');
+            window.addEventListener('resize', function() { personChart.resize(); });
+        }
+
+        var typeColors = { email: '#3b82f6', meeting: '#f59e0b', slack: '#22c55e' };
+        var typeNames = { email: 'Email', meeting: 'Meeting', slack: 'Slack' };
+        var seriesData = {};
+
+        touchpoints.forEach(function(tp) {
+            var t = tp.type || 'email';
+            if (!seriesData[t]) seriesData[t] = [];
+            seriesData[t].push({
+                value: [tp.date, t === 'email' ? 1 : (t === 'meeting' ? 2 : 3)],
+                detail: tp.detail || ''
+            });
+        });
+
+        var series = Object.keys(seriesData).map(function(t) {
+            return {
+                name: typeNames[t] || t,
+                type: 'scatter',
+                symbolSize: 8,
+                data: seriesData[t],
+                itemStyle: { color: typeColors[t] || '#888' }
+            };
+        });
+
+        var personName = (data.person || {}).name || 'Persona';
+        var stats = data.stats || {};
+
+        personChart.setOption({
+            title: {
+                text: personName,
+                subtext: (stats.total || 0) + ' interactions',
+                textStyle: { fontSize: 14 },
+                subtextStyle: { fontSize: 11 }
+            },
+            tooltip: {
+                formatter: function(p) {
+                    return p.seriesName + ' ' + p.value[0] + '<br>' + (p.data.detail || '');
+                }
+            },
+            legend: { data: Object.keys(seriesData).map(function(t) { return typeNames[t]; }), bottom: 0, textStyle: { fontSize: 10 } },
+            grid: { left: 50, right: 20, top: 50, bottom: 40 },
+            xAxis: { type: 'time' },
+            yAxis: {
+                type: 'category', data: ['Email', 'Meeting', 'Slack'],
+                axisLabel: { fontSize: 10 }
+            },
+            series: series
+        }, true);
+    }
+
+    // --- Init ---
+    loadHeatmap();
+    loadMatrix();
+})();
+</script>
+{% endblock %}

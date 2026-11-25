@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Weekday briefing at 08:00 (br-daily-briefing.py), posted to your own Slack DM.
+  Template, not active. To turn it on, run from the repo folder (fills in your paths):
+    sed -e "s|__SBK_REPO__|$PWD|g" -e "s|__SBK_DATA__|${SBK_DATA_ROOT:-$HOME/.sbk-data}|g" \
+        -e "s|__UV__|$(command -v uv)|g" -e "s|__UV_DIR__|$(dirname "$(command -v uv)")|g" \
+        tools/briefing/com.sbk.daily-briefing.plist > ~/Library/LaunchAgents/com.sbk.daily-briefing.plist
+    launchctl load ~/Library/LaunchAgents/com.sbk.daily-briefing.plist
+  To turn it off: launchctl unload ~/Library/LaunchAgents/com.sbk.daily-briefing.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.sbk.daily-briefing</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>__UV__</string>
+        <string>run</string>
+        <string>--project</string>
+        <string>__SBK_REPO__</string>
+        <string>python3</string>
+        <string>__SBK_REPO__/tools/briefing/br-daily-briefing.py</string>
+    </array>
+    <key>StartCalendarInterval</key>
+    <!-- Example schedule: weekdays at 08:00. Adapt the time to your own routine. -->
+    <array>
+        <dict>
+            <key>Weekday</key><integer>1</integer>
+            <key>Hour</key><integer>8</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key><integer>2</integer>
+            <key>Hour</key><integer>8</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key><integer>3</integer>
+            <key>Hour</key><integer>8</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key><integer>4</integer>
+            <key>Hour</key><integer>8</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+        <dict>
+            <key>Weekday</key><integer>5</integer>
+            <key>Hour</key><integer>8</integer>
+            <key>Minute</key><integer>0</integer>
+        </dict>
+    </array>
+    <key>WorkingDirectory</key>
+    <string>__SBK_REPO__</string>
+    <key>StandardOutPath</key>
+    <string>__SBK_DATA__/logs/daily-briefing-stdout.log</string>
+    <key>StandardErrorPath</key>
+    <string>__SBK_DATA__/logs/daily-briefing-stderr.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:__UV_DIR__</string>
+    </dict>
+</dict>
+</plist>

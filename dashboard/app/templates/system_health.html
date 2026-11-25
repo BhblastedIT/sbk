@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}SBK — System Health{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">Observability</h1>
+            <p class="text-base-content/60 text-sm mt-1">Realtime listeners, pipeline metrics, API costs, connections, system health</p>
+        </div>
+        <div id="obs-overall-badge"
+             hx-get="/partials/obs_detailed"
+             hx-trigger="load"
+             hx-swap="none"
+             hx-select="#overall-status-badge"
+             class="hidden"></div>
+    </div>
+
+    <!-- Tab navigation -->
+    <div class="tabs tabs-boxed mb-6" id="obs-tabs">
+        <button class="tab tab-active" data-tab="realtime" onclick="switchTab('realtime')">Realtime</button>
+        <button class="tab" data-tab="pipeline" onclick="switchTab('pipeline')">Pipeline</button>
+        <button class="tab" data-tab="costs" onclick="switchTab('costs')">Costs</button>
+        <button class="tab" data-tab="connections" onclick="switchTab('connections')">Connections</button>
+        <button class="tab" data-tab="system" onclick="switchTab('system')">System</button>
+    </div>
+
+    <!-- Tab panels -->
+    <div id="tab-realtime" class="tab-panel">
+        <div hx-get="/partials/obs_realtime"
+             hx-trigger="load, every 30s"
+             hx-swap="innerHTML">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-pipeline" class="tab-panel hidden">
+        <div hx-get="/partials/obs_pipeline"
+             hx-trigger="revealed, every 60s"
+             hx-swap="innerHTML">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-costs" class="tab-panel hidden">
+        <div hx-get="/partials/obs_costs"
+             hx-trigger="revealed, every 120s"
+             hx-swap="innerHTML">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-connections" class="tab-panel hidden">
+        <div hx-get="/partials/obs_connections"
+             hx-trigger="revealed, every 120s"
+             hx-swap="innerHTML">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-system" class="tab-panel hidden">
+        <div hx-get="/partials/obs_detailed"
+             hx-trigger="revealed, every 60s"
+             hx-swap="innerHTML">
+            <div class="flex justify-center py-12">
+                <span class="loading loading-spinner loading-lg"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('#obs-tabs .tab').forEach(t => t.classList.remove('tab-active'));
+    const panel = document.getElementById('tab-' + name);
+    if (panel) panel.classList.remove('hidden');
+    const tab = document.querySelector('#obs-tabs [data-tab="' + name + '"]');
+    if (tab) tab.classList.add('tab-active');
+}
+</script>
+{% endblock %}

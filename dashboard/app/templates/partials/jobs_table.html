@@ -1,0 +1,72 @@
+<!-- Jobs table partial (pg-table style, HTMX auto-refresh) -->
+{% if jobs %}
+<div class="pg-scroll" style="max-height:60vh">
+<table class="pg-table">
+    <thead>
+        <tr>
+            <th>Source</th>
+            <th>Stage</th>
+            <th>Status</th>
+            <th>Started</th>
+            <th class="pg-r">Duration</th>
+            <th class="pg-r">Rows</th>
+            <th class="pg-r">Errori</th>
+            <th class="pg-r">Rows</th>
+            <th class="pg-c">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for job in jobs %}
+    <tr class="pg-data">
+        <td class="font-semibold">{{ job.source }}</td>
+        <td class="pg-mono pg-sm">{{ job.stage|upper }}</td>
+        <td>
+            {% if job.status == "running" %}
+                <span class="pg-st" style="background:oklch(var(--in)/0.15);color:oklch(var(--in))">Run</span>
+            {% elif job.status == "completed" and job.exit_code == 0 %}
+                <span class="pg-st pg-st-ok">OK</span>
+            {% elif job.status == "cancelled" %}
+                <span class="pg-st pg-st-stale">Stop</span>
+            {% elif job.status == "timeout" %}
+                <span class="pg-st pg-st-stale">T/O</span>
+            {% else %}
+                <span class="pg-st pg-st-err">Fail</span>
+            {% endif %}
+        </td>
+        <td class="pg-date">{{ job.started_at }}</td>
+        <td class="pg-r pg-mono">{{ job.duration }}</td>
+        <td class="pg-r pg-mono">{{ job.log_line_count }}</td>
+        <td class="pg-r">
+            {% if job.error_count and job.error_count > 0 %}
+                <span class="pg-st pg-st-err">{{ job.error_count }}</span>
+            {% elif job.status != "running" %}
+                <span class="pg-dim">0</span>
+            {% endif %}
+        </td>
+        <td class="pg-r pg-mono">
+            {% if job.total_rows %}{{ "{:,}".format(job.total_rows) }}{% endif %}
+        </td>
+        <td class="pg-c" style="white-space:nowrap">
+            {% if job.status == "running" %}
+                <button hx-post="/api/pipeline/{{ job.job_id }}/cancel"
+                        hx-swap="none"
+                        hx-on::after-request="htmx.trigger('#jobs-container', 'refreshJobs')"
+                        class="pg-run-btn" style="border-color:oklch(var(--er)/0.3);color:oklch(var(--er))">Stop</button>
+            {% endif %}
+            {% if job.status != "running" and job.log_line_count > 0 %}
+                <button hx-get="/partials/job_log/{{ job.job_id }}"
+                        hx-target="#log-area"
+                        hx-swap="innerHTML"
+                        class="pg-run-btn"
+                        title="Show full log"
+                        onclick="document.getElementById('log-area').scrollIntoView({behavior:'smooth',block:'nearest'})">Log</button>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% else %}
+<p class="pg-dim" style="padding:16px;font-size:13px">No recent jobs.</p>
+{% endif %}

@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}SQL Console — SBK{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold">SQL Console</h1>
+    <p class="text-sm text-base-content/60">{{ views|length }} view DuckDB read-only</p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+    <!-- Views sidebar -->
+    <div class="lg:col-span-1">
+        <div class="bg-base-100 rounded-box p-3 shadow-sm max-h-[70vh] overflow-y-auto">
+            <h3 class="font-semibold text-sm mb-2">Available views</h3>
+            {% set ns = namespace(current_schema='') %}
+            {% for v in views %}
+                {% if v.schema != ns.current_schema %}
+                    {% set ns.current_schema = v.schema %}
+                    <div class="text-xs text-base-content/50 mt-3 mb-1 font-bold uppercase">{{ v.schema }}</div>
+                {% endif %}
+                <div class="text-xs py-1 px-2 hover:bg-base-200 rounded cursor-pointer truncate"
+                     onclick="insertView('{{ v.schema }}.{{ v.name }}')"
+                     title="{{ v.schema }}.{{ v.name }}">
+                    {{ v.name }}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Query area -->
+    <div class="lg:col-span-3">
+        <!-- Editor -->
+        <div class="bg-base-100 rounded-box p-4 shadow-sm mb-4">
+            <textarea id="sql-editor" class="textarea textarea-bordered w-full font-mono text-sm" rows="4"
+                      placeholder="SELECT * FROM enriched.contacts_merged LIMIT 10">{{ preset_sql or '' }}</textarea>
+            <div class="flex gap-2 mt-2">
+                <button class="btn btn-primary btn-sm" onclick="runQuery()">Run (Ctrl+Enter)</button>
+                <div class="dropdown dropdown-bottom">
+                    <div tabindex="0" role="button" class="btn btn-ghost btn-sm">Query preset</div>
+                    <ul tabindex="0" class="dropdown-content z-10 menu p-2 shadow bg-base-200 rounded-box w-72">
+                        <li><a onclick="setQuery('SELECT name, email, score, organization FROM enriched.contacts_merged ORDER BY score DESC LIMIT 20')">Top 20 contacts by score</a></li>
+                        <li><a onclick="setQuery('SELECT entity_type, COUNT(*) as cnt FROM nlp.entities GROUP BY entity_type ORDER BY cnt DESC')">NER entity distribution</a></li>
+                        <li><a onclick="setQuery('SELECT speaker, COUNT(*) as decisions FROM nlp.decisions GROUP BY speaker ORDER BY decisions DESC LIMIT 15')">Top speakers by decisions</a></li>
+                        <li><a onclick="setQuery('SELECT source, COUNT(*) as cnt FROM enriched.interactions GROUP BY source ORDER BY cnt DESC')">Interactions by source</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results -->
+        <div id="sql-results" class="bg-base-100 rounded-box p-4 shadow-sm">
+            <p class="text-sm text-base-content/50">Write a query and press Run.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function insertView(name) {
+    const editor = document.getElementById('sql-editor');
+    editor.value = 'SELECT * FROM ' + name + ' LIMIT 20';
+    editor.focus();
+}
+function setQuery(sql) {
+    document.getElementById('sql-editor').value = sql;
+    document.activeElement.blur();
+}
+function runQuery() {
+    const sql = document.getElementById('sql-editor').value.trim();
+    if (!sql) return;
+    const resultsDiv = document.getElementById('sql-results');
+    resultsDiv.innerHTML = '<span class="loading loading-spinner loading-md"></span>';
+
+    fetch('/api/sql/query', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({sql})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            resultsDiv.innerHTML = '<div class="alert alert-error text-sm">' + data.error + '</div>';
+            return;
+        }
+        const cols = data.columns || [];
+        const rows = data.rows || [];
+        let html = '<div class="text-sm text-base-content/60 mb-2">' + rows.length + ' rows' +
+            (data.truncated ? ' (truncated at ' + data.limit + ')' : '') +
+            ' in ' + (data.duration_ms || 0) + 'ms</div>';
+        html += '<div class="overflow-x-auto max-h-[50vh]"><table class="table table-xs table-pin-rows"><thead><tr>';
+        cols.forEach(c => html += '<th>' + c + '</th>');
+        html += '</tr></thead><tbody>';
+        rows.forEach(row => {
+            html += '<tr>';
+            row.forEach(val => html += '<td class="text-xs max-w-[20rem] truncate">' + (val === null ? '<span class="text-base-content/30">NULL</span>' : val) + '</td>');
+            html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+        resultsDiv.innerHTML = html;
+    })
+    .catch(err => {
+        resultsDiv.innerHTML = '<div class="alert alert-error text-sm">' + err + '</div>';
+    });
+}
+document.getElementById('sql-editor').addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); runQuery(); }
+});
+</script>
+{% endblock %}

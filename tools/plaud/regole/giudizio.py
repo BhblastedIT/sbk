@@ -67,12 +67,16 @@ from tools.plaud.regole.nomi import OWNER_CANONICO, OWNER_TOKENS, genere_nome, n
 DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
 QUADRO = DATA / "plaud" / "quadro"
 
-# Labelled calibration window for the shipped example weights (YYYY-MM).
-# Set these to your own dataset's date range via env.
-CAL_START = os.environ.get("SBK_CAL_START", "2026-01")
-CAL_TRAIN_END = os.environ.get("SBK_CAL_TRAIN_END", "2026-05")
-CAL_TEST_START = os.environ.get("SBK_CAL_TEST_START", "2026-06")
-CAL_END = os.environ.get("SBK_CAL_END", "2026-08")
+# Calibration window (YYYY-MM). By default it is derived from the eval records'
+# own months (see finestra_cal) so no date range is baked into the code. Override
+# any single bound with SBK_CAL_START / SBK_CAL_TRAIN_END / SBK_CAL_TEST_START /
+# SBK_CAL_END.
+_CAL_ENV = {
+    "start": os.environ.get("SBK_CAL_START"),
+    "train_end": os.environ.get("SBK_CAL_TRAIN_END"),
+    "test_start": os.environ.get("SBK_CAL_TEST_START"),
+    "end": os.environ.get("SBK_CAL_END"),
+}
 SEGNALI = QUADRO / "segnali"
 PESI = QUADRO / "pesi-regole.json"
 PROPOSTE = QUADRO / "proposte.json"
@@ -795,8 +799,44 @@ def giudica_registrazione(
 
 
 
+def _mese_dopo(m: str) -> str:
+    """The YYYY-MM month right after m."""
+    y, mo = int(m[:4]), int(m[5:7])
+    return f"{y + mo // 12:04d}-{mo % 12 + 1:02d}"
+
+
+def finestra_cal(regs: list[dict]) -> tuple[str, str, str, str]:
+    """Return (start, train_end, test_start, end) of the calibration window.
+
+    Unset bounds are derived from the months present in ``regs``, so the split
+    follows the owner's own data instead of a baked-in date range: the span runs
+    from the first to the last month, train is the earlier ~60% of the distinct
+    months and test is the rest. SBK_CAL_* override single bounds.
+    """
+    mesi = sorted({(r.get("data") or "")[:7] for r in regs if (r.get("data") or "")[:7]})
+    if not mesi:
+        return (
+            _CAL_ENV["start"] or "",
+            _CAL_ENV["train_end"] or "",
+            _CAL_ENV["test_start"] or "",
+            _CAL_ENV["end"] or "",
+        )
+    if len(mesi) == 1:
+        d_train_end, d_test_start = mesi[0], _mese_dopo(mesi[0])
+    else:
+        k = max(1, min(len(mesi) - 1, round(len(mesi) * 0.6)))
+        d_train_end, d_test_start = mesi[k - 1], mesi[k]
+    return (
+        _CAL_ENV["start"] or mesi[0],
+        _CAL_ENV["train_end"] or d_train_end,
+        _CAL_ENV["test_start"] or d_test_start,
+        _CAL_ENV["end"] or mesi[-1],
+    )
+
+
 def argento(regs: list[dict]) -> list[tuple[int, int]]:
     ""
+    start, _, _, end = finestra_cal(regs)
     return [
         (i, j)
         for i, r in enumerate(regs)
@@ -804,7 +844,7 @@ def argento(regs: list[dict]) -> list[tuple[int, int]]:
         if v["prov"] == "Plaud o il proprietario"
         and v["nome"]
         and v["classe"] in ("nome", "owner")
-        and CAL_START <= r["data"][:7] <= CAL_END
+        and start <= r["data"][:7] <= end
     ]
 
 
@@ -871,8 +911,9 @@ def forze_da(sigs: dict) -> dict[str, float]:
 def impara_pesi(
     regs, sigs, cmap, conferme, *, solo_train: bool = True, esclusioni: str = "morbido"
 ) -> dict:
+    cal_start, cal_train_end, _cal_test_start, cal_end = finestra_cal(regs)
     arg = argento(regs)
-    tr = [(i, j) for i, j in arg if regs[i]["data"][:7] <= CAL_TRAIN_END] if solo_train else arg
+    tr = [(i, j) for i, j in arg if regs[i]["data"][:7] <= cal_train_end] if solo_train else arg
     es, _, cols = esempi_da(regs, tr, sigs, cmap, esclusioni=esclusioni)
     id2i = {r["id"]: i for i, r in enumerate(regs)}
     oro = []
@@ -918,7 +959,7 @@ def impara_pesi(
         | {"e_owner": {"presenza": round(float(w[-1]), 3)}},
         "addestramento": {
             "voci_argento": len(tr),
-            "periodo": f"{CAL_START}..{CAL_TRAIN_END}" if solo_train else f"{CAL_START}..{CAL_END}",
+            "periodo": f"{cal_start}..{cal_train_end}" if solo_train else f"{cal_start}..{cal_end}",
             "conferme_owner": len(oro),
             "peso_conferme": PESO_CONFERMA,
             "fronti": fronti_presenti(),
@@ -936,9 +977,10 @@ FASCE = [
 
 
 def _test(regs) -> dict[int, list[int]]:
+    _s, _te, cal_test_start, _e = finestra_cal(regs)
     per_reg: dict[int, list[int]] = defaultdict(list)
     for i, j in argento(regs):
-        if regs[i]["data"][:7] >= CAL_TEST_START:
+        if regs[i]["data"][:7] >= cal_test_start:
             per_reg[i].append(j)
     return per_reg
 

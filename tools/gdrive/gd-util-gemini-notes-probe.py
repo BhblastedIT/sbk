@@ -1,31 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Read-only probe of the Gemini meeting notes on Drive: lists them for one account and reports which ones the Drive
+download misses and why.
+"""
 
 from __future__ import annotations
 

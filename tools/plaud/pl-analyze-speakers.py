@@ -186,9 +186,9 @@ def costruisci() -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--dry-run", action="store_true", help="categorizza e conta, non scrive")
+    ap.add_argument("--dry-run", action="store_true", help="categorise and count, write nothing")
     ap.add_argument(
-        "--verify", action="store_true", help="confronta col file esistente, non scrive"
+        "--verify", action="store_true", help="compare with the existing file, write nothing"
     )
     a = ap.parse_args()
 
@@ -199,25 +199,25 @@ def main() -> int:
 
         b = budget()
         if b.pressure.should_abort():
-            log.error("pressione memoria troppo alta (%s) — non parto", b.pressure.level)
+            log.error("memory pressure too high (%s), not starting", b.pressure.level)
             return 75
     except Exception:  # noqa: BLE001
         pass
 
     dati = costruisci()
     tot, cats, errs = dati["total_files"], dati["categories"], len(dati["errors"])
-    log.info("recording analizzati: %d · categorie: %s · errori: %d", tot, cats, errs)
+    log.info("recordings analysed: %d · categories: %s · errors: %d", tot, cats, errs)
     if errs:
         for e in dati["errors"][:10]:
-            log.warning("  errore su %s: %s", e["filename"], e["error"])
+            log.warning("  error on %s: %s", e["filename"], e["error"])
 
     if a.verify:
         if not OUT_FILE.exists():
-            log.info("verify: %s non esiste ancora", OUT_FILE.name)
+            log.info("verify: %s does not exist yet", OUT_FILE.name)
             return 0
         vecchio = json.loads(OUT_FILE.read_text(encoding="utf-8"))
         log.info(
-            "verify: sul disco %d file, ricalcolati %d (delta %+d)",
+            "verify: %d files on disk, %d recomputed (delta %+d)",
             len(vecchio.get("files", [])),
             tot,
             tot - len(vecchio.get("files", [])),
@@ -225,12 +225,12 @@ def main() -> int:
         return 0
 
     if a.dry_run:
-        log.info("dry-run: nessuna scrittura (avrei scritto %s)", OUT_FILE)
+        log.info("dry run: nothing written (it would write %s)", OUT_FILE)
         return 0
 
 
     safe_write_json(OUT_FILE, dati)
-    log.info("scritto %s", OUT_FILE)
+    log.info("written %s", OUT_FILE)
     return 0
 
 

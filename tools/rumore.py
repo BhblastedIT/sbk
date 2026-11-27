@@ -1,23 +1,9 @@
-""
+"""Noise filter for the people scores: classifies every email sender (service notification, newsletter, social,
+mailing list, cold contact, cc-only, real relationship...) and every WhatsApp group, so the scores count only
+real relationships. Your corrections live in <data root>/system/rumore-correzioni.json.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Run as a script to print how many senders fall in each type (from enriched/mittenti-posta.parquet).
+"""
 
 from __future__ import annotations
 
@@ -558,6 +544,9 @@ def classifica_gruppo(
 
 
 if __name__ == "__main__":
+    import argparse
+
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     tipi = tipi_mittenti()
     if not tipi:
         print(f"the table does not exist yet: {TABELLA_POSTA}")

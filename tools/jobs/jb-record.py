@@ -1,33 +1,8 @@
 #!/usr/bin/env python3
-""
+"""Records the start or the end (with its outcome) of a scheduled job in the jobs ledger, for jb_status.py.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: jb-record.py start <job>   |   jb-record.py end <job> --outcome ok|nothing|failed|skipped [--detail TEXT]
+"""
 
 from __future__ import annotations
 

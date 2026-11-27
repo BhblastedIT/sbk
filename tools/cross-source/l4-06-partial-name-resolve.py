@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
+"""L4-06: resolves person entities known only by a first name: to the full person through email, Slack, the CRM
+or a name that is unique in the store, or reclassifies them as companies. Dry run by default; --apply merges.
+"""
 
 from __future__ import annotations
 

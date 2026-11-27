@@ -1,54 +1,9 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Pipeline runner: runs the L1, L2 and L3 stages in order with checkpoints, change detection, a failure queue and
+metrics. --ingest rereads the sources on disk up to the knowledge base without paid stages, --propagate and
+--rebuild run L2+L3 only, --all runs the whole chain and asks before any paid stage (--allow-spend or
+SBK_ALLOW_SPEND gives consent up front). --dry-run prints the plan.
+"""
 
 from __future__ import annotations
 
@@ -83,6 +38,7 @@ from sbk_config import (
     release_pid_lock,
     safe_write_json,
     source_enabled,
+    source_listed,
 )
 
 log = logging.getLogger("sbk-pipeline")
@@ -109,22 +65,80 @@ _ANCHE_PER = {
 }
 
 
+# Sources whose L1 runs only when enabled_sources names them: an empty list does not switch
+# them on. chatgpt is closed in the registry (replaced by the ai-history source); its L1 stays
+# for whoever imported a ChatGPT export and lists "chatgpt".
+_SOLO_SE_ELENCATE = frozenset({"chatgpt"})
+
+
 def _solo_abilitate(scripts: dict, saltate: set[str]) -> dict:
     """Keep the L1 stages of the sources in sbk.config.json enabled_sources.
 
     Empty or missing enabled_sources = every stage (the behaviour before the
-    field was read). The names left out go into `saltate`, for the log.
+    field was read), except the sources in _SOLO_SE_ELENCATE, which need to be
+    listed. The names left out go into `saltate`, for the log.
     """
-    if not ENABLED_SOURCES:
-        return scripts
     tenute = {}
     for k, v in scripts.items():
         fonte = _FONTE_DELLO_STADIO.get(k, k)
-        if source_enabled(fonte) or any(source_enabled(p) for p in _ANCHE_PER.get(k, ())):
+        if fonte in _SOLO_SE_ELENCATE:
+            tenuta = source_listed(fonte)
+        else:
+            tenuta = source_enabled(fonte) or any(
+                source_enabled(p) for p in _ANCHE_PER.get(k, ())
+            )
+        if tenuta:
             tenute[k] = v
         else:
             saltate.add(_FONTE_DELLO_STADIO.get(k, k))
     return tenute
+
+
+def _fasi_fuori_elenco(
+    prima: dict[str, set[str]], pre: dict, base: dict, dep: dict, wa: dict
+) -> list[str]:
+    """The L1 phase ids that had scripts but kept none because of enabled_sources."""
+    fuori: list[str] = []
+    for chiave, fase in (("personio", "l1_personio"), ("personio_assenze", "l1_personio_assenze")):
+        if chiave in prima["pre"] and chiave not in pre:
+            fuori.append(fase)
+    if prima["base"] and not base:
+        fuori.append("l1_phase1")
+    if "plaud" in prima["dep"] and "plaud" not in dep:
+        fuori.append("l1_speaker_analysis")
+    if prima["dep"] and not dep:
+        fuori.append("l1_phase2")
+    if prima.get("wa") and not wa:
+        fuori.append("l1_phase3_wa_deep")
+    return fuori
+
+
+def _non_ancora_scaricata(stadio: str) -> bool:
+    """True when the source of this L1 stage has no folder under the data root yet."""
+    return not _l0_dir(_FONTE_DELLO_STADIO.get(stadio, stadio)).exists()
+
+
+def _togli_mai_scaricate(scripts: dict) -> tuple[dict, list[str]]:
+    """Split off the L1 stages whose source was never downloaded or imported (no folder)."""
+    via = sorted(k for k in scripts if _non_ancora_scaricata(k))
+    return {k: v for k, v in scripts.items() if k not in via}, via
+
+
+def _rubrica_con_persone() -> bool:
+    """True when contacts-merged.parquet exists and has at least one row.
+
+    A book with 0 rows (a first install whose sources only enrich people, LinkedIn alone for
+    example) counts as no book: the stages after the merge have nobody to read.
+    """
+    path = ENRICHED_DIR / "contacts-merged.parquet"
+    if not path.exists():
+        return False
+    try:
+        import pyarrow.parquet as pq
+
+        return pq.ParquetFile(path).metadata.num_rows > 0
+    except Exception:  # noqa: BLE001 — unreadable: the stages after the merge say why
+        return True
 
 
 
@@ -251,6 +265,18 @@ L1_SCRIPTS_BASE = {
     "zoom": _TOOLS_DIR / "zoom" / "zm-l1-enrich.py",
     "github_intake": _TOOLS_DIR / "github" / "gh-l1-enrich.py",
     "databases": _TOOLS_DIR / "databases" / "db-l1-enrich.py",
+    "hubspot": _TOOLS_DIR / "hubspot" / "hs-l1-enrich.py",
+    "pipedrive": _TOOLS_DIR / "pipedrive" / "pd-l1-enrich.py",
+    "fireflies": _TOOLS_DIR / "fireflies" / "ff-l1-enrich.py",
+    "fathom": _TOOLS_DIR / "fathom" / "fa-l1-enrich.py",
+    "granola": _TOOLS_DIR / "granola" / "gr-l1-enrich.py",
+    "telegram": _TOOLS_DIR / "telegram" / "tg-l1-enrich.py",
+    "teams": _TOOLS_DIR / "teams" / "tm-l1-enrich.py",
+    "atlassian": _TOOLS_DIR / "atlassian" / "as-l1-enrich.py",
+    "linear": _TOOLS_DIR / "linear" / "ln-l1-enrich.py",
+    # the address-book plugin writes the kernel's slot contacts/contacts.parquet and then runs
+    # the kernel step xs-l1-contacts-enrich.py itself (contacts-iphone.parquet, read by l2_merge)
+    "contacts": _TOOLS_DIR / "contacts" / "ct-l1-enrich.py",
 }
 
 
@@ -469,6 +495,9 @@ WATCHED_FILES = {
     "interactions": ENRICHED_DIR / "interactions.parquet",
     "relationship_facts": DATA_ROOT / "l3" / "nlp" / "relationship-facts.parquet",
     "plugin_intake": _IntakePiuRecente(),
+    # the address book the kernel step xs-l1-contacts-enrich.py writes (run by the contacts
+    # plugin's L1, or by hand after microsoft365 filled the slot)
+    "contacts_iphone": DATA_ROOT / "contacts" / "processed" / "contacts-iphone.parquet",
 }
 
 
@@ -497,6 +526,7 @@ WATCHED_CONSUMERS: dict[str, tuple[str, ...]] = {
     "interactions": ("l2_merge",),
     "relationship_facts": ("l3_fact_index",),
     "plugin_intake": ("l2_merge", "l2_knowledge_extract"),
+    "contacts_iphone": ("l2_merge",),
 }
 
 
@@ -580,6 +610,8 @@ MOTIVI_EN = {
     "cancello_spesa": "spending gate",
     "fermata_di_linea": "line stop",
     "a_monte": "upstream failed",
+    "non_elencata": "not in enabled_sources",
+    "niente_da_leggere": "nothing to read yet",
     "motivo_non_dichiarato": "no reason declared",
 }
 PRECONDIZIONI_EN = {
@@ -663,7 +695,16 @@ def normalizza_modo(mode: str) -> str | None:
 
 
 
-MOTIVI_SALTO_INNOCUI = ("invariato", "ripreso", "fuori_dal_singolo")
+# "non_elencata": an L1 phase whose sources enabled_sources does not list (nothing to read).
+# "niente_da_leggere": the stage's input was never produced because there is nothing yet (a first
+# install: RQ-00 found no interactions, so it wrote no weights for the stages after it).
+MOTIVI_SALTO_INNOCUI = (
+    "invariato",
+    "ripreso",
+    "fuori_dal_singolo",
+    "non_elencata",
+    "niente_da_leggere",
+)
 
 
 @dataclass(frozen=True)
@@ -685,7 +726,7 @@ class Salto:
 
     def __str__(self) -> str:
         coda = f" — {self.dettaglio}" if self.dettaglio else ""
-        return f"{self.id} ({self.motivo}){coda}"
+        return f"{self.id} ({MOTIVI_EN.get(self.motivo, self.motivo)}){coda}"
 
 
 @dataclass(frozen=True)
@@ -728,6 +769,23 @@ class Passo:
 
 
 
+def _a_mano() -> str:
+    """The sources you export or run by hand, read from the registry (natura a_richiesta or spot).
+
+    The same list the L0 refresh prints as manual (xs-l0-refresh.py MANUALI): it does not download them.
+    """
+    try:
+        import sorgenti as _reg
+
+        ids = sorted(k for k, v in _reg.SORGENTI.items() if v.natura in ("a_richiesta", "spot"))
+    except Exception:  # noqa: BLE001 — a broken registry must not break the plan text
+        ids = []
+    return ", ".join(ids) if ids else "the sources you export or run by hand"
+
+
+SORGENTI_A_MANO = _a_mano()
+
+
 CATENA: tuple[Passo, ...] = (
     Passo(
         id="l0_download",
@@ -737,8 +795,8 @@ CATENA: tuple[Passo, ...] = (
         produce=("file L0 su disco",),
         perche_fuori=(
             "the download has its own run, tools/cross-source/xs-l0-refresh.py "
-            "(--then-ingest = full run). WhatsApp, voice memos and LinkedIn stay manual. "
-            "The pipeline does not launch it: it REPORTS its age"
+            f"(--then-ingest = full run). These stay manual, you export or run them yourself: "
+            f"{SORGENTI_A_MANO}. The pipeline does not launch it: it REPORTS its age"
         ),
         precondizioni=("eta_l0",),
     ),
@@ -1769,11 +1827,11 @@ def _wait_and_budget(step_name: str):
         return None
 
     st = shared_state()
-    log.info("  [risorse] %s", st)
+    log.info("  [resources] %s", st)
 
     p = pressure()
     if p.should_pause:
-        log.warning("  [risorse] pressure %s — waiting for space before '%s'", p, step_name)
+        log.warning("  [resources] pressure %s — waiting for space before '%s'", p, step_name)
 
         if not wait_for_headroom(timeout_s=900, poll_s=max(5.0, check_interval(p.seg_ratio))):
 
@@ -1783,7 +1841,7 @@ def _wait_and_budget(step_name: str):
 
             while (adesso := pressure()).seg_ratio >= SEG_YIELD:
                 log.warning(
-                    "  [risorse] the machine is over the threshold (%s): '%s' waits, under load it does not start",
+                    "  [resources] the machine is over the threshold (%s): '%s' waits, under load it does not start",
                     adesso,
                     step_name,
                 )
@@ -1795,10 +1853,10 @@ def _wait_and_budget(step_name: str):
                 )
             if pressure().seg_ratio >= SEG_WARN:
                 log.error(
-                    "  [risorse] still under pressure after 15 min: proceeding with reduced budget"
+                    "  [resources] still under pressure after 15 min: proceeding with reduced budget"
                 )
     b = budget()
-    log.info("  [risorse] %s", b)
+    log.info("  [resources] %s", b)
     return b
 
 
@@ -1924,7 +1982,7 @@ def _run_guarded(cmd: list[str], *, timeout: int, budget, name: str):
         solo_pericolo = _guardiano_solo_pericolo()
         if solo_pericolo:
             log.info(
-                "  [risorse] '%s': the guardian stops it only if the machine is in danger (configuration choice)",
+                "  [resources] '%s': the guardian stops it only if the machine is in danger (configuration choice)",
                 name,
             )
 
@@ -1941,7 +1999,7 @@ def _run_guarded(cmd: list[str], *, timeout: int, budget, name: str):
 
                 if fp > hard and not solo_pericolo:
                     log.error(
-                        "  [risorse] '%s' over budget (%.1f GB > %.1f GB) — FREEZING",
+                        "  [resources] '%s' over budget (%.1f GB > %.1f GB) — FREEZING",
                         name,
                         fp / 1024**3,
                         hard / 1024**3,
@@ -1951,7 +2009,7 @@ def _run_guarded(cmd: list[str], *, timeout: int, budget, name: str):
                     frozen_at, frozen_why = time.time(), "footprint"
                 elif seg >= SEG_CRITICAL:
                     log.error(
-                        "  [risorse] critical machine (segments %.0f%%) — FREEZING '%s'",
+                        "  [resources] critical machine (segments %.0f%%) — FREEZING '%s'",
                         seg * 100,
                         name,
                     )
@@ -1961,7 +2019,7 @@ def _run_guarded(cmd: list[str], *, timeout: int, budget, name: str):
                 elif fp > soft and fp >= avvisato + 512 * 1024**2:
                     avvisato = fp
                     log.warning(
-                        "  [risorse] '%s' at %.1f GB (budget %.1f GB)",
+                        "  [resources] '%s' at %.1f GB (budget %.1f GB)",
                         name,
                         fp / 1024**3,
                         soft / 1024**3,
@@ -1977,7 +2035,7 @@ def _run_guarded(cmd: list[str], *, timeout: int, budget, name: str):
 
                 if waited > _PONTE_S:
                     log.error(
-                        "  [risorse] '%s' stays over budget — TERMINATING (peak %.1f GB)",
+                        "  [resources] '%s' stays over budget — TERMINATING (peak %.1f GB)",
                         name,
                         state["peak"] / 1024**3,
                     )
@@ -1989,13 +2047,15 @@ def _run_guarded(cmd: list[str], *, timeout: int, budget, name: str):
 
 
                 if seg < SEG_CRITICAL * 0.9:
-                    log.warning("  [risorse] pressure back to normal — resuming '%s'", name)
+                    log.warning("  [resources] pressure back to normal — resuming '%s'", name)
                     if not _al_gruppo(signal.SIGCONT):
                         return
                     frozen_at, frozen_why = None, None
                 elif waited > _PONTE_S:
                     log.error(
-                        "  [risorse] pressure not back within %d s — TERMINATING '%s'", _PONTE_S, name
+                        "  [resources] pressure not back within %d s — TERMINATING '%s'",
+                        _PONTE_S,
+                        name,
                     )
                     _terminate("pressione")
                     return
@@ -2016,12 +2076,12 @@ def _run_guarded(cmd: list[str], *, timeout: int, budget, name: str):
 
 
         stop.set()
-        log.error("  [risorse] '%s' over the timeout — TERMINATING the process", name)
+        log.error("  [resources] '%s' over the timeout — TERMINATING the process", name)
         _terminate("timeout")
         try:
             proc.communicate(timeout=30)
         except subprocess.TimeoutExpired:
-            log.error("  [risorse] '%s' does not close even after KILL", name)
+            log.error("  [resources] '%s' does not close even after KILL", name)
         raise
     except BaseException:
         stop.set()
@@ -2031,9 +2091,9 @@ def _run_guarded(cmd: list[str], *, timeout: int, budget, name: str):
         stop.set()
 
     if state["peak"]:
-        log.info("  [risorse] peak '%s': %.2f GB", name, state["peak"] / 1024**3)
+        log.info("  [resources] peak '%s': %.2f GB", name, state["peak"] / 1024**3)
     if state["killed"]:
-        log.error("  [risorse] '%s' TERMINATED by the memory guardian", name)
+        log.error("  [resources] '%s' TERMINATED by the memory guardian", name)
 
     cp = subprocess.CompletedProcess(cmd, proc.returncode, out, err)
 
@@ -2056,7 +2116,21 @@ _FERMATA_TENTATIVI = {
     "timeout": 2,
     "fallito": 2,
     "errore": 2,
+    # exit 78 (EX_CONFIG): something is missing that a retry cannot bring (e.g. no embedding model offline)
+    "configurazione": 1,
 }
+# What the log prints for each class (the codes above stay internal).
+CLASSI_EN = {
+    "memoria_pressione": "memory pressure",
+    "memoria_budget": "memory budget",
+    "lock": "lock held",
+    "timeout": "timeout",
+    "fallito": "failed",
+    "errore": "error",
+    "configurazione": "setup missing, not retried",
+}
+# A stage exits with this code when it cannot run on this machine as it is set up (sysexits EX_CONFIG).
+EXIT_CONFIGURAZIONE = 78
 _FERMATA_ATTESA_S = {
     "memoria_pressione": 30,
     "memoria_budget": 30,
@@ -2099,8 +2173,7 @@ def run_script(
 
                 marcate = _dlq_marca_recuperati(name, script_path, dal_iso, tentativo)
                 log.warning(
-                    "  🔁 line stop: '%s' CLOSED on attempt %d — "
-                    "%d queue entries marked as recovered",
+                    "  🔁 retry: '%s' CLOSED on attempt %d — %d queue entries marked as recovered",
                     name,
                     tentativo,
                     marcate,
@@ -2117,14 +2190,14 @@ def run_script(
                 "  ⛔ '%s' did not close after %d attempts (class: %s)",
                 name,
                 tentativo,
-                classe,
+                CLASSI_EN.get(classe, classe),
             )
             return False
         attesa = _FERMATA_ATTESA_S.get(classe, 30)
         log.warning(
-            "  🔁 line stop: '%s' died (%s) — attempt %d/%d in %d s",
+            "  🔁 retry: '%s' died (%s) — attempt %d/%d in %d s",
             name,
-            classe,
+            CLASSI_EN.get(classe, classe),
             tentativo + 1,
             consentiti,
             attesa,
@@ -2291,6 +2364,16 @@ def _run_script_una_volta(
 
 
 
+            if result.returncode == EXIT_CONFIGURAZIONE:
+                # Deterministic: the same run fails the same way, so it is not retried.
+                _dlq_add_failure(
+                    name,
+                    script_path,
+                    f"Exit {result.returncode}: setup missing (not retried)",
+                    "script_failure",
+                    stderr=result.stderr,
+                )
+                return False, "configurazione"
             try:
                 from conio import MARCATORE as conio
             except Exception:  # noqa: BLE001 — without the module the usual type remains
@@ -2357,7 +2440,7 @@ def _registra_nel_budget(name: str, budget):
         posto.registra(frac)
         return posto
     except Exception as e:  # noqa: BLE001 — the shared budget is a bonus: the step starts anyway
-        log.warning("  [risorse] slot in shared budget not registered: %s", e)
+        log.warning("  [resources] slot in shared budget not registered: %s", e)
         return None
 
 
@@ -2384,6 +2467,10 @@ def _allarme_silenzio_kb() -> None:
 
 
     giorni = kb_giorni_di_silenzio()
+    if giorni is None and not KNOWLEDGE_LAST_EXTRACTION_FILE.parents[1].exists():
+        # A fresh install: no knowledge folder at all yet, so there is no silence to report.
+        log.info("  KB: not built yet (nothing downloaded or read so far).")
+        return
     if giorni is None:
         log.error(
             "  ⛔ I don't know when the KB last received data (%s missing or unreadable).",
@@ -2577,23 +2664,6 @@ def _avvisi_estrazione() -> list[str]:
         return [f"extraction safeguards NOT read ({type(e).__name__})"]
     st = (d.get("stats") or {}) if isinstance(d, dict) else {}
     fuori = []
-    rat = st.get("ratchet") or {}
-    peggio = list(rat.get("peggiorati") or [])
-    sparite = list(rat.get("sparite") or [])
-    if peggio:
-        riga = AVVISO_QUALITA + ": " + " · ".join(str(x) for x in peggio)
-        if rat.get("scritto"):
-            riga += f" · ratchet baseline NOT updated: wrote {rat['scritto']}"
-        fuori.append(riga)
-    if sparite:
-
-
-
-        fuori.append(
-            "ENTITIES VANISHED from the brain: "
-            + " · ".join(str(x) for x in sparite)
-            + " · the baseline stays put until it is repaired or signed"
-        )
     conio = st.get("conio") or {}
     if conio.get("rosso"):
         fuori.append("CONIO GATE RED: " + str(conio.get("perche") or ""))
@@ -2756,6 +2826,9 @@ def eta_l0() -> dict[str, float | None]:
 
 
     sorgenti = sorted({*L1_SCRIPTS_PRE, *L1_SCRIPTS_BASE, *L1_SCRIPTS_DEPENDENT})
+    if ENABLED_SOURCES:
+        # enabled_sources set: the age of the sources it lists only (empty = every source).
+        sorgenti = sorted(_solo_abilitate(dict.fromkeys(sorgenti), set()))
     return {s: _eta_di(s, _reg) for s in sorgenti}
 
 
@@ -2815,6 +2888,10 @@ def _stampa_eta_l0() -> list[str]:
         livello, frase = _reg.giudizio(sorgente, giorni)
         if livello == "chiusa":
             log.info("  %s", frase)
+            continue
+        if m is None and _non_ancora_scaricata(sorgente):
+            # No folder under the data root: never downloaded or imported. Not an age problem.
+            log.info("  %-12s not downloaded yet", sorgente)
             continue
         if livello == "ignota":
             (fuori_registro if sorgente not in _reg.SORGENTI else assenti).append(sorgente)
@@ -2899,7 +2976,7 @@ REGISTRO_RIPARAZIONI = DATA_ROOT / "l3" / "meta" / "riparazioni.json"
 CURA_RIGENERA = "uv run python tools/cross-source/xs-l3-rigenera-relazioni.py --scrivi"
 
 
-CURA_COPIA = "uv run python tools/cross-source/xs-l0-refresh.py --copia-del-cervello"
+CURA_COPIA = "uv run python tools/cross-source/xs-l0-refresh.py --brain-copy"
 
 
 GIORNI_RETE = 7
@@ -2979,6 +3056,15 @@ def salute_parquet_relazioni(percorso: Path | None = None) -> dict:
     return esito
 
 
+def _store_da_proteggere() -> bool:
+    """True if <data root>/knowledge holds at least one file (same test as backup_kb)."""
+    kb = DATA_ROOT / "knowledge"
+    try:
+        return kb.is_dir() and any(p.is_file() for p in kb.rglob("*"))
+    except OSError:
+        return True
+
+
 def _tar_dello_store() -> tuple[float | None, str]:
     ""
 
@@ -3014,7 +3100,7 @@ def _fai_la_copia_del_cervello() -> bool:
             [
                 sys.executable,
                 str(_TOOLS_DIR / "cross-source" / "xs-l0-refresh.py"),
-                "--copia-del-cervello",
+                "--brain-copy",
                 "--dir",
                 str(DATA_ROOT / "logs" / "copie-del-cervello"),
             ],
@@ -3047,16 +3133,6 @@ def _chiave_api_presente() -> bool:
 
     if os.environ.get("ANTHROPIC_API_KEY"):
         return True
-
-
-
-    try:
-        import xs_chiavi
-
-        if any(c["presente"] and not c["errore"] for c in xs_chiavi.elenco()):
-            return True
-    except Exception:  # noqa: BLE001 — senza la coda resta il controllo di prima
-        pass
     try:
         from dotenv import load_dotenv
 
@@ -3117,13 +3193,17 @@ def precondizioni(modo: str) -> tuple[dict[str, str], list[str]]:
 
     if "chiave_api" in richieste and not _chiave_api_presente():
         blocchi["chiave_api"] = (
-            "no model key, neither ANTHROPIC_API_KEY nor a good key in the queue "
-            "(uv run python tools/cross-source/xs_chiavi.py): the paid stages cannot start. "
+            "no model key, ANTHROPIC_API_KEY is not set: the paid stages cannot start. "
             "What to do: put it in .env (or in the environment) and rerun, or use "
             "--ingest to declare that you accept a free run."
         )
 
-    if "contacts_merged_del_run_precedente" in richieste:
+    # Phase 2 reads tactiq and plaud: with enabled_sources listing neither, it does not run.
+    # A source never downloaded (no folder under the data root) is not read either.
+    if (
+        "contacts_merged_del_run_precedente" in richieste
+        and _togli_mai_scaricate(_solo_abilitate(dict(L1_SCRIPTS_DEPENDENT), set()))[0]
+    ):
         cm = WATCHED_FILES.get("contacts_merged")
         if cm is None or not cm.exists():
             avvisi.append(
@@ -3153,12 +3233,12 @@ def precondizioni(modo: str) -> tuple[dict[str, str], list[str]]:
                 "(below threshold: proceeding)."
             )
 
-    if "tar_dello_store" in richieste:
+    if "tar_dello_store" in richieste and not _store_da_proteggere():
+        # A new install: no knowledge store yet, so there is nothing to copy before the
+        # first Knowledge Extract builds it.
+        log.info("  brain copy not needed: no knowledge store yet (the first run builds it)")
+    elif "tar_dello_store" in richieste:
         quando, dove = _tar_dello_store()
-
-
-
-
         if quando is None:
             blocchi["tar_dello_store"] = (
                 f"store safety net: {dove}. What to do: {CURA_COPIA}"
@@ -3395,7 +3475,8 @@ def esito(
 
 
     salti = [s if isinstance(s, Salto) else Salto(str(s), "motivo_non_dichiarato") for s in saltati]
-    dichiarati = set(eseguiti) | {s.id for s in salti} | set(morti)
+    # a stage that did not close and let the chain go on is declared: it is in "sources not closed"
+    dichiarati = set(eseguiti) | {s.id for s in salti} | set(morti) | set(fonti)
     fantasmi = [x for x in piano if x not in dichiarati]
     gravi = [s for s in salti if not s.innocuo]
     innocui = [s for s in salti if s.innocuo]
@@ -3559,6 +3640,8 @@ def cancello_spesa(
             problemi.append(f"{p.nome} did not start")
         elif s.motivo == "ripreso":
             lettura_ripresa = lettura_ripresa or p.strato == "L1"
+        elif s.motivo == "non_elencata":
+            continue
         else:
             problemi.append(f"{p.nome} skipped ({s.motivo})")
     if lettura_ripresa:
@@ -3590,6 +3673,8 @@ def run_pipeline(
     fonti_non_chiuse: list[str] | None = None,
     lettura_filtrata: list[str] | None = None,
     scarico_non_chiuso: list[str] | None = None,
+    fasi_fuori_elenco: list[str] | None = None,
+    niente_scaricato: bool = False,
 ) -> dict:
     ""
 
@@ -3750,6 +3835,10 @@ def run_pipeline(
             else:
                 _decidi(passo, True)
             continue
+        if niente_scaricato and passo.strato != "L1":
+            # A first install with nothing downloaded or imported yet: nothing to merge or build.
+            _decidi(passo, False, "niente_da_leggere", "nothing downloaded or imported yet")
+            continue
         if passo.strato == "L1":
 
 
@@ -3758,12 +3847,20 @@ def run_pipeline(
 
 
             gia = set(stadi_gia_eseguiti or [])
-            _decidi(
-                passo,
-                passo.id in gia,
-                "a_monte",
-                "this L1 phase was not run in this run",
-            )
+            if passo.id not in gia and passo.id in (fasi_fuori_elenco or ()):
+                _decidi(
+                    passo,
+                    False,
+                    "non_elencata",
+                    "none of its sources is in enabled_sources (sbk.config.json)",
+                )
+            else:
+                _decidi(
+                    passo,
+                    passo.id in gia,
+                    "a_monte",
+                    "this L1 phase was not run in this run",
+                )
         elif passo.tipo == "pagato":
 
 
@@ -3782,6 +3879,18 @@ def run_pipeline(
                     "non_autorizzato",
                     "spending not authorized: --allow-spend, or answer «yes» to the question",
                 )
+        elif (
+            passo.id == "l1_inventario"
+            and ENABLED_SOURCES
+            and not any(source_enabled(s) for s in ("github", "gsc", "analytics"))
+        ):
+            # The inventory reads only github, gsc and analytics: none of them is listed.
+            _decidi(
+                passo,
+                False,
+                "non_elencata",
+                "none of github, gsc, analytics is in enabled_sources (sbk.config.json)",
+            )
         elif passo.id in ("l2_merge", "l2_entity_map_cleanup"):
             _decidi(passo, run_merge, "invariato", "no L1 input changed")
         elif passo.id == "l2_knowledge_extract":
@@ -4001,7 +4110,8 @@ def run_pipeline(
 
     def _salta_a_valle(motivo: str, dettaglio: str) -> None:
         ""
-        fatti = set(stages_run) | set(errors) | {s.id for s in salti}
+        # fonti_ferme: stages that ran, did not close and let the chain go on (already reported)
+        fatti = set(stages_run) | set(errors) | set(fonti_ferme) | {s.id for s in salti}
         for pid in piano:
             if pid not in fatti:
                 salti.append(Salto(pid, motivo, dettaglio))
@@ -4018,6 +4128,13 @@ def run_pipeline(
     if decisione.get("l2_merge"):
         if not _esegui("l2_merge", ["--incremental"] if merge_incremental else [], critico=True):
             _salta_a_valle("a_monte", "l2_merge failed")
+            return _chiudi()
+        if not _rubrica_con_persone():
+            # The merge closed with nothing to merge, or with an empty book (a first install with
+            # no source that starts a contact): every stage after it reads the merged book, so
+            # none has anything to do.
+            log.info("  no one in the merged book yet: the stages after the merge have nothing to read")
+            _salta_a_valle("niente_da_leggere", "no source that starts a contact has data yet")
             return _chiudi()
 
 
@@ -4162,11 +4279,16 @@ def run_pipeline(
 
     _rq_a_valle_di_00 = {"rq_01_decay", "rq_02b_signals", "rq_02_scoring"}
     rq_00_morto = False
+    rq_00_vuoto = False
     for pid in rq_ids:
         if not decisione.get(pid):
             continue
         if rq_00_morto and pid in _rq_a_valle_di_00:
             salti.append(Salto(pid, "a_monte", "rq-00 dead: interaction-weights stale"))
+            continue
+        if rq_00_vuoto and pid in _rq_a_valle_di_00:
+            log.info("  %s: no interactions weighed yet, nothing to read", pid)
+            salti.append(Salto(pid, "niente_da_leggere", "rq-00 found no interactions yet"))
             continue
         extra: list[str] = []
         if pid == "rq_03_types":
@@ -4180,6 +4302,8 @@ def run_pipeline(
         ok = _esegui(pid, extra)
         if pid == "rq_00_weights" and not ok:
             rq_00_morto = True
+        if pid == "rq_00_weights" and ok and not (DATA_ROOT / "rq" / "interaction-weights.parquet").exists():
+            rq_00_vuoto = True  # a first install: nothing to weigh yet (RQ-00 wrote no weights)
         if pid == "rqv4_backfill" and not ok:
             _ripristina_events_se_piu_piccolo()
 
@@ -4197,8 +4321,11 @@ def run_pipeline(
 
     if decisione.get("l3_graph"):
         _esegui("l3_graph", ["--incremental"] if graph_incremental else [])
+    # The stages after the search index do not read it: when it does not close (on a first run
+    # without network the local embedding model cannot be downloaded) it stops alone, and the run
+    # says so, but the chain goes on.
     if decisione.get("l3_index") and _esegui(
-        "l3_index", ["--incremental"] if index_incremental else []
+        "l3_index", ["--incremental"] if index_incremental else [], ferma_la_linea=False
     ):
 
 
@@ -4218,7 +4345,7 @@ def run_pipeline(
         _esegui("pipeline_status", ["--json-only"])
     if decisione.get("l3_calendario_ricorrenze"):
         log.info("\n=== Birthday and Name-day Calendars ===")
-        _esegui("l3_calendario_ricorrenze", ["--applica"])
+        _esegui("l3_calendario_ricorrenze", ["--apply"])
 
 
 
@@ -4310,6 +4437,7 @@ def run_l1_pipeline(
 
     # sbk.config.json enabled_sources: only the sources you connected
     saltate: set[str] = set()
+    prima = {"pre": set(pre_scripts), "base": set(base_scripts), "dep": set(dep_scripts)}
     pre_scripts = _solo_abilitate(pre_scripts, saltate)
     base_scripts = _solo_abilitate(base_scripts, saltate)
     dep_scripts = _solo_abilitate(dep_scripts, saltate)
@@ -4319,7 +4447,11 @@ def run_l1_pipeline(
         wa_deep = {k: v for k, v in L1_SCRIPTS_WA_DEEP.items() if v.exists()}
         if sources:
             wa_deep = {k: v for k, v in wa_deep.items() if k in sources or "whatsapp" in sources}
+        prima["wa"] = set(wa_deep)
         wa_deep = _solo_abilitate(wa_deep, saltate)
+    # The L1 phases left with no script only because enabled_sources does not list their
+    # sources: the plan reports them as "not in enabled_sources", not as a phase that failed.
+    fuori_elenco = _fasi_fuori_elenco(prima, pre_scripts, base_scripts, dep_scripts, wa_deep)
     if saltate:
         log.info(
             "enabled_sources (sbk.config.json): L1 skipped for %s, not listed",
@@ -4328,9 +4460,34 @@ def run_l1_pipeline(
 
     all_scripts = {**pre_scripts, **base_scripts, **dep_scripts}
     if not all_scripts:
-        log.warning("No L1 scripts to run (check --only filter or missing files)")
-        return {"phases_run": [], "errors": [], "elapsed": 0, "l1_aggiornato": False}
+        log.warning("No L1 scripts to run (check --only filter, enabled_sources or missing files)")
+        return {
+            "phases_run": [],
+            "errors": [],
+            "elapsed": 0,
+            "l1_aggiornato": False,
+            "fasi_fuori_elenco": fuori_elenco,
+        }
 
+    # A source with no folder under the data root yet was never downloaded or imported:
+    # nothing to read, so its L1 is skipped at once, without attempts and without a failure.
+    mai: dict[str, list[str]] = {}
+    pre_scripts, mai["pre"] = _togli_mai_scaricate(pre_scripts)
+    base_scripts, mai["base"] = _togli_mai_scaricate(base_scripts)
+    dep_scripts, mai["dep"] = _togli_mai_scaricate(dep_scripts)
+    wa_deep, mai["wa"] = _togli_mai_scaricate(wa_deep)
+    mai_tutte = sorted({k for v in mai.values() for k in v})
+    # Nothing at all to read: every source this run would read was never downloaded or imported,
+    # and no merged book exists from an earlier run. The stages after L1 then have nothing to do.
+    niente_scaricato = bool(mai_tutte) and not (
+        pre_scripts or base_scripts or dep_scripts or wa_deep
+    )
+    niente_scaricato = niente_scaricato and not _rubrica_con_persone()
+    if mai_tutte:
+        log.info(
+            "  not downloaded yet, skipped (no folder under the data root): %s",
+            ", ".join(mai_tutte),
+        )
 
     par = "one at a time" if _l1_in_fila() else "parallel"
     log.info("\n=== L1 Pipeline Plan ===")
@@ -4369,6 +4526,8 @@ def run_l1_pipeline(
             "elapsed": time.time() - t_start,
             "dry_run": True,
             "l1_aggiornato": True,
+            "fasi_fuori_elenco": fuori_elenco,
+            "niente_scaricato": niente_scaricato,
         }
 
     def _run_l1_phase(scripts: dict[str, Path], phase_name: str) -> list[str]:
@@ -4434,15 +4593,15 @@ def run_l1_pipeline(
 
 
 
-    if pre_scripts:
+    if pre_scripts or mai["pre"]:
         pre1_errors = _run_l1_phase(pre_scripts, "Phase 1-pre (personio)")
         errors.extend(pre1_errors)
         phases_run.append("l1_personio")
-        if "personio_assenze" in pre_scripts:
+        if "personio_assenze" in pre_scripts or "personio_assenze" in mai["pre"]:
             phases_run.append("l1_personio_assenze")
 
 
-    if base_scripts:
+    if base_scripts or mai["base"]:
         phase1_errors = _run_l1_phase(base_scripts, "Phase 1 (base)")
         errors.extend(phase1_errors)
         phases_run.append("l1_phase1")
@@ -4457,15 +4616,16 @@ def run_l1_pipeline(
         pre_errors = _run_l1_phase(speakers, "Phase 2-pre (speaker list)")
         errors.extend(pre_errors)
         phases_run.append("l1_speaker_analysis")
+    elif "plaud" in mai["dep"]:
+        phases_run.append("l1_speaker_analysis")  # no Plaud folder yet: nothing to analyse
 
-
-    if dep_scripts:
+    if dep_scripts or mai["dep"]:
         phase2_errors = _run_l1_phase(dep_scripts, "Phase 2 (dependent)")
         errors.extend(phase2_errors)
         phases_run.append("l1_phase2")
 
 
-    if wa_deep:
+    if wa_deep or mai["wa"]:
         # The phase name stays "Phase 3 (WA deep)": the macOS app reads it from the log.
         phase3_errors = _run_l1_phase(wa_deep, "Phase 3 (WA deep)")
         errors.extend(phase3_errors)
@@ -4514,6 +4674,8 @@ def run_l1_pipeline(
         "filtro": sorted(sources) if sources else None,
         "elapsed": elapsed,
         "l1_aggiornato": True,
+        "fasi_fuori_elenco": fuori_elenco,
+        "niente_scaricato": niente_scaricato,
     }
 
 
@@ -4682,8 +4844,8 @@ The four commands, from the most complete to the lightest:
 
 ⚠️ NONE of the four downloads L0: the download is the run
    tools/cross-source/xs-l0-refresh.py (--then-ingest for the full run), and
-   WhatsApp, voice memos and LinkedIn stay manual. What the pipeline guarantees is to
-   REPORT how old L0 is.
+   these stay manual (you export or run them yourself): {a_mano}.
+   What the pipeline guarantees is to REPORT how old L0 is.
 
 The WhatsApp extras (documents and photos pulled out of the exported chats) are not set
 up or tested by the author: they run only with --whatsapp-extras, never by default.
@@ -4693,7 +4855,7 @@ up or tested by the author: they run only with --whatsapp-extras, never by defau
 
 The cost of the paid stages is not written here: it is computed from the pending
 documents at the time of the question. A figure in a help is false a month later.
-        """,
+        """.replace("{a_mano}", SORGENTI_A_MANO),
     )
     for modo in MODI:
         parser.add_argument(FLAG_MODO[modo], dest=modo, action="store_true", help=_AIUTO_MODI[modo])
@@ -5006,6 +5168,8 @@ def _main_inner(args, *, modo: str, consenso: bool) -> int:
 
     fonti_l1_ferme: list[str] = []
     filtro_l1: list[str] | None = None
+    fasi_fuori_elenco: list[str] = []
+    niente_scaricato = False
     scarico_ko = [
         s.strip() for s in (getattr(args, "scarico_non_chiuso", None) or "").split(",") if s.strip()
     ]
@@ -5037,14 +5201,24 @@ def _main_inner(args, *, modo: str, consenso: bool) -> int:
             stadi_l1 = list(l1.get("phases_run") or [])
             fonti_l1_ferme = list(l1.get("errors") or [])
             filtro_l1 = only_sources
+            fasi_fuori_elenco = list(l1.get("fasi_fuori_elenco") or [])
+            niente_scaricato = bool(l1.get("niente_scaricato"))
         if args.dry_run:
             stadi_l1 = [
-                "l1_personio",
-                "l1_personio_assenze",
-                "l1_phase1",
-                "l1_speaker_analysis",
-                "l1_phase2",
-                *(["l1_phase3_wa_deep"] if "l1_phase3_wa_deep" in STADI_A_RICHIESTA_ACCESI else []),
+                f
+                for f in (
+                    "l1_personio",
+                    "l1_personio_assenze",
+                    "l1_phase1",
+                    "l1_speaker_analysis",
+                    "l1_phase2",
+                    *(
+                        ["l1_phase3_wa_deep"]
+                        if "l1_phase3_wa_deep" in STADI_A_RICHIESTA_ACCESI
+                        else []
+                    ),
+                )
+                if f not in fasi_fuori_elenco
             ]
 
     result = run_pipeline(
@@ -5060,6 +5234,8 @@ def _main_inner(args, *, modo: str, consenso: bool) -> int:
         fonti_non_chiuse=fonti_l1_ferme,
         lettura_filtrata=filtro_l1,
         scarico_non_chiuso=scarico_ko,
+        fasi_fuori_elenco=fasi_fuori_elenco,
+        niente_scaricato=niente_scaricato,
     )
 
     if args.dry_run:

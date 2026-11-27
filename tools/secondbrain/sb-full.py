@@ -47,10 +47,9 @@ import re
 import signal
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT =Path(__file__).resolve().parents[2]
 TOOLS = ROOT / "tools"
 for _p in (TOOLS, TOOLS / "cross-source"):
     if str(_p) not in sys.path:
@@ -68,7 +67,9 @@ ORCHESTRATORE = TOOLS / "cross-source" / "xs-pipeline-run.py"
 
 TETTO_S = {"ingest": 24 * 3600, "tutto": 36 * 3600}
 
-_RE_SALTO = re.compile(r"(\w+) \((\w+)\)")
+# "l3_x (not chosen)" in the outcome line; older logs wrote the internal code, "l3_x (non_scelto)".
+_RE_SALTO = re.compile(r"(\w+) \(([^)]+)\)")
+_SOLO_NON_SCELTI = {"not chosen", "non_scelto"}
 
 
 def _carica(nome: str, percorso: Path):
@@ -113,7 +114,8 @@ def _chiuso(log: Path, inizio: int) -> bool:
     if chiave is None:
         return True
     salti = ultima.split(chiave, 1)[1].split(", warnings:", 1)[0].split(", avvisi:", 1)[0]
-    return {motivo for _id, motivo in _RE_SALTO.findall(salti)} == {"non_scelto"}
+    motivi = {motivo for _id, motivo in _RE_SALTO.findall(salti)}
+    return bool(motivi) and motivi <= _SOLO_NON_SCELTI
 
 
 def _una_volta(nome: str, cmd: list[str], timeout_s: int, cartella: Path, L0R) -> bool:
@@ -123,7 +125,7 @@ def _una_volta(nome: str, cmd: list[str], timeout_s: int, cartella: Path, L0R) -
     t0 = time.time()
     inizio = log.stat().st_size if log.exists() else 0
     with log.open("a", encoding="utf-8") as f:
-        f.write(f"── tentativo 1 · {datetime.now():%d/%m %H:%M:%S} · {' '.join(cmd)}\n")
+        f.write(L0R.tentativo_testa(1, cmd))
         f.flush()
         rc = L0R._lancia(cmd, f, timeout_s)
     nota = ""
@@ -134,12 +136,12 @@ def _una_volta(nome: str, cmd: list[str], timeout_s: int, cartella: Path, L0R) -
         if "(cancello_spesa)" in log.read_bytes()[inizio:].decode("utf-8", errors="replace"):
 
             nota = "paid steps stopped: before did not close everything"
-    L0R._esito(esiti, nome, "tent.1", f"rc={rc}", f"{int(time.time() - t0)}s", nota)
+    L0R._esito(esiti, nome, L0R.tentativo_campo(1), f"rc={rc}", f"{int(time.time() - t0)}s", nota)
     if rc == 2 and (ferme := L0R.fonti_non_chiuse(log, inizio)):
         L0R._esito(esiti, nome, "sources not closed", ferme)
     if rc in (0, 2) and not nota:
         return True
-    L0R._esito(esiti, nome, "NON CHIUSO DOPO 1 TENTATIVO")
+    L0R._esito(esiti, nome, "NOT CLOSED AFTER 1 ATTEMPT")
     return False
 
 
@@ -243,8 +245,12 @@ def main() -> int:
     esiti = cartella / "esiti.tsv"
     riprende = [f"resumes {args.riprendi.name}"] if vecchio else []
 
-    dopo = "L0 only" if args.solo_scarico else f"poi-{args.modo}"
-    L0R._esito(esiti, "INIZIO", f"{len(piano)} steps", dopo, *riprende)
+    dopo = (
+        L0R.DIARIO_SOLO_L0
+        if args.solo_scarico
+        else (L0R.DIARIO_POI_TUTTO if args.modo == "tutto" else L0R.DIARIO_POI_INGEST)
+    )
+    L0R._esito(esiti, L0R.DIARIO_INIZIO, f"{len(piano)} steps", dopo, *riprende)
     if any(p.sorgente == "gdrive" for p in piano):
         L0R._esito(esiti, "impostazioni", "drive", IMP.frase("drive"))
     if not args.solo_scarico:
@@ -263,7 +269,7 @@ def main() -> int:
                 L0R._esito(
                     esiti,
                     p.nome,
-                    "ripreso",
+                    L0R.DIARIO_RIPRESO,
                     f"closed in run {args.riprendi.name}, {vecchio.chiusi[p.nome]}",
                 )
         da_fare = vecchio.da_rifare(piano)
@@ -274,7 +280,7 @@ def main() -> int:
                 "nothing to redo",
                 f"run {args.riprendi.name} had closed everything",
             )
-            L0R._esito(esiti, "FINE", "not closed: none")
+            L0R._esito(esiti, L0R.DIARIO_FINE, "not closed: none")
             print(f"diary: {esiti}")
             return 0
 
@@ -291,7 +297,7 @@ def main() -> int:
                 L0R, cartella, da_fare, py=PY, cwd=ROOT, ammetti=CORSIE.ammetti_lease_o_pressione
             )
         if args.solo_scarico:
-            L0R._esito(esiti, "FINE", "not closed: " + (", ".join(non_chiusi) or "none"))
+            L0R._esito(esiti, L0R.DIARIO_FINE, "not closed: " + (", ".join(non_chiusi) or "none"))
             RIPRESA.file_pausa(cartella).unlink(missing_ok=True)
             print(f"diary: {esiti}")
             return 1 if non_chiusi else 0
@@ -352,13 +358,18 @@ def main() -> int:
 
         giro = RIPRESA.leggi_giro(cartella, nomi, args.modo)
         rimasti = giro.non_chiusi(nomi, args.modo)
-        L0R._esito(esiti, "FINE", "FERMATO", "not closed: " + (", ".join(rimasti) or "none"))
+        L0R._esito(
+            esiti,
+            L0R.DIARIO_FINE,
+            L0R.DIARIO_FERMATO,
+            "not closed: " + (", ".join(rimasti) or "none"),
+        )
 
         RIPRESA.file_pausa(cartella).unlink(missing_ok=True)
         print(f"diary: {esiti}")
         return 130
 
-    L0R._esito(esiti, "FINE", "not closed: " + (", ".join(non_chiusi) or "none"))
+    L0R._esito(esiti, L0R.DIARIO_FINE, "not closed: " + (", ".join(non_chiusi) or "none"))
     RIPRESA.file_pausa(cartella).unlink(missing_ok=True)
     print(f"diary: {esiti}")
     return 1 if non_chiusi else 0

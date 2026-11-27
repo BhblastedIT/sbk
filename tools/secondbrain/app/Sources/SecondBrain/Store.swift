@@ -30,7 +30,7 @@ enum Sezione: String, CaseIterable, Identifiable, Hashable {
         case .fonti: "Sources"
         case .pipeline: "Pipeline"
         case .run: "Run"
-        case .spesa: "Cost and keys"
+        case .spesa: "Cost and API key"
         case .regole: "Rules"
         case .strumenti: "Tools"
         case .posta: "Mail"
@@ -68,12 +68,12 @@ enum Sezione: String, CaseIterable, Identifiable, Hashable {
         case .fonti: "Where the data comes from and how fresh it is. The number says how many sources need a look."
         case .pipeline: "All the steps, phase by phase, with the last time of each. The number says how many failed."
         case .run: "What is running now, with the lanes and the log, and the earlier runs."
-        case .spesa: "The estimate of the paid steps and the API keys, with the one that pays."
+        case .spesa: "The estimate of the paid steps and whether your ANTHROPIC_API_KEY is set."
         case .regole: "How each source downloads and what each step does, with your rules and whether the code respects them."
         case .strumenti: "The alerts, the settings, the Mac's memory and the disk."
         case .posta: "The rules of your mailboxes, who stays in Primary and who goes to a label. From here you move a sender and carry the rules over to Gmail."
         case .firme: "The contracts waiting for your signature, even if you archived the email. They open from here."
-        case .pagine: "The pages I prepared for you, with the account needed to open them online. In here they are read without access (⇧⌘P)."
+        case .pagine: "The pages I prepared for you, online on your Claude account. In here they are read without sign-in (⇧⌘P)."
         case .inspiration: "The things you save because they inspire you, reels, posts and sites, on a board. They open here, with the video when there is one (⌘0)."
         case .plaud: "The names of who speaks in your Plaud recordings, how solid they are and what is left to name."
         }
@@ -1113,7 +1113,10 @@ final class Store {
             guardaInspiration(nuova)
             registraLetturaInspiration(motivo, via, esito: "ok, \(r.dati.count) byte")
         } else if inspiration == nil {
-            erroreInspiration = "The ideas can't be read. The engine did not respond as it should."
+            // Inspiration off (no inspiration.archive_dir): the engine answers ok false with the reason.
+            let spenta = try? JSONDecoder().decode(Rilettura.self, from: r.dati)
+            erroreInspiration = (spenta?.ok == false ? spenta?.messaggio : nil)
+                ?? "The ideas can't be read. The engine did not respond as it should."
             registraLetturaInspiration(motivo, via, esito: r.scaduto ? "engine timed out" : "response not read")
         } else {
             inspirationNonRiletta = true
@@ -1255,7 +1258,7 @@ final class Store {
         guard reg.stato == .registra else { return }
 
         guard reg.voce != Registrazione.attivita else { return }
-        reg.registra("\(motivo) con il microfono acceso: fermo e mando")
+        reg.registra("\(motivo) with the microphone on: stopping and sending")
         guard let r = reg.ferma() else { return }
         Task { @MainActor in _ = await self.mandaRegistrazione(r) }
     }
@@ -1265,7 +1268,7 @@ final class Store {
     private func registrazioneAllaChiusura() {
         let reg = Registratore.condiviso
         guard reg.stato == .registra else { return }
-        reg.registra("app chiusa con il microfono acceso: fermo e mando")
+        reg.registra("app closed with the microphone on: stopping and sending")
         guard let r = reg.ferma() else { return }
 
         let risposta = motore.chiediSubito(r.perAttivita ? ["cose"] + r.argomentiAttivita : ["inspiration"] + r.argomenti,

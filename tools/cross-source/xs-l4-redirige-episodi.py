@@ -96,14 +96,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--apply", action="store_true", help="scrive davvero; senza, prova a vuoto")
+    ap.add_argument("--apply", action="store_true", help="write for real; without it, a dry run")
     ap.add_argument("--campione", type=int, default=10)
     a = ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
     vivi = _vivi()
     succ = _successori(vivi)
-    log.info("%d profili vivi · %d id archiviati con un erede unico", len(vivi), len(succ))
+    log.info("%d live profiles · %d archived ids with a single successor", len(vivi), len(succ))
 
     episodi = sorted(EPISODI_DIR.rglob("*.json"))
     tocchi = Counter()
@@ -154,17 +154,17 @@ def main() -> int:
         if a.apply:
             safe_write_json(f, d)
 
-    print(f"\n{'APPLY' if a.apply else 'PROVA A VUOTO'}")
-    print(f"  episodi letti            : {len(episodi):,}")
-    print(f"  episodi da riscrivere    : {file_toccati:,}")
-    print(f"  puntatori rediretti      : {sum(tocchi.values()):,} ({len(tocchi)} id distinti)")
-    print(f"  puntatori senza erede    : {sum(rotti.values()):,} ({len(rotti)} id) — NON toccati")
+    print(f"\n{'APPLY' if a.apply else 'DRY RUN'}")
+    print(f"  episodes read            : {len(episodi):,}")
+    print(f"  episodes to rewrite      : {file_toccati:,}")
+    print(f"  pointers redirected      : {sum(tocchi.values()):,} ({len(tocchi)} distinct ids)")
+    print(f"  pointers with no successor: {sum(rotti.values()):,} ({len(rotti)} ids), NOT touched")
     for pid, n in tocchi.most_common(5):
-        print(f"      {pid} → {succ[pid]}  ({n:,} volte)")
+        print(f"      {pid} → {succ[pid]}  ({n:,} times)")
     for riga in campione:
-        print(f"      esempio: {riga}")
+        print(f"      example: {riga}")
     if not a.apply:
-        print("\n  (nessuna scrittura: aggiungi --apply)")
+        print("\n  (nothing written: add --apply)")
     return 0
 
 

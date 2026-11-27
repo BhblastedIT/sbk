@@ -413,25 +413,29 @@ def esegui_in_corsia(
             inizio = log.stat().st_size if log.exists() else 0
             with log.open("a", encoding="utf-8") as f:
                 f.write(
-                    f"── tentativo {tentativo} · {datetime.now():%d/%m %H:%M:%S} · {' '.join(cmd)}\n"
+                    f"── attempt {tentativo} · {datetime.now():%d/%m %H:%M:%S} · {' '.join(cmd)}\n"
                 )
                 f.flush()
                 try:
                     rc, picco = _lancia(cmd, f, passo.timeout_s, stop, cwd)
                 except BaseException:
                     _esito_sicuro(
-                        esiti, nome, f"tent.{tentativo}", "INTERROTTO", f"{int(time.time() - t0)}s"
+                        esiti,
+                        nome,
+                        f"attempt.{tentativo}",
+                        L0R.DIARIO_INTERROTTO,
+                        f"{int(time.time() - t0)}s",
                     )
                     raise
             durata = f"{int(time.time() - t0)}s"
             if rc is None:
-                _esito_sicuro(esiti, nome, f"tent.{tentativo}", "INTERROTTO", durata)
+                _esito_sicuro(esiti, nome, f"attempt.{tentativo}", L0R.DIARIO_INTERROTTO, durata)
                 _riga_corsia(
                     cartella,
                     corsia,
                     nome,
-                    f"tent.{tentativo}",
-                    "INTERROTTO",
+                    f"attempt.{tentativo}",
+                    L0R.DIARIO_INTERROTTO,
                     durata,
                     f"{picco:.0f}",
                 )
@@ -439,15 +443,15 @@ def esegui_in_corsia(
             nota = ""
             if rc == 2 and 2 in rc_ok and not L0R._ingest_chiuso(log, inizio):
                 nota = "rc 2 but the outcome is not only warnings (stages vanished or seriously skipped)"
-            _esito_sicuro(esiti, nome, f"tent.{tentativo}", f"rc={rc}", durata, nota)
+            _esito_sicuro(esiti, nome, f"attempt.{tentativo}", f"rc={rc}", durata, nota)
             _riga_corsia(
-                cartella, corsia, nome, f"tent.{tentativo}", f"rc={rc}", durata, f"{picco:.0f}"
+                cartella, corsia, nome, f"attempt.{tentativo}", f"rc={rc}", durata, f"{picco:.0f}"
             )
             if rc in rc_ok and not nota:
                 return True
             if tentativo < 3 and stop.wait(pause["lock"] if rc == 75 else pause["altro"]):
                 raise Fermato
-        _esito_sicuro(esiti, nome, "NON CHIUSO DOPO 3 TENTATIVI")
+        _esito_sicuro(esiti, nome, "NOT CLOSED AFTER 3 ATTEMPTS")
         return False
     finally:
         os.close(fd)
@@ -499,7 +503,7 @@ def scarica(
         if lz is None:
             base.extend(passi)
             _esito_sicuro(
-                esiti, f"corsia:{nome}", "non partita",
+                esiti, f"corsia:{nome}", L0R.DIARIO_NON_PARTITA,
                 "memory under pressure and no room in the shared budget: its steps go to the base",
             )
             continue
@@ -523,7 +527,7 @@ def scarica(
                 _esito_sicuro(
                     esiti,
                     f"corsia:{nome}",
-                    "non partita",
+                    L0R.DIARIO_NON_PARTITA,
                     "the same lane is already running in another process",
                 )
                 with mutex:
@@ -663,7 +667,7 @@ def scarica_fonte(
         )
         return 75
     try:
-        _esito_sicuro(esiti, "INIZIO", f"{len(passi)} steps", f"L0 only, source {sid}")
+        _esito_sicuro(esiti, "START", f"{len(passi)} steps", f"L0 only, source {sid}")
         chiusi = []
         try:
             for p in passi:
@@ -681,15 +685,18 @@ def scarica_fonte(
                 )
         except FonteOccupata:
             _esito_sicuro(
-                esiti, "FINE", "NON PARTITO", f"{sid} is already being downloaded by another process"
+                esiti,
+                L0R.DIARIO_FINE,
+                L0R.DIARIO_NON_PARTITO,
+                f"{sid} is already being downloaded by another process",
             )
             print(f"⛔ {sid} is already being downloaded by the full run or another process")
             return 75
         except (Fermato, KeyboardInterrupt):
-            _esito_sicuro(esiti, "FINE", "FERMATO", "not closed: " + sid)
+            _esito_sicuro(esiti, L0R.DIARIO_FINE, L0R.DIARIO_FERMATO, "not closed: " + sid)
             return 130
         non = [p.nome for p, ok in zip(passi, chiusi, strict=False) if not ok]
-        _esito_sicuro(esiti, "FINE", "not closed: " + (", ".join(non) or "none"))
+        _esito_sicuro(esiti, "END", "not closed: " + (", ".join(non) or "none"))
         return 1 if non else 0
     finally:
         with suppress(Exception):

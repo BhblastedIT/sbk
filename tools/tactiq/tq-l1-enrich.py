@@ -1,23 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Tactiq L1: meetings, speakers resolved to emails, contacts, interactions and the corpus of what you said, from
+the Tactiq transcripts.
+"""
 
 from __future__ import annotations
 

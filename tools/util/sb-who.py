@@ -1,56 +1,9 @@
 #!/usr/bin/env python3
-""
+"""Who is X, what they do now, and are they still there: the person's current facts from the knowledge base, as of
+today or another date (--as-of), filtered by organization (--org).
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/util/sb-who.py <name>
+"""
 
 from __future__ import annotations
 
@@ -721,19 +674,12 @@ def stampa(r: dict) -> None:
 
 
 
+# The fixed cases hold on any knowledge base: they name nobody from yours. Your own name
+# (sbk.config.json "owner") can never come out as having left, and a name nobody has is unknown.
+# The people of your own data are checked by the groups below, sampled from your own sources.
 GOLDEN = [
-
-    ("Quinn Hart", {"CHIUSO"}),
-
-
-    ("Noah Webb", {"CHIUSO"}),
-
-
     # you (sbk.config.json "owner"), when set
     *([(cfg.OWNER_NAME, {"DENTRO", "STALE", "APERTO-NON-VERIFICABILE", "IGNOTO"})] if cfg.OWNER_NAME else []),
-
-    ("Sam Monroe", {"IGNOTO", "AMBIGUO", "DENTRO", "STALE", "APERTO-NON-VERIFICABILE"}),
-
     ("Zxqwerty Nonesiste", {"IGNOTO"}),
 ]
 
@@ -919,9 +865,9 @@ def _g4_misto(idx: dict) -> tuple[dict, list]:
 def selftest() -> int:
     idx = carica_indice()
     ko = 0
-    print("── selftest: 5 golden cases + four groups of 60 ──")
+    print(f"── selftest: {len(GOLDEN)} fixed cases + four groups of {PER_GRUPPO} ──")
 
-    print("\n  [0] THE FIVE GOLDEN CASES")
+    print("\n  [0] THE FIXED CASES (you, if sbk.config.json has your name, and a name nobody has)")
     for nome, attesi in GOLDEN:
         v = chiedi(nome, idx)["verdetto"]
         ok = v in attesi
@@ -949,8 +895,8 @@ def selftest() -> int:
             print(
                 "      🟠 HR LEAVERS that show as DENTRO: the closure came from Personio"
             )
-            print("         and was thrown away by the merge (xs-l2-knowledge-extract.py:1204-1207).")
-            print("         It's not a defect of sb-who: it's the damage phase 2 must repair,")
+            print("         but the knowledge base still keeps their job open.")
+            print("         It's not a defect of sb-who: the knowledge base needs the closure,")
             print("         and this number must GO DOWN.")
         for nome, atteso, v in male[:6]:
             print(f"         · {nome} — HR «{atteso}», sb-who «{v}»")
@@ -1000,7 +946,7 @@ def selftest() -> int:
     print(f"\n  channels that can close: {len(vivi)}/{len(cr)}")
     if len(vivi) <= 1:
         print("  ⚠️  as long as it's 1, «DENTRO» can't be uttered and that's fine:")
-        print("      the verdict promotes itself when phase 2 repairs the merge.")
+        print("      the verdict promotes itself when more of your sources can close a job.")
     return 1 if ko else 0
 
 

@@ -241,16 +241,25 @@ PASSI_GIRO: tuple[str, ...] = (
     "email-allegati",
     "microsoft365",
     "imap-caldav",
+    "teams",
+    "contacts-google",
     "slack-index",
     "slack-canali",
     "slack-dm",
     "attio",
+    "hubspot",
+    "pipedrive",
     "clickup",
+    "atlassian",
+    "linear",
     "personio",
     "whoop",
     "plaud",
     "tactiq",
     "zoom",
+    "fireflies",
+    "fathom",
+    "granola",
     "docusign",
     "docusign-pdf",
     "inv-github",
@@ -453,11 +462,12 @@ def _ultimo_esito(esiti: Path, passo: str) -> tuple[int | None, bool]:
         campi = r.split("\t")
         if len(campi) < 3 or campi[1] != passo:
             continue
-        if campi[2].startswith("tent.") and len(campi) > 3:
+        # "attempt.N", or "tent.N" in older diaries
+        if campi[2].startswith(("attempt.", "tent.")) and len(campi) > 3:
             valore = campi[3].removeprefix("rc=")
             rc = (
                 -15
-                if valore == "INTERROTTO"
+                if valore in ("INTERRUPTED", "INTERROTTO")  # older diaries: INTERROTTO
                 else int(valore)
                 if valore.lstrip("-").isdigit()
                 else rc
@@ -508,7 +518,7 @@ def esame_del_passo(cartella: Path, passo: str) -> dict:
         avvisi = [s["diagnosi"] for s in stadi if s["diagnosi"]["gravita"] == "avviso"]
     else:
         if rc == -15:
-            righe = [*righe, "INTERROTTO"]
+            righe = [*righe, "INTERRUPTED"]
         diagnosi = diagnosi_errore(passo, righe, rc)
         avvisi = (
             [d for d in tutte_le_diagnosi(passo, righe, 0) if d["gravita"] == "avviso"]

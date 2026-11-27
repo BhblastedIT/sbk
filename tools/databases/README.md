@@ -46,7 +46,7 @@ plugin's code.
 
 **Where the code looks** Keychain `sbk-databases/<connection name>` first, then the env variable
 `SBK_DB_URL_<NAME>` (connection name in uppercase, every other character turned into `_`; another
-name with `"env"` on the connection), `tools/databases/db_reader.py:548` (names at `:104` and `:105`;
+name with `"env"` on the connection), `tools/databases/db_reader.py:550` (names at `:106` and `:107`;
 the lines are in `.env.example`, section "Databases"). For SQLite, a `"path"` in sbk.config.json comes
 first. A connection string written in sbk.config.json (`url`, `dsn`, `password`, ...) is refused with an
 error. Both scripts load `.env` by themselves.
@@ -54,7 +54,7 @@ error. Both scripts load `.env` by themselves.
 uv run python -c "import keyring, getpass; keyring.set_password('sbk-databases', 'shop', getpass.getpass('connection string: '))"
 ```
 
-**sbk.config.json** section `databases` (`tools/databases/db_reader.py:418`). `sbk.config.example.json`
+**sbk.config.json** section `databases` (`tools/databases/db_reader.py:420`). `sbk.config.example.json`
 ships `connections` and `sources` empty, with their `_help`, and a worked example under
 `_example_connections` and `_example_sources` (a SQLite people table joined to its companies, and a
 notes table as events) to copy and change:

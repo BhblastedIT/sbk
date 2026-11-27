@@ -1,58 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Entity resolution: decides which contacts from every source (email, Attio, LinkedIn, WhatsApp, iPhone, Slack,
+DocuSign, Notion, the HR directory...) are the same person, through manual overrides, exact keys, names and,
+optionally, relationship facts and Splink clusters; writes the entity map, the review queue and the decisions.
+"""
 
 import argparse
 import hashlib
@@ -1137,6 +1087,8 @@ def load_iphone_contacts():
         email = str(row.get("email", "")).strip().lower()
         if not name or not is_valid_person_name(name):
             continue
+        if str(row.get("kind", "") or "").strip().lower() in ("org", "group", "location"):
+            continue  # a company card (or group / location): not a person
         result.append(
             {
                 "name": name,
@@ -2780,7 +2732,11 @@ def build_entity_map_v2(uf, personio_employees, contact_names, contact_scores, a
         person_counter += 1
 
 
-        stable_key = "|".join(sorted(keys))
+        # The id hangs on the person's emails when there are any, so a LinkedIn or WhatsApp
+        # name that joins the cluster in a later run does not change it, and a single email
+        # gets the same id as the merge's fallback (p_ + hash of the email). Without an email
+        # every key counts.
+        stable_key = "|".join(email_keys) if email_keys else "|".join(sorted(keys))
         person_id = "p_" + hashlib.sha256(stable_key.encode()).hexdigest()[:8]
 
 
@@ -2855,7 +2811,7 @@ def build_entity_map_v2(uf, personio_employees, contact_names, contact_scores, a
                 linkedin_urls.add(lu)
             ph = c.get("phone", "")
             if ph:
-                phones.add(ph)
+                phones.add(normalize_phone(str(ph)) or str(ph))
 
         entry = {
             "person_id": person_id,
@@ -2970,10 +2926,6 @@ def cleanup_entity_map(
 def main():
     from sbk_config import acquire_pid_lock
 
-    if not acquire_pid_lock("xs-l2-entity-resolve", logger=log):
-        log.warning("Another entity-resolve instance running, exiting")
-        sys.exit(0)
-
     parser = argparse.ArgumentParser(description="Entity Resolution V2 — SBK")
     parser.add_argument("--dry-run", action="store_true", help="Show stats without writing files")
     parser.add_argument("--incremental", action="store_true", help="Skip if inputs unchanged")
@@ -2994,6 +2946,10 @@ def main():
         help="Enable Level 7: apply Splink probabilistic clusters",
     )
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    if not acquire_pid_lock("xs-l2-entity-resolve", logger=log):
+        log.warning("Another entity-resolve instance running, exiting")
+        sys.exit(0)
 
     logging.basicConfig(
         level=logging.INFO,

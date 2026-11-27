@@ -1,21 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Post-session ingest: validates the fact files waiting in manual-ingestion/pending/ and hands them to the manual
+knowledge ingest, then moves them to done/. Dry run by default; --execute ingests.
+"""
 
 from __future__ import annotations
 

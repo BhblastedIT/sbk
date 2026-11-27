@@ -1,49 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Mononyms in the knowledge base: the person entities known by one name only, with the context they appear in
+(who with, which sources) and how each class of them should be handled.
+"""
 
 from __future__ import annotations
 

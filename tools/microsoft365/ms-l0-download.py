@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Microsoft 365 L0: your Outlook mail, calendar and contacts into the kernel's own slots.
 
-Personal access only: your own app registration, delegated scopes, the `me` endpoints.
-Nothing here needs admin consent, a service account or an organization-wide permission.
+Personal access only: your own app registration, per-user scopes (your own account),
+the `me` endpoints.
+Nothing here needs admin consent or an organization-wide permission.
 
 Writes (no kernel file changes; the kernel L1 stages read these files as they are):
 - mail     <data root>/emails/<label>/messages.parquet     -> tools/email/em-l1-enrich.py
@@ -117,7 +118,7 @@ def parse_args(argv=None):
     ap = argparse.ArgumentParser(
         description="Download your own Outlook mail, calendar and contacts through Microsoft "
         "Graph into the kernel's mail, calendar and address-book slots "
-        "(personal app, delegated read-only scopes; see docs/CONNECTING.md#microsoft365)."
+        "(personal app, per-user read-only scopes for your own account; see docs/CONNECTING.md#microsoft365)."
     )
     ap.add_argument(
         "--account",

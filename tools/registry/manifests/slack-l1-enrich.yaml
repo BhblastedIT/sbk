@@ -1,5 +1,5 @@
-# Manifest job registro — slack-l1-enrich
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: slack-l1-enrich
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: slack-l1-enrich
 cmd: python3
 args:

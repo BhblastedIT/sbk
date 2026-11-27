@@ -19,6 +19,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -54,9 +55,11 @@ except ImportError:  # pragma: no cover - fallback when tools/ is directly on th
 try:
     from sbk_config import PLAUD_DIR as _DEFAULT_RAW_DIR
 except Exception:  # pragma: no cover - fallback outside the project path
-    _DEFAULT_RAW_DIR = Path.home() / ".sbk-data" / "plaud" / "raw"
-
-
+    _DEFAULT_RAW_DIR = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "plaud"
+        / "raw"
+    )
 
 
 LANE_ORDER: tuple[str, ...] = ("AUTO", "CONFERMA", "CONTESTO")

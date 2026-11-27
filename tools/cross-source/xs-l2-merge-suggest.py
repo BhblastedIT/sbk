@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
+"""Merge suggestions: pairs of contacts that are probably the same person (similar names, shared domains), above a
+fuzzy score, into enriched/merge-suggestions.json for review.
+"""
 
 from __future__ import annotations
 

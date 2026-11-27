@@ -1,24 +1,12 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Plaud voice registry: fetches the voiceprints saved in your Plaud account (fetch), matches them to people in the
+knowledge base and keeps them locally (show).
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -30,7 +18,11 @@ if str(_TOOLS_DIR) not in sys.path:
 try:
     from sbk_config import PLAUD_DIR as _RAW_DIR
 except Exception:  # pragma: no cover
-    _RAW_DIR = Path.home() / ".sbk-data" / "plaud" / "raw"
+    _RAW_DIR = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "plaud"
+        / "raw"
+    )
 
 
 REGISTRY_PATH = _RAW_DIR.parent / "_speaker_registry.json"
@@ -134,7 +126,7 @@ def fetch_registry() -> list[dict[str, Any]]:
 def _main() -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(description="Registro voci Plaud (voiceprint)")
+    ap = argparse.ArgumentParser(description="Plaud voice registry (voiceprints)")
     sub = ap.add_subparsers(dest="cmd", required=True)
     sub.add_parser("fetch")
     sub.add_parser("show")
@@ -144,14 +136,14 @@ def _main() -> int:
         speakers = fetch_registry()
         dest = save_registry(speakers)
         reg = load_registry(dest)
-        print(f"Registro salvato: {dest}")
-        print(f"  speaker: {reg['n_speakers']}, matchati al KB: {reg['n_matched']}")
+        print(f"Registry saved: {dest}")
+        print(f"  speaker: {reg['n_speakers']}, matched to the KB: {reg['n_matched']}")
     elif args.cmd == "show":
         reg = load_registry()
         if not reg:
-            print("Nessun registro salvato. Esegui 'fetch' (serve WT valido).")
+            print("No saved registry. Run 'fetch' (needs a valid WT).")
             return 1
-        print(f"speaker: {reg['n_speakers']}, matchati al KB: {reg['n_matched']}")
+        print(f"speaker: {reg['n_speakers']}, matched to the KB: {reg['n_matched']}")
         for m in reg["index"][:15]:
             eid = m["entity_ids"][0] if m["entity_ids"] else "(no-match)"
             print(f"  {m['name']!r} -> {eid}  emb={m['n_dims']}d")

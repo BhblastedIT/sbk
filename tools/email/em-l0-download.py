@@ -650,13 +650,6 @@ def download(account_name: str, ids: list, done: set, account_dir: Path, num_wor
 
 
 def main():
-    if not acquire_pid_lock("em-l0-download", logger=log):
-
-
-
-        log.warning("Another instance is running, exiting")
-        sys.exit(75)
-
     parser = argparse.ArgumentParser(description="Gmail bulk downloader — SBK")
     parser.add_argument("--account", help="Label of one mailbox (e.g. work)")
     parser.add_argument(
@@ -673,6 +666,10 @@ def main():
     parser.add_argument("--force", action="store_true", help="Full refresh from 2020-01-01")
     parser.add_argument("--dry-run", action="store_true", help="List IDs only, don't download")
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    if not acquire_pid_lock("em-l0-download", logger=log):
+        log.warning("Another instance is running, exiting")
+        sys.exit(75)
     if not args.account and not args.all:
         parser.error("give --account <label> or --all")
 

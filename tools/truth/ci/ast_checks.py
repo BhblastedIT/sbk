@@ -311,7 +311,7 @@ def check_manifest_cli_contract(manifests_dir: str | Path) -> list[Finding]:
         try:
             doc = yaml.safe_load(f.read_text(encoding="utf-8"))
         except (OSError, yaml.YAMLError) as exc:
-            findings.append(Finding("manifest_cli", str(f), 1, f"illeggibile: {exc}"))
+            findings.append(Finding("manifest_cli", str(f), 1, f"unreadable: {exc}"))
             continue
         if not isinstance(doc, dict):
             continue
@@ -323,10 +323,8 @@ def check_manifest_cli_contract(manifests_dir: str | Path) -> list[Finding]:
 
         exec_block = doc.get("exec", doc)
         if "cmd" not in exec_block:
-            findings.append(Finding("manifest_cli", str(f), 1, "campo exec mancante: cmd"))
+            findings.append(Finding("manifest_cli", str(f), 1, "missing exec field: cmd"))
         args = exec_block.get("args")
         if args is not None and not isinstance(args, list):
-            findings.append(
-                Finding("manifest_cli", str(f), 1, "campo 'args' deve essere una lista")
-            )
+            findings.append(Finding("manifest_cli", str(f), 1, "field 'args' must be a list"))
     return findings

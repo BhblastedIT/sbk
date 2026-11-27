@@ -53,7 +53,7 @@ def check_false_success(
             target=target,
             status=CheckStatus.UNKNOWN,
             detail=(
-                f"nessuna colonna '{method_column}'/'{evidence_column}': check non applicabile"
+                f"no column '{method_column}'/'{evidence_column}': check not applicable"
             ),
             metrics={"has_method": False, "has_evidence": False},
             as_of=as_of_dt.isoformat(),
@@ -65,7 +65,7 @@ def check_false_success(
             check="false_success",
             target=target,
             status=CheckStatus.OK,
-            detail="dataframe vuoto: nessun successo falso",
+            detail="empty dataframe: no false success",
             metrics={"total": 0, "n_error": 0},
             as_of=as_of_dt.isoformat(),
         )
@@ -100,13 +100,13 @@ def check_false_success(
 
     if frac > broken_frac:
         status = CheckStatus.BROKEN
-        detail = f"{n_error}/{total} ({frac:.1%}) righe sono errori scritti come dato"
+        detail = f"{n_error}/{total} ({frac:.1%}) rows are errors written as data"
     elif n_error > 0:
         status = CheckStatus.DEGRADED
-        detail = f"{n_error}/{total} ({frac:.2%}) righe-errore sotto soglia"
+        detail = f"{n_error}/{total} ({frac:.2%}) error rows, below the threshold"
     else:
         status = CheckStatus.OK
-        detail = "nessun errore scritto come dato"
+        detail = "no error written as data"
 
     return CheckResult(
         check="false_success",

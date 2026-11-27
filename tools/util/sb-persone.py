@@ -1,45 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Who in the person folder of the knowledge base is not a person: classifies every entity as person, dirty name,
+non-person (company, role, mailbox), uncertain or mention, with the proof; --radice runs on a copy.
+"""
 
 from __future__ import annotations
 

@@ -52,7 +52,7 @@ struct PaginaInspiration: View {
         .task { await store.seguiInspiration() }
         .onDisappear {
 
-            store.fermaEMandaRegistrazione("sezione cambiata")
+            store.fermaEMandaRegistrazione("section changed")
         }
     }
 }

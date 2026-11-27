@@ -1,18 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""RQ-02: composite relationship score for each person, from the decayed interactions plus email and calendar
+intensity, team membership, recurring meetings, shared threads and calls and two-way exchanges, with the circle
+each person falls in.
+"""
 
 from __future__ import annotations
 

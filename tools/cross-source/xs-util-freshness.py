@@ -1,20 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Data freshness report: for each source, when it was last downloaded and processed, how many rows and which date
+range, against how fresh it should be; in the terminal, as Markdown, as an HTML page (--html) or a local page with
+a refresh button (--serve).
+"""
 
 from __future__ import annotations
 
@@ -33,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from sbk_config import (
     ATTIO_DIR,
     ATTIO_PROCESSED_DIR,
+    ATTIO_WORKSPACE_DIRS,
     CALENDARS_DIR,
     CHATGPT_DIR,
     DATA_ROOT,
@@ -590,7 +579,7 @@ def collect_sources() -> list[dict]:
     cal_l1 = None
     total_events = 0
     cal_data_max = None
-    for sub in sorted(CALENDARS_DIR.iterdir()):
+    for sub in sorted(CALENDARS_DIR.iterdir()) if CALENDARS_DIR.is_dir() else []:
         if sub.is_dir():
             t = newest_file(sub, "*.parquet")
             if t and (cal_l1 is None or t > cal_l1):
@@ -1056,8 +1045,9 @@ def stampa_copertura_attio(bold: str = "", reset: str = "") -> None:
 
 
 
-    for ws in ("attio", "attio-agency"):
-        m = DATA_ROOT / ws / "lookups" / "people-emails.json"
+    for ws_dir in ATTIO_WORKSPACE_DIRS.values():
+        ws = ws_dir.name
+        m = ws_dir / "lookups" / "people-emails.json"
         if not m.exists():
             continue
         try:

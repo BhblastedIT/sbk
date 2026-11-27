@@ -115,6 +115,5 @@ name; otherwise it is the `id`. If the verifier answers "dossier missing", you u
 - Sentences for the user (scope, questions, reasons) in plain language, with no file names and no mechanism words (dossier,
   session, pass, queue, retries, background, tick).
 - Nothing is deleted: a dossier that does not pass is moved with its new name, never removed.
-- SBK's session protocol (live-state, SESSION-LOG, waits) does not apply here: do not read or touch it.
 - If you stop halfway at a limit, leave the files you wrote: they already count, and the user can press the button again.
 - No gestures on the machine outside your folder and the archive: do not open apps, touch windows, or send anything to anyone.

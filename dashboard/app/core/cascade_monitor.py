@@ -426,7 +426,7 @@ class CascadeMonitor:
             source="cross-source",
             script_path="cross-source/xs-pipeline-run.py",
             stage="l2",
-            extra_args=["--propaga"],
+            extra_args=["--propagate"],
         )
 
         self._cascade_log.append(

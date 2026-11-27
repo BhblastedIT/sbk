@@ -1,21 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Writes speaker names back to Plaud end to end, without a browser: scan a candidates file, plan the renames for
+one recording, or apply them (--apply) with a backup and a history entry.
+"""
 
 from __future__ import annotations
 

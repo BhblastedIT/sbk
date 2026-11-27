@@ -613,7 +613,10 @@ class Indice:
 
 
 def _store_predefinito() -> Path:
-    return Path.home() / ".sbk-data" / "knowledge"
+    return (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "knowledge"
+    )
 
 
 def _guardia_memoria() -> None:

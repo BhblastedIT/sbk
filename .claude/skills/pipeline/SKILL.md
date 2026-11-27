@@ -56,8 +56,8 @@ What they do NOT do:
   `tests/test_registry_scripts.py` fail if a live source is left out of the pass and not declared
   manual.
 - The **paid stages** (knowledge extract and deep analysis: model calls, hours of run time) only run
-  inside `--all` (`xs-pipeline-run.py --help`). Paid steps charge against your API keys, in
-  batches, with an estimate and your consent first.
+  inside `--all` (`xs-pipeline-run.py --help`). Paid steps charge against your
+  `ANTHROPIC_API_KEY`, in batches, with an estimate and your consent first.
 
 ## 3. Proof that a stage actually ran
 
@@ -70,6 +70,10 @@ What they do NOT do:
   `~/.sbk-data/knowledge/meta/ricorrenze-calendario-stadio.json`. The check is
   `tools/cross-source/xs-l2-birthdays.py --check`, proven with `--self-test` (break it on
   purpose and see it fail).
+- Harmless skips: `Pipeline Complete` (exit 0) still counts in brackets the skips that do not count
+  against a run, unchanged, resumed, `not in enabled_sources` and `nothing to read yet` (a first
+  install: an L1 source with no folder under the data root, or a stage whose input nothing has
+  produced yet). Every other skip makes the run INCOMPLETE (exit 2) and is named with its reason.
 - "success" counts in the metrics include dry-runs; a run that exits 0 with the KB unchanged is
   labelled INCOMPLETE (exit 2).
 - A run is reported with: the command launched, steps executed / skipped (with reason), paid stages

@@ -1,6 +1,6 @@
 {
  "_schema": 1,
- "_cosa": "Onomastici del calendario italiano per nome di battesimo, e soprannomi. Conoscenza generale, nessun dato personale. certezza alta = data univoca e diffusa; media = piu' santi o uso regionale, NON produce onomastici automatici. Si allarga solo da un calendario dei santi pubblicato, mai a memoria.",
+ "_about": "Italian name days (onomastici) by first name, plus nicknames. General knowledge, no personal data. Keys: \"santi\" = first name -> {\"mmdd\": the name day as MM-DD, \"santo\": the saint, \"certezza\": \"alta\" (high: one widely known date) or \"media\" (medium: several saints or a regional custom; it never creates a name day on its own), optional \"nota\" (note) and \"alternative\" (other dates)}; \"soprannomi\" = nickname -> {\"nomi\": the first names it can stand for, \"ambiguo\": true when more than one}. Extend it only from a published calendar of saints, never from memory.",
  "santi": {
   "achille": {
    "mmdd": "05-12",

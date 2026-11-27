@@ -1,31 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""L4-05: recalibrates the confidence of every fact in the knowledge base: boosts facts confirmed by independent
+sources, detects contradictions (written to knowledge/conflicts/), applies source-tier floors and caps and the
+decay of old facts. Dry run by default; --apply writes.
+"""
 
 from __future__ import annotations
 

@@ -73,7 +73,7 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 PROJECT_DIR = _TOOLS_DIR
-from text_utils import normalize_name  # noqa: E402
+from text_utils import normalize_name, normalize_phone  # noqa: E402
 
 from sbk_config import (  # noqa: E402
     DATA_ROOT,
@@ -1754,7 +1754,7 @@ def phase4_phone_resolution(all_parsed: list[dict]) -> dict:
                 phone_primary = str(row.get("phone_primary", "")).strip()
                 if phone_primary and phone_primary != "nan":
 
-                    normalized = re.sub(r"[^\d+]", "", phone_primary)
+                    normalized = normalize_phone(phone_primary)
                     if normalized:
                         iphone_lookup[normalized] = name
 
@@ -1767,7 +1767,7 @@ def phase4_phone_resolution(all_parsed: list[dict]) -> dict:
                         phones_raw = [phones_raw]
                 if isinstance(phones_raw, list):
                     for ph in phones_raw:
-                        normalized = re.sub(r"[^\d+]", "", str(ph))
+                        normalized = normalize_phone(str(ph))
                         if normalized:
                             iphone_lookup[normalized] = name
 
@@ -1775,7 +1775,7 @@ def phase4_phone_resolution(all_parsed: list[dict]) -> dict:
 
 
             for phone in phone_participants:
-                phone_normalized = re.sub(r"[^\d+]", "", phone)
+                phone_normalized = normalize_phone(phone)
                 if phone_normalized in iphone_lookup:
                     resolved[phone] = {
                         "resolved_name": iphone_lookup[phone_normalized],
@@ -1822,13 +1822,14 @@ def phase4_phone_resolution(all_parsed: list[dict]) -> dict:
                     continue
 
                 if key.startswith("+") or re.match(r"^\d{7,}", key):
-                    phone_normalized = re.sub(r"[^\d+]", "", key)
-                    phone_to_person[phone_normalized] = canonical
+                    phone_normalized = normalize_phone(key)
+                    if phone_normalized:
+                        phone_to_person[phone_normalized] = canonical
 
             for phone in phone_participants:
                 if phone in resolved:
                     continue
-                phone_normalized = re.sub(r"[^\d+]", "", phone)
+                phone_normalized = normalize_phone(phone)
                 if phone_normalized in phone_to_person:
                     resolved[phone] = {
                         "resolved_name": phone_to_person[phone_normalized],

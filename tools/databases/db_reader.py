@@ -86,6 +86,8 @@ _TOOLS_DIR = Path(__file__).resolve().parents[1]
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
+from text_utils import normalize_phone  # noqa: E402
+
 import sbk_config as cfg  # noqa: E402
 
 log = logging.getLogger("db")
@@ -1212,7 +1214,8 @@ def _url(row: dict, src: dict) -> str:
 def _contact_key(email: str, phone: str, name: str) -> str:
     if email:
         return "e:" + email.lower()
-    digits = re.sub(r"\D", "", phone)
+    # the shared normaliser (phone_country_code): national and international forms agree
+    digits = re.sub(r"\D", "", normalize_phone(phone) or phone)
     if digits:
         return "p:" + digits
     return "n:" + re.sub(r"\s+", " ", name.strip().lower())

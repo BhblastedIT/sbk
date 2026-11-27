@@ -264,12 +264,24 @@ INTENT_PATTERNS: dict[str, list[str]] = {
         r"(?:famiglia|parenti|fratell[oi])\s+di\s+",
         r"warm\s+intro\s+",
         r"chi\s+ha\s+(?:investito|finanziato)\s+",
+        # English
+        r"who\s+is\s+(?:the\s+)?(?:partner|wife|husband|spouse)\s+of\s+",
+        r"who\s+introduced\s+me\s+to\s+",
+        r"who\s+knows\s+",
+        r"(?:how|through\s+whom)\s+(?:can\s+i\s+)?(?:reach|get\s+to|meet)\s+",
+        r"(?:relationships?|ties|connections?)\s+(?:of|with|between)\s+",
+        r"(?:family|relatives|brothers?|sisters?)\s+of\s+",
+        r"who\s+(?:invested|funded)\s+",
     ],
     "person_lookup": [
         r"chi\s+[eè]\s+",
         r"profilo\s+di\s+",
         r"cosa\s+sappiamo\s+di\s+",
         r"contatto\s+",
+        # English
+        r"who\s+is\s+",
+        r"profile\s+of\s+",
+        r"what\s+do\s+(?:we|i)\s+know\s+about\s+",
     ],
     "temporal_search": [
         r"quando\s+",
@@ -277,16 +289,27 @@ INTENT_PATTERNS: dict[str, list[str]] = {
         r"la\s+settimana\s+scorsa",
         r"ieri|oggi|domani",
         r"(?:gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+\d{4}",
+        # English
+        r"\bwhen\s+",
+        r"\blast\s+(?:time|week|month)\b",
+        r"\b(?:yesterday|today|tomorrow)\b",
+        r"(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}",
     ],
     "action_search": [
         r"cosa\s+(?:devo|dobbiamo)\s+fare",
         r"task|todo|follow\s*up",
         r"pending|scadut[oia]",
+        # English
+        r"what\s+(?:do|should|must)\s+(?:i|we)\s+(?:still\s+)?(?:need\s+to\s+)?do",
+        r"\boverdue\b",
     ],
     "decision_search": [
         r"(?:cosa|che)\s+(?:ha|abbiamo|hanno)\s+decis[oa]",
         r"decisione?\s+su\s+",
         r"(?:ha|abbiamo)\s+detto\s+(?:che|di)",
+        # English
+        r"what\s+(?:did|have)\s+\w+\s+decided?",
+        r"decisions?\s+(?:on|about)\s+",
     ],
 }
 
@@ -674,9 +697,9 @@ class QueryPipeline:
 _QUERY_UNDERSTANDING_PROMPT = """You are the query preprocessor for SBK, the user's personal information system.
 
 The user wrote a query that may contain:
-- Typos (e.g. "Acmee" = "Acme", "fundrazing" = "fundraising")
+- Typos (e.g. "Compnay X" = "Company X", "fundrazing" = "fundraising")
 - Abbreviations (e.g. "CRM" = "Attio", "M&A" = mergers and acquisitions)
-- Partial names (e.g. "Sam" = "Sam Taylor")
+- Partial names (e.g. a first name alone for "First Last")
 - Relative dates in Italian (e.g. "ieri", "la settimana scorsa")
 - Italian/English mix
 

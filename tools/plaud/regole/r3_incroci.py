@@ -46,7 +46,9 @@ if str(_REPO) not in sys.path:
 
 from tools.plaud.regole.nomi import OWNER_CANONICO, norm  # noqa: E402
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 QUADRO = DATA / "plaud" / "quadro"
 SEGNALI = QUADRO / "segnali"
 CACHE = QUADRO / "cache" / "r3"
@@ -764,7 +766,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=((__doc__ or "").strip().splitlines() or ["Plaud rules R3, across recordings"])[0]
     )
-    ap.add_argument("--stampa", action="store_true", help="count the signals without writing")
+    ap.add_argument(
+        "--print-only", dest="stampa", action="store_true", help="count the signals without writing"
+    )
+    # Older Italian name, kept as a hidden alias.
+    ap.add_argument("--stampa", dest="stampa", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
     regs, testi, cg = carica()
     righe = calcola(regs, testi, cg)

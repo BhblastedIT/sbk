@@ -1,26 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Writes the birthdays and name days of the knowledge base as events in two Google calendars of yours, aligned to
+the recurring dates the L2 stage found. Dry run by default; --apply writes. Needs a Google login with write
+access to your calendars (--login, your own OAuth client).
+"""
 
 from __future__ import annotations
 
@@ -251,6 +233,16 @@ def _correggi_verificate(correzioni: list[dict]) -> None:
 
 
 def esegui(applica: bool) -> int:
+    import google_oauth
+
+    if google_oauth.stored_credentials(KEYCHAIN_SERVICE, _ACCOUNT["nome"]) is None:
+        # Never signed in: the two calendars are off. Not an error, nothing is written anywhere.
+        print(
+            f"No calendar login saved for '{_ACCOUNT['nome']}': the Birthdays and Name days calendars "
+            "are off. To switch them on, sign in once: uv run python "
+            f"tools/cross-source/xs-l3-birthday-calendar.py --login --account {_ACCOUNT['nome']}"
+        )
+        return 0
     oggi = date.today()
     if not RICORRENZE.exists():
         print(f"{RICORRENZE} not found: run the L3 stage that writes the recurring dates first.")
@@ -292,7 +284,7 @@ def esegui(applica: bool) -> int:
     rapporto["cancellati_da_owner"] = [x for _, p in piani.values() for x in p["cancellati_da_owner"]]
     rapporto["solo_calendario"] = [x for _, p in piani.values() for x in p["solo_calendario"]]
     if not applica:
-        print("(dry-run: --applica to write)")
+        print("(dry-run: --apply to write)")
         return 0
     if scritture > FRENO:
         rapporto["frenato"] = (
@@ -435,8 +427,10 @@ def main() -> int:
         description="Birthdays and Name days calendars aligned to the KB's recurrences"
     )
     ap.add_argument(
-        "--applica", action="store_true", help="writes to the calendars (default: dry-run)"
+        "--apply", action="store_true", help="writes to the calendars (default: dry-run)"
     )
+    # Older Italian name, kept as a hidden alias.
+    ap.add_argument("--applica", action="store_true", dest="apply", help=argparse.SUPPRESS)
     ap.add_argument(
         "--account",
         default=ACCOUNT_DEFAULT,
@@ -451,7 +445,7 @@ def main() -> int:
     _ACCOUNT["nome"] = a.account
     if a.login:
         return login(a.account)
-    return esegui(a.applica)
+    return esegui(a.apply)
 
 
 if __name__ == "__main__":

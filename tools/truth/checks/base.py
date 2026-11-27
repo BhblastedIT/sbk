@@ -76,7 +76,7 @@ def coerce_as_of(value: object | None) -> datetime:
         return sbk_config.to_utc_aware(value)
     if isinstance(value, str):
         return sbk_config.to_utc_aware(datetime.fromisoformat(value))
-    raise ValueError(f"as_of tipo non valido: {type(value).__name__}")
+    raise ValueError(f"invalid as_of type: {type(value).__name__}")
 
 
 @dataclass

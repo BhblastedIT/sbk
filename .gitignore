@@ -37,15 +37,20 @@ node_modules/
 /work/
 # your identity files (written by tools/ai-history/ai-l3-how-you-work.py or by hand)
 /sbk/identity/
+# safety net: older versions wrote downloads, profiles and samples here; the code now writes
+# them under the data root, but a leftover copy must never be committed
+/sbk/raw/
+/sbk/network/
+/sbk/companies/
+/scratchpad/
 # your AI history, if SBK_DATA_ROOT or --input/--stats-out ever point inside the repo
 /ai-history/
 **/ai-history/messages.jsonl
 **/ai-history/how-you-work-*
 *.parquet
 *.duckdb
-# measures of your own knowledge base, written by tools/util/sb-ratchet.py, sb-sei-numeri.py,
-# sb-artefatti.py, sb-incremento-vivo.py and sb-provenienza.py when you run them
-/docs/sbk/audits/*.json
+# a PDF dossier (tools/util/gen-dossier-pdf.py writes under the data root, this is a safety net)
+*.pdf
 
 # === SYSTEM ===
 .DS_Store
@@ -53,3 +58,32 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# === SAFETY NET: tokens, sessions and exports dropped into the clone by hand ===
+# Nothing in SBK writes these inside the repo (logins live in the Keychain or under the data
+# root, exports are imported from wherever you saved them); these lines only keep a copy you
+# put here by mistake out of a commit.
+token.json
+google-token.json
+**/token.json
+*token*.json
+cookies.txt
+*cookies*.txt
+*session*.json
+plaud-wt.json
+conversations.json
+*.jsonl
+*.vcf
+*.mbox
+WhatsApp Chat*
+ChatStorage.sqlite*
+*.sqlite
+*.sqlite3
+*.db
+*.zip
+*.tar.gz
+*.tgz
+*.enc
+# the demo exports the tests read are fiction and stay in the repo
+!tests/fixtures/**/conversations.json
+!tests/fixtures/**/*.jsonl

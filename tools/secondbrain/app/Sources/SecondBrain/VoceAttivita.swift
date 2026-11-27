@@ -147,9 +147,7 @@ extension Store {
 
 
             while (voceAttivita?.in_corso ?? 0) > 0 || voceErroriDiFila > 0, voceErroriDiFila < 3 {
-                let aperte = (voceAttivita?.richieste ?? []).filter { $0.finita != true }
-                let soloAttesa = !aperte.isEmpty && aperte.allSatisfy { $0.stato == "aspetta_abbonamento" }
-                let passo = soloAttesa ? 60 : max(2, voceAttivita?.rileggi_fra_s ?? 5)
+                let passo = max(2, voceAttivita?.rileggi_fra_s ?? 5)
                 try? await Task.sleep(nanoseconds: UInt64(passo * 1_000_000_000))
                 await caricaVoce()
             }

@@ -740,7 +740,7 @@ def main() -> int:
     if sample_quota:
         flat = [sm for b in ANCHORABLE_BUCKETS for sm in collected_samples[b]]
         sample_out = args.sample_out or (
-            _TOOLS_DIR.parent / "scratchpad" / "a3-reanchor" / f"reanchor-sample-{ts}.json"
+            KNOWLEDGE_DIR.parent / "samples" / f"reanchor-sample-{ts}.json"
         )
         sample_out.parent.mkdir(parents=True, exist_ok=True)
         sample_out.write_text(

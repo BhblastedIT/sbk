@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
+"""Slack alerts to yourself: stale sources, pipeline failures and custom alerts sent as a DM through your Slack
+token, with cooldowns, hourly and daily limits and a digest of the pending ones.
+"""
 
 from __future__ import annotations
 

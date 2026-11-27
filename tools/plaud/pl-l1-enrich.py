@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
+"""Plaud L1: names the speakers of each transcript in four passes (Plaud's labels, the calendar event that matches
+the recording, the context of what is said, then the result applied), telling you from the others.
+"""
 
 import argparse
 import json
@@ -29,8 +24,7 @@ from sbk_config import (
 )
 
 RAW_DIR = PLAUD_DIR
-PROC_DIR = PLAUD_PROCESSED_DIR
-PROC_DIR.mkdir(parents=True, exist_ok=True)
+PROC_DIR = PLAUD_PROCESSED_DIR  # Created when the script runs, not at import, so --help writes nothing.
 
 
 _WATERMARK_FILE = PROC_DIR / "_file_watermarks.json"
@@ -137,6 +131,13 @@ def detect_addressing(content):
         r"tu hai detto",
         r"tu vuoi",
         r"tu pensi",
+        # English
+        r"\byour company\b",
+        r"\byour project\b",
+        r"\byour team\b",
+        r"\byou said\b",
+        r"\byou want\b",
+        r"\byou think\b",
     ]
     for pat in addressing_patterns:
         if re.search(pat, text):
@@ -181,6 +182,11 @@ def detect_other_identity(content):
             "noi come fondo",
             "i miei partner",
             "la mia agency",
+            "my fund",
+            "my firm",
+            "we as a fund",
+            "my partners",
+            "my agency",
         ]
     ):
         score += 0.7
@@ -642,6 +648,7 @@ def main():
         "--dry-run", action="store_true", help="Show what would run without writing"
     )
     args = parser.parse_args()
+    PROC_DIR.mkdir(parents=True, exist_ok=True)
     mode = args.mode
 
     print("=" * 60)

@@ -52,7 +52,7 @@ from typing import Any
 
 
 
-JOBS_ROOT = Path(os.path.expanduser("~/.sbk-data/jobs"))
+JOBS_ROOT = Path(os.environ.get("SBK_DATA_ROOT") or os.path.expanduser("~/.sbk-data")) / "jobs"
 CATALOG = JOBS_ROOT / "catalog.json"
 PRESENCE = JOBS_ROOT / "presence.jsonl"
 STATUS = JOBS_ROOT / "status.json"

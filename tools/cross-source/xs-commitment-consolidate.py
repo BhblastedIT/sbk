@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
+"""Consolidates the commitments found by the deep extraction (email, Plaud, Slack) into one commitments file,
+with normalised deadlines and stable ids.
+"""
 
 from __future__ import annotations
 

@@ -1,16 +1,16 @@
-# SBK — configurazione gitleaks
-# Usa il set di regole di default e allowlista solo i falsi positivi noti.
+# SBK — gitleaks configuration
+# Uses the default rule set and allowlists only the known false positives.
 title = "SBK gitleaks"
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "Falsi positivi noti nel template"
+description = "Known false positives in the templates"
 paths = [
   '''\.env\.example''',
   '''sbk\.config\.example\.json''',
   '''\.gitleaks\.toml''',
-  # Librerie di terze parti vendorizzate e minificate: le proprietà key:"…" non sono segreti.
+  # Vendored, minified third-party libraries: their key:"…" properties are not secrets.
   '''lib/.*''',
 ]

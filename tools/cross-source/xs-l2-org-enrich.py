@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
+"""Organization entities from employment facts: creates or completes the organizations people work for, normalising
+the names of your own organisations. Dry run by default; --apply writes.
+"""
 
 from __future__ import annotations
 

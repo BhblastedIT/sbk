@@ -178,7 +178,7 @@ def _token_file() -> Path | None:
 
 
 def load_refresh_token(label: str = DEFAULT_LABEL) -> tuple[str, str]:
-    """(refresh_token, where) or ("", "") when no login is stored anywhere."""
+    """(token, where) or ("", ""): Keychain (container mode: ZOOM_REFRESH_TOKEN), file, seed."""
     try:
         from secrets_adapter import get_secret
 

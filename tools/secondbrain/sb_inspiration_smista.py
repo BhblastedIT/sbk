@@ -66,17 +66,20 @@ def _routing_config() -> dict:
 
 
 # ClickUp routing map, from "inspiration.clickup_lists" in sbk.config.json:
-# {"main": "<list id>", "groups": {"deal": "<list id>", "fondi": "<list id>"},
+# {"main": "<list id>", "groups": {"deal": "<list id>", "funds": "<list id>"},
 #  "projects": {"<Project>": {"*": "<list id>", "<activity>": "<list id>", "roadmap": "<list id>"}}}
 # Nothing is built in: an empty list id means no list, and creating the task stops with
 # the "list not found" message.
 _ROUTING = _routing_config()
 _GROUP_LABELS = {"deal": "Deals", "fondi": "Fundraising"}
+# English group names accepted in sbk.config.json; the internal code stays what the triage writes.
+_GROUP_CONFIG_NAMES = {"fondi": "funds"}
 
 MAIN = _l(str(_ROUTING.get("main") or ""), "Backlog", "Main")
 
+_GROUPS = _ROUTING.get("groups") or {}
 DEL_GRUPPO = {
-    key: _l(str((_ROUTING.get("groups") or {}).get(key) or ""), label)
+    key: _l(str(_GROUPS.get(_GROUP_CONFIG_NAMES.get(key, key)) or _GROUPS.get(key) or ""), label)
     for key, label in _GROUP_LABELS.items()
 }
 

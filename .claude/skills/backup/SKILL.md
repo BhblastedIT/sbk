@@ -50,13 +50,48 @@ uv run python $B --self-check               # encryption round trip on a dummy a
 
 ## The key
 
-- The encryption key lives in your Keychain (service `sbk-backup`, account `enc-key`). It is never
-  printed and never goes to cloud storage. Keep an offline copy of it yourself: without it no archive
-  can be opened.
+- The first backup generates the encryption key and stores it in your Keychain (service `sbk-backup`,
+  account `enc-key`). That is the only copy: SBK writes it to no file, never prints it and never sends
+  it to cloud storage. Without it no archive can be opened.
+- Keep an offline copy yourself (a password manager, paper). This prints the key, so run it only where
+  you mean to:
+
+  ```bash
+  uv run python -c "import keyring; print(keyring.get_password('sbk-backup', 'enc-key'))"
+  ```
+
 - Each archive's manifest carries a fingerprint of the key. If the key in the Keychain does not match
-  the archives, the backup stops instead of making a new key.
-- On a new machine, restore with `--key-from-stdin`: you type or pipe the key, the Keychain is not
-  used.
+  the archives, or the Keychain has no key while encrypted archives exist, the backup stops instead of
+  making a new key.
+- On a new machine, put your copy back in the Keychain (it asks for the key without showing it):
+
+  ```bash
+  uv run python -c "import getpass, keyring; keyring.set_password('sbk-backup', 'enc-key', getpass.getpass('key: '))"
+  ```
+
+  Or restore without the Keychain with `--key-from-stdin`: you type or pipe the key.
+- In container mode (`SBK_CONTAINERIZED=1`) there is no Keychain: the key comes from
+  `SBK_BACKUP_ENC_KEY`, which you generate and keep yourself. Without it the backup stops; it never
+  makes a key it cannot store.
+
+## What is backed up outside the data root
+
+The rows in `FUORI` (in `sb_livelli.py`) add folders outside the data root. Their paths are derived
+from where you cloned the repo and from `CLAUDE_CONFIG_DIR` (default `~/.claude`):
+
+- the repo's `sbk/` folder (your identity files, git-ignored);
+- Claude Code's memory, sessions and workflow state of this repo's project, your Claude rules,
+  settings, hooks and skills, and your prompt history (layer 1); the project's sub-agent transcripts
+  and tool outputs and the prior versions of files the sessions changed, last 60 days (layer 3,
+  external disk only);
+- your `~/Downloads` folder, only if you ask for it in `sbk.config.json` with
+  `"backup": {"include_downloads": true}` (layer 3, external disk only). It is off by default.
+
+The copies of the knowledge base taken before a large re-read are not outside: they sit in
+`<data root>/backups-knowledge/` (layer 3), with the rest of the data root.
+
+A layer 1 archive also carries a git bundle of the repo with its uncommitted and untracked files.
+`uv run python $L --summary` shows what each of them weighs on your machine.
 
 ## What is verified and how
 

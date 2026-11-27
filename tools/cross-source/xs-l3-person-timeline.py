@@ -1,30 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Person timeline: every interaction with each of your top people across email, calendar, WhatsApp, Slack,
+meetings, CRM notes and calls, Plaud and knowledge facts, in date order, one file per person in
+cross-source/person-timeline/.
+"""
 
 from __future__ import annotations
 

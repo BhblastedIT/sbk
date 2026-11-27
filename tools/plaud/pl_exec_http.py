@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+import os
 import secrets
 from collections.abc import Callable
 from pathlib import Path
@@ -35,9 +36,11 @@ try:
 
     _DEFAULT_RAW_DIR = Path(PLAUD_DIR)
 except Exception:  # pragma: no cover - fallback if the config is not importable
-    _DEFAULT_RAW_DIR = Path.home() / ".sbk-data" / "plaud" / "raw"
-
-
+    _DEFAULT_RAW_DIR = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "plaud"
+        / "raw"
+    )
 
 
 ENVELOPE_CONSTANTS: dict[str, str] = {

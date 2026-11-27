@@ -1,24 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Launches a job of the registry by its id, in the given mode, with the perimeter check and the consent for paid
+work (--paid-ok), and writes a run receipt.
+"""
 
 from __future__ import annotations
 
@@ -144,36 +126,8 @@ def _parse_run_telemetry(stdout: str) -> dict:
 
 
 def _default_perimeter_check(job: JobManifest) -> bool:
-    ""
-
-
-
-
-
-
-
-    if not job.perimeter:
-        return True
-    try:
-        from security import perimeter_loader  # type: ignore  # noqa: PLC0415
-    except Exception:
-        return False
-
-    check_ingestion = getattr(perimeter_loader, "check_ingestion", None)
-    if callable(check_ingestion):
-        try:
-            return bool(check_ingestion(job.perimeter).allowed)
-        except Exception:
-            return False
-
-    for fn_name in ("is_allowed", "allowed", "check"):
-        fn = getattr(perimeter_loader, fn_name, None)
-        if callable(fn):
-            try:
-                return bool(fn(job.perimeter))
-            except Exception:
-                return False
-    return False
+    """Fail-closed: the kit ships no perimeter registry, so a job that declares a perimeter is refused."""
+    return not job.perimeter
 
 
 def _mk_receipt(
@@ -292,7 +246,7 @@ def launch(
                 Outcome.REFUSED_PERIMETER,
                 mode=mode,
                 caller=caller,
-                detail=f"perimeter {job.perimeter!r} not allowed or loader missing",
+                detail=f"perimeter {job.perimeter!r} declared, and no perimeter registry is configured",
             )
         )
 

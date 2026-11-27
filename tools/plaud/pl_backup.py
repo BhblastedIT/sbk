@@ -1,28 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Backup of a Plaud transcript before any write: an atomic copy with its hash in a ledger, so a write is refused
+unless the backup exists. Run as a script it backs up one raw file as a test.
+"""
 
 from __future__ import annotations
 

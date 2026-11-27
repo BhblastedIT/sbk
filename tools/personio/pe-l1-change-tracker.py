@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Personio change tracker: compares each employee with the previous download (by hash) and records who joined, left
+or changed.
+"""
 
 from __future__ import annotations
 

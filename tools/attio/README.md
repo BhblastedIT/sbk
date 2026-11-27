@@ -13,7 +13,9 @@ Attio MCP server configured with an API key in Claude Code, the downloader reuse
 with OAuth and has no key to reuse. Extra workspaces read the Keychain entry
 `sbk-attio/<label>`.
 **sbk.config.json** nothing for one workspace. More workspaces go in `attio.extra_workspaces`
-(`{"<label>": "<name>"}`); their data lands in `<data root>/attio-<label>/`.
+(`{"<label>": "<name>"}`); their data lands in `<data root>/attio-<label>/`. The workspace of
+`ATTIO_API_KEY` has the label `primary` (data in `<data root>/attio/`): `--workspace` takes `primary`, one
+of your labels, or `all`.
 **Download**
 ```bash
 uv run python tools/attio/at-l0-download.py                        # every configured workspace

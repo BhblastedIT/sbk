@@ -45,7 +45,7 @@ def check_frozen_snapshot(
             check="frozen_snapshot",
             target=target,
             status=CheckStatus.BROKEN,
-            detail="nessuna colonna-data: impossibile confrontare senza mtime",
+            detail="no date column: cannot compare without mtime",
             metrics={"candidate_columns": list(date_columns)},
             as_of=as_of_dt.isoformat(),
         )
@@ -55,7 +55,7 @@ def check_frozen_snapshot(
             check="frozen_snapshot",
             target=target,
             status=CheckStatus.BROKEN,
-            detail="nessuna data-contenuto valida dopo clamp",
+            detail="no valid content date after the clamp",
             metrics={
                 "n_future_clamped": cd.n_future_clamped,
                 "n_floor_clamped": cd.n_floor_clamped,
@@ -71,7 +71,7 @@ def check_frozen_snapshot(
             check="frozen_snapshot",
             target=target,
             status=CheckStatus.UNKNOWN,
-            detail="nessun riferimento precedente: prima osservazione",
+            detail="no previous reference: first observation",
             metrics=metrics,
             as_of=as_of_dt.isoformat(),
         )
@@ -85,8 +85,8 @@ def check_frozen_snapshot(
             target=target,
             status=CheckStatus.DEGRADED,
             detail=(
-                f"snapshot congelato: data-contenuto ferma a {current.date()} "
-                f"(precedente {prev.date()}); riscrittura senza nuovi dati"
+                f"frozen snapshot: content date stuck at {current.date()} "
+                f"(previous {prev.date()}); rewritten with no new data"
             ),
             metrics=metrics,
             as_of=as_of_dt.isoformat(),

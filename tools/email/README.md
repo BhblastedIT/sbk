@@ -1,7 +1,7 @@
 <!-- generated from docs/CONNECTING.md -->
 # Email / Gmail (`em-`)
 
-Signs in through your own Google app, which you set up once for the five Google plugins: [Google](../../docs/CONNECTING.md#google).
+Signs in through your own Google app, which you set up once for the Google plugins: [Google](../../docs/CONNECTING.md#google).
 
 **Status** mature · registry `continua`, every 3 days.
 **Reads** your Gmail messages with their full body, the index of attachments, then contacts and who
@@ -38,6 +38,9 @@ With `--all`, a mailbox that fails is named at the end and the others still run.
   when a mail you sent has had no reply.
 - `tools/email/gsearch.py work "from:someone@example.example" 10` prints the matching messages.
 - `tools/email/em-util-inbox-zero.py` keeps sender-to-label rules and turns them into Gmail filters.
+  Its commands are `status`, `list [--mailbox <label>]`, `move <mailbox> <sender> <category> --reason <text>`,
+  `apply` (the filters) and `cleanup [--mailbox <label>]` (the mail already in the inbox); `apply`,
+  `cleanup` and `undo <log>` (which reverts a cleanup from its log) only plan until you add `--execute`.
   Filters need the extra login `em-l0-auth.py <label> --settings` (scope `gmail.settings.basic`).
 **Limits**
 - One login reads one mailbox: the account you pick in the browser. If the account does not match

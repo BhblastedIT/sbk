@@ -45,7 +45,10 @@ Official guides: [Create an OAuth app](https://developers.zoom.us/docs/integrati
   `zm-l0-auth.py` and replaced at every download, because Zoom hands out a new refresh token each
   time (`tools/zoom/zm_api.py:201`). Without a Keychain: `ZOOM_TOKEN_FILE` (a file the plugin
   keeps up to date, mode 600), then `ZOOM_REFRESH_TOKEN` as a one-time seed, both exported in your
-  shell. The lines are in `.env.example`, section "Zoom".
+  shell. The lines are in `.env.example`, section "Zoom". In container mode (`SBK_CONTAINERIZED=1`) the
+  seed is read first, because it stands in for the Keychain (`tools/secrets_adapter.py`). Zoom replaces the
+  refresh token at every refresh, so unset `ZOOM_REFRESH_TOKEN` after the first run, or the next run uses a
+  token Zoom no longer accepts.
 **sbk.config.json** section `zoom` (with its `_help` lines in `sbk.config.example.json`): `client_id`
 (optional), `history_days` (first run, default 90), `overlap_days` (default 7), `include_unrecorded`
 (default false). If `enabled_sources` is not empty, list `zoom` there.

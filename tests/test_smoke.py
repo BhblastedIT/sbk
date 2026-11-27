@@ -60,11 +60,13 @@ def test_source_settings_defaults_without_config(monkeypatch, tmp_path):
     assert sbk_config.SLACK_EXCLUDE_CHANNEL_PATTERNS == []
     assert not sbk_config.SLACK_EXCLUDE_CHANNEL_IDS
     assert sbk_config.SLACK_USER_NAMES == {}
-    assert sbk_config.ATTIO_EXTRA_WORKSPACES == {} and list(sbk_config.ATTIO_WORKSPACE_DIRS) == ["acme"]
+    assert sbk_config.ATTIO_EXTRA_WORKSPACES == {} and list(sbk_config.ATTIO_WORKSPACE_DIRS) == ["primary"]
     assert sbk_config.CLICKUP_TEAMS == {}
     assert sbk_config.PLAUD_API_BASE == "https://api-euc1.plaud.ai"
     assert sbk_config.VOICE_MEMOS_LANGUAGE == "auto"
     assert frozenset() == sbk_config.ENABLED_SOURCES and sbk_config.source_enabled("anything")
+    # an empty list does not switch on the session-based and closed sources
+    assert not sbk_config.source_listed("plaud") and not sbk_config.source_listed("chatgpt")
 
 
 def test_source_settings_from_config(monkeypatch, tmp_path):
@@ -89,6 +91,7 @@ def test_source_settings_from_config(monkeypatch, tmp_path):
     assert sbk_config.VOICE_MEMOS_LANGUAGE == "en"
     assert sbk_config.source_enabled("voicememos") and sbk_config.source_enabled("email")
     assert not sbk_config.source_enabled("slack")
+    assert sbk_config.source_listed("voice_memos") and not sbk_config.source_listed("plaud")
 
 
 def test_empty_data_root_env_counts_as_unset(monkeypatch):
@@ -185,7 +188,7 @@ def test_no_demo_owner_literal_in_code():
             if not f.is_file() or f.suffix not in {".py", ".js", ".html", ".json", ".swift"}:
                 continue
             rel = f.relative_to(root).as_posix()
-            if "/tests/" in rel or rel.startswith("tools/util/sb-identita-collaudo.py"):
+            if "/tests/" in rel:
                 continue
             for line in f.read_text(encoding="utf-8", errors="ignore").splitlines():
                 if pat.search(line) and (rel, line.strip()) not in allowed:

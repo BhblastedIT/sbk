@@ -1,39 +1,23 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Curated aliases (nickname -> full name, optional entity id) in knowledge/aliases.json, used to match people
+written by nickname. --list, --check <name>, --add <nickname> --canonical <name>.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import unicodedata
 from datetime import UTC, datetime
 from pathlib import Path
 
-ALIASES_PATH = Path.home() / ".sbk-data" / "knowledge" / "aliases.json"
+ALIASES_PATH = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "knowledge"
+    / "aliases.json"
+)
 
 
 def _norm(s: str) -> str:
@@ -88,7 +72,7 @@ def add(alias: str, canonical_name: str, entity_id: str = "", fonte: str = "") -
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Alias store curato nickname->canonico")
+    ap = argparse.ArgumentParser(description="Curated alias store, nickname -> canonical name")
     ap.add_argument("--list", action="store_true")
     ap.add_argument("--check")
     ap.add_argument("--add")
@@ -99,14 +83,14 @@ def main() -> int:
 
     if args.add:
         if not args.canonical:
-            print("--add richiede --canonical")
+            print("--add needs --canonical")
             return 2
         add(args.add, args.canonical, args.entity, args.fonte)
-        print(f"aggiunto: «{args.add}» -> {args.canonical} ({args.entity or 'senza id'})")
+        print(f"added: «{args.add}» -> {args.canonical} ({args.entity or 'no id'})")
         return 0
     if args.check:
         hit = canonical(args.check)
-        print(json.dumps(hit, ensure_ascii=False) if hit else f"nessun alias per «{args.check}»")
+        print(json.dumps(hit, ensure_ascii=False) if hit else f"no alias for «{args.check}»")
         return 0
     data = _load()
     print(f"{len(data['aliases'])} alias in {ALIASES_PATH}:")

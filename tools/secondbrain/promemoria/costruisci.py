@@ -30,7 +30,11 @@ ESEGUIBILE = APP / "Contents" / "MacOS" / "sb-promemoria"
 COLLEGAMENTO = HOME / ".local" / "bin" / "sb-promemoria"
 ETICHETTA = "com.sbk.promemoria"
 PLIST = HOME / "Library" / "LaunchAgents" / f"{ETICHETTA}.plist"
-REGISTRO = HOME / ".sbk-data" / "logs" / "promemoria.log"
+REGISTRO = (
+    Path(os.environ.get("SBK_DATA_ROOT") or HOME / ".sbk-data").expanduser()
+    / "logs"
+    / "promemoria.log"
+)
 INTERVALLO = 120
 
 
@@ -41,7 +45,7 @@ def _identita() -> str:
     for riga in out.splitlines():
         if "Developer ID Application" in riga and '"' in riga:
             return riga.split('"')[1]
-    sys.exit("nessuna identità «Developer ID Application» nel Portachiavi")
+    sys.exit("no «Developer ID Application» identity in the Keychain")
 
 
 def build() -> None:
@@ -104,19 +108,19 @@ def build() -> None:
          "-f", str(APP)],
         capture_output=True,
     )
-    print(f"costruita e firmata: {APP}")
+    print(f"built and signed: {APP}")
 
 
 def permesso() -> None:
     ""
     REGISTRO.parent.mkdir(parents=True, exist_ok=True)
     r = subprocess.run(["open", "-W", "-g", "-a", str(APP), "--args", "allinea"])
-    print(f"giro col permesso finito (uscita di open {r.returncode}); registro {REGISTRO}")
+    print(f"permission run finished (open exit code {r.returncode}); log {REGISTRO}")
 
 
 def agente() -> None:
     if not ESEGUIBILE.exists():
-        sys.exit(f"manca {ESEGUIBILE}: prima `build`")
+        sys.exit(f"{ESEGUIBILE} is missing: run `build` first")
     REGISTRO.parent.mkdir(parents=True, exist_ok=True)
     PLIST.parent.mkdir(parents=True, exist_ok=True)
     dati = {
@@ -137,7 +141,7 @@ def agente() -> None:
     dominio = f"gui/{os.getuid()}"
     subprocess.run(["launchctl", "bootout", f"{dominio}/{ETICHETTA}"], capture_output=True)
     subprocess.run(["launchctl", "bootstrap", dominio, str(PLIST)], check=True)
-    print(f"agente {ETICHETTA} caricato, ogni {INTERVALLO} s; registro {REGISTRO}")
+    print(f"agent {ETICHETTA} loaded, every {INTERVALLO} s; log {REGISTRO}")
 
 
 def stato() -> None:
@@ -150,7 +154,7 @@ def stato() -> None:
         for x in r.stdout.splitlines()
         if x.strip().startswith(("state =", "runs =", "last exit code"))
     ]
-    print(f"agente {ETICHETTA}: {'caricato' if vivo else 'non caricato'} {' · '.join(righe)}")
+    print(f"agent {ETICHETTA}: {'loaded' if vivo else 'not loaded'} {' · '.join(righe)}")
     if REGISTRO.exists():
         righe_reg = REGISTRO.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
         print("".join(righe_reg[-8:]), end="")
@@ -160,7 +164,7 @@ def spegni() -> None:
     subprocess.run(["launchctl", "bootout", f"gui/{os.getuid()}/{ETICHETTA}"], capture_output=True)
     if PLIST.exists():
         os.replace(PLIST, PLIST.with_name(PLIST.name + ".spento"))
-    print(f"agente {ETICHETTA} spento (plist rinominato in .spento)")
+    print(f"agent {ETICHETTA} off (plist renamed to .spento)")
 
 
 if __name__ == "__main__":

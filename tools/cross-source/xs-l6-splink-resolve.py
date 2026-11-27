@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Probabilistic entity resolution with Splink over the people universe: trains a model on names, emails, phones
+and companies, clusters the records and writes the merge suggestions (auto-merge only above 0.95).
+"""
 
 import argparse
 import logging

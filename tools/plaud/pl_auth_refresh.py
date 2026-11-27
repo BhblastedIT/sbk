@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Plaud sign-in without a browser: reads the Plaud desktop app session (its encrypted store and Keychain key),
+shows the token expiry (--status, never the values) and renews the web token (--refresh).
+"""
 
 from __future__ import annotations
 
@@ -53,7 +34,11 @@ from tools.plaud.pl_wt_auth import (
 ENCRYPTION_JSON = Path.home() / "Library" / "Application Support" / "Plaud" / "encryption.json"
 KEYCHAIN_SERVICE = "Plaud Safe Storage"
 KEYCHAIN_ACCOUNT = "Plaud Key"
-WT_OUT = Path.home() / ".sbk-data" / "secrets" / "plaud-wt.json"
+WT_OUT = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "secrets"
+    / "plaud-wt.json"
+)
 REFRESH_PATH = "/user-app/auth/workspace/refresh/{ws}"
 
 
@@ -83,9 +68,9 @@ def _keychain_password() -> str:
             timeout=15,
         )
     except subprocess.TimeoutExpired as e:
-        raise AuthError("Keychain in attesa di autorizzazione interattiva (prompt?)") from e
+        raise AuthError("Keychain is waiting for an interactive authorisation (prompt?)") from e
     if out.returncode != 0 or not out.stdout.strip():
-        raise AuthError(f"Keychain: voce non leggibile (rc={out.returncode})")
+        raise AuthError(f"Keychain: item not readable (rc={out.returncode})")
     return out.stdout.strip()
 
 
@@ -95,7 +80,7 @@ def load_store_py() -> dict:
     from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
     if not ENCRYPTION_JSON.exists():
-        raise AuthError(f"store assente: {ENCRYPTION_JSON}")
+        raise AuthError(f"store missing: {ENCRYPTION_JSON}")
     key = hashlib.pbkdf2_hmac("sha1", _keychain_password().encode(), b"saltysalt", 1003, dklen=16)
     iv = b" " * 16
     enc = json.loads(ENCRYPTION_JSON.read_text())
@@ -128,7 +113,7 @@ def load_store_py() -> dict:
                 pass
         store[k] = text
     if not store:
-        raise AuthError("store decifrato vuoto: chiave Keychain sbagliata?")
+        raise AuthError("decrypted store is empty: wrong Keychain key?")
     return store
 
 
@@ -164,7 +149,7 @@ def _exp_info(token: str | None) -> str:
     pl = decode_jwt_payload(token)
     exp = pl.get("exp")
     if not exp:
-        return f"typ={hdr.get('typ')} senza exp"
+        return f"typ={hdr.get('typ')} without exp"
     d = datetime.fromtimestamp(exp, tz=UTC)
     stato = "VALIDO" if d > datetime.now(tz=UTC) else "SCADUTO"
     return f"typ={hdr.get('typ')} exp={d:%Y-%m-%d %H:%M}UTC {stato}"
@@ -248,7 +233,7 @@ def refresh_wt(ctx: dict, dry_run: bool = False) -> dict:
 
     for need in ("api_domain", "ws_id", "device_uuid"):
         if not ctx.get(need):
-            raise AuthError(f"contesto incompleto: manca {need}")
+            raise AuthError(f"incomplete context: {need} is missing")
     saved = _saved_tokens()
     wrt = _piu_fresco(saved.get("wrt"), ctx.get("wrt"))
     urt = _piu_fresco(saved.get("urt"), ctx.get("urt"))
@@ -284,18 +269,18 @@ def refresh_wt(ctx: dict, dry_run: bool = False) -> dict:
                 return {"found": found, "via": "UT->WT", "tried": tried}
 
     if not urt:
-        raise AuthError(f"nessun URT disponibile per il re-exchange (tentativi: {tried})")
+        raise AuthError(f"no URT available for the re-exchange (attempts: {tried})")
     resp1, f1 = _call(ctx, "POST", "/auth/refresh-user-token", urt)
     tried.append(f"URT->UT:http={resp1.status_code}:jwt={sorted(f1)}")
     if "UT" not in f1:
-        raise AuthError(f"refresh UT fallito (tentativi: {tried}) — serve il tuo login dall'app desktop di Plaud")
+        raise AuthError(f"UT refresh failed (attempts: {tried}): sign in again in the Plaud desktop app")
     resp2, f2 = _call(
         ctx, "POST", f"/user-app/auth/workspace/token/{ctx['ws_id']}", f1["UT"], bearer="bearer"
     )
     tried.append(f"UT->WT:http={resp2.status_code}:jwt={sorted(f2)}")
     found = {**f1, **f2}
     if "WT" not in found:
-        raise AuthError(f"exchange WT fallito (tentativi: {tried}) — serve il tuo login dall'app desktop di Plaud")
+        raise AuthError(f"WT exchange failed (attempts: {tried}): sign in again in the Plaud desktop app")
     return {"found": found, "via": "URT->UT->WT", "tried": tried}
 
 
@@ -343,10 +328,10 @@ def load_saved_wt() -> str | None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Plaud auth headless: status/refresh WT")
-    ap.add_argument("--status", action="store_true", help="typ/exp dei token (mai i valori)")
-    ap.add_argument("--refresh", action="store_true", help="rinnova il WT via WRT (-419)")
+    ap.add_argument("--status", action="store_true", help="type and expiry of the tokens (never their values)")
+    ap.add_argument("--refresh", action="store_true", help="renew the web token (WT) with the refresh token (WRT)")
     ap.add_argument(
-        "--dry-run", action="store_true", help="con --refresh: mostra URL e header, zero rete"
+        "--dry-run", action="store_true", help="with --refresh: show the URL and headers, no network"
     )
     args = ap.parse_args()
 
@@ -364,7 +349,7 @@ def main() -> int:
             except Exception:
                 saved = None
         if saved and saved.get("wt"):
-            print(f"  WT salvato: {_exp_info(saved['wt'])} ({WT_OUT})")
+            print(f"  saved WT: {_exp_info(saved['wt'])} ({WT_OUT})")
         return 0
 
     result = refresh_wt(ctx, dry_run=args.dry_run)
@@ -373,10 +358,10 @@ def main() -> int:
         print(f"  headers: {result['headers']}")
         return 0
     path = save_wt(result["found"])
-    print(f"refresh OK via {result['via']} (tentativi: {result['tried']})")
-    print(f"  nuovi token: {sorted(result['found'])}")
+    print(f"refresh OK via {result['via']} (attempts: {result['tried']})")
+    print(f"  new tokens: {sorted(result['found'])}")
     print(f"  WT: {_exp_info(result['found']['WT'])}")
-    print(f"  salvato in {path} (0600)")
+    print(f"  saved in {path} (0600)")
     return 0
 
 

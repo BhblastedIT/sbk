@@ -61,7 +61,9 @@ except Exception:  # pragma: no cover - config absent in isolated tests
 _OWNER_NOMI = set(OWNER_TOKENS) | ({OWNER_CANONICO} if OWNER_CANONICO else set())
 _OWNER_LOCALI = {e.split("@")[0] for e in _OWN if "@" in e}
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 QUADRO = DATA / "plaud" / "quadro"
 OUT = QUADRO / "segnali" / "r1.jsonl"
 CACHE = QUADRO / "cache" / "r1"
@@ -1073,12 +1075,19 @@ def carica_registrazioni() -> list[dict]:
     return regs
 
 
+def _attio_dirs() -> list[Path]:
+    """Every Attio workspace folder: attio/ (primary) and attio-<label>/ (attio.extra_workspaces)."""
+    return [DATA / "attio", *sorted(p for p in DATA.glob("attio-*") if p.is_dir())]
+
+
 def carica_email_nomi(usa: bool) -> dict[str, str]:
+    attio_people = [d / "people.parquet" for d in _attio_dirs()]
+    contacts = DATA / "contacts" / "contacts.parquet"
+    email_index = DATA / "plaud" / "_email_index.json"
     files = [
-        DATA / "attio" / "people.parquet",
-        DATA / "attio-agency" / "people.parquet",
-        DATA / "contacts" / "contacts.parquet",
-        DATA / "plaud" / "_email_index.json",
+        *attio_people,
+        contacts,
+        email_index,
         *sorted((DATA / "emails").glob("*/messages.parquet")),
     ]
 
@@ -1099,19 +1108,19 @@ def carica_email_nomi(usa: bool) -> dict[str, str]:
             ):
                 out[em][name] += w
 
-        for f in files[:2]:
+        for f in attio_people:
             if f.exists():
                 for name, ems in con.execute(f"select name, email_addresses from '{f}'").fetchall():
                     for em in re.findall(r"[\w.+'-]+@[\w.-]+", str(ems or "")):
                         add(em, name, 5)
-        if files[2].exists():
+        if contacts.exists():
             for name, e1, ea in con.execute(
-                f"select full_name, primary_email, all_emails from '{files[2]}'"
+                f"select full_name, primary_email, all_emails from '{contacts}'"
             ).fetchall():
                 for em in set(re.findall(r"[\w.+'-]+@[\w.-]+", f"{e1} {ea}")):
                     add(em, name, 4)
-        if files[3].exists():
-            for em, x in json.loads(files[3].read_text()).items():
+        if email_index.exists():
+            for em, x in json.loads(email_index.read_text()).items():
                 add(em, (x or {}).get("name"), 3)
         rx = re.compile(r"\s*\"?([^\"<>,]{2,60}?)\"?\s*<([^<>@\s]+@[^<>\s]+)>")
         for row in con.execute(
@@ -1198,7 +1207,7 @@ def carica_gemelli(regs: list[dict], usa: bool) -> list[dict]:
     ""
     tactiq = sorted((DATA / "tactiq" / "raw").glob("*.json"))
     gem = sorted(p for p in (DATA / "gdrive").rglob("*.md") if "Gemini" in p.name)
-    attio = [DATA / w / "call-recordings.parquet" for w in ("attio", "attio-agency")]
+    attio = [d / "call-recordings.parquet" for d in _attio_dirs()]
     finestre = sorted((r["st"], r["st"] + r["dur"]) for r in regs if r["st"])
     starts = [a for a, _ in finestre]
 
@@ -1734,7 +1743,16 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=((__doc__ or "").strip().splitlines() or ["Plaud rules R1, other sources"])[0]
     )
-    ap.add_argument("--senza-cache", action="store_true", help="rebuilds the intermediate caches")
+    ap.add_argument(
+        "--no-cache",
+        dest="senza_cache",
+        action="store_true",
+        help="rebuilds the intermediate caches",
+    )
+    # Older Italian name, kept as a hidden alias.
+    ap.add_argument(
+        "--senza-cache", dest="senza_cache", action="store_true", help=argparse.SUPPRESS
+    )
     args = ap.parse_args()
     segnali, stat = calcola(not args.senza_cache)
     scrivi(segnali)

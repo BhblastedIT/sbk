@@ -1,43 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Personio download (an organisation HR source that needs Personio admin rights): employees, absences, absence
+periods and types, attendances and the employee attributes, through the Personio API credentials.
+"""
 
 from __future__ import annotations
 

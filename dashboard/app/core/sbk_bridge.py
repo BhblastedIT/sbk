@@ -50,7 +50,6 @@ from sbk_config import (
     DEEP_FACTS_FILE,
     ENRICHED_DIR,
     EXPORTS_DIR,
-    FUNDRAISING_DIR,
     GRAPH_DIR,
     IDEAS_FILE,
     KNOWLEDGE_ENTITIES_DIR,
@@ -121,6 +120,21 @@ def _ttl_cache(ttl_seconds: int = 60):
     return decorator
 
 
+# Column names of pipeline-status.json before xs-util-pipeline-status.py wrote them in English.
+_GRID_OLD_KEYS = {
+    "Stato": "Status",
+    "Sorgente / Fase": "Source / Stage",
+    "Età h": "Age h",
+    "Tipo": "Type",
+    "Connessione": "Connection",
+    "Ultimo run": "Last run",
+    "Link azione": "Action link",
+    "Comando run": "Run command",
+    "Costo/run": "Cost/run",
+    "Profondità": "Depth",
+}
+
+
 def _safe_json_load(path: Path, default=None):
     ""
     try:
@@ -184,7 +198,8 @@ SOURCE_CONFIG = [
         "method": "manual",
         "category": "spot",
         "update_freq": "on_demand",
-        "scripts": {"l0": "linkedin/li-l0-extract-urls.py", "l1": "linkedin/li-l1-enrich.py"},
+        # L0 = your LinkedIn data export (docs/CONNECTING.md#linkedin)
+        "scripts": {"l0": "linkedin/li-l0-import-export.py", "l1": "linkedin/li-l1-enrich.py"},
     },
     {
         "id": "plaud",
@@ -238,7 +253,8 @@ SOURCE_CONFIG = [
         "method": "manual",
         "category": "spot",
         "update_freq": "on_demand",
-        "scripts": {"l0": "docusign/ds-l0-scrape.py", "l1": "docusign/ds-l1-enrich.py"},
+        # L0 = the DocuSign API with your own app (docs/CONNECTING.md#docusign)
+        "scripts": {"l0": "docusign/ds-l0-api.py", "l1": "docusign/ds-l1-enrich.py"},
     },
     {
         "id": "personio",
@@ -248,15 +264,6 @@ SOURCE_CONFIG = [
         "category": "periodic",
         "update_freq": "weekly",
         "scripts": {"l0": "personio/pe-l0-download.py", "l1": "personio/pe-l1-enrich.py"},
-    },
-    {
-        "id": "iphone",
-        "name": "iPhone Contacts",
-        "code": "ip",
-        "method": "manual",
-        "category": "spot",
-        "update_freq": "on_demand",
-        "scripts": {},
     },
     {
         "id": "voicememos",
@@ -733,7 +740,6 @@ class SBKBridge:
                 "tactiq": "~/.sbk-data/tactiq/processed",
                 "chatgpt": "~/.sbk-data/chatgpt/processed",
                 "docusign": "~/.sbk-data/docusign/processed",
-                "iphone": "~/.sbk-data/contacts/processed",
                 "voicememos": "~/.sbk-data/voice-memos/processed",
             }
 
@@ -787,7 +793,13 @@ class SBKBridge:
         if not raw or "data" not in raw:
             return {"generated_at": "", "pipeline": [], "archive": [], "total": 0}
 
-        rows = raw["data"]
+        # xs-util-pipeline-status.py writes English column names; a pipeline-status.json written by an
+        # older version has the Italian ones. Rows are read with the English names either way.
+        rows = [
+            {_GRID_OLD_KEYS.get(k, k): v for k, v in r.items()}
+            for r in raw["data"]
+            if isinstance(r, dict)
+        ]
         generated_at = raw.get("generated_at", "")
 
 
@@ -865,12 +877,12 @@ class SBKBridge:
                 return 0.0
 
         def _calc_summary(group_rows):
-            statuses = [r.get("Stato", "") for r in group_rows]
+            statuses = [r.get("Status", "") for r in group_rows]
             ok = sum(1 for s in statuses if s == "OK")
             stale = sum(1 for s in statuses if s == "Stale")
             err = sum(1 for s in statuses if s not in ("OK", "Stale", ""))
             total_records = sum(_parse_records(r.get("Records")) for r in group_rows)
-            ages = [_parse_age(r.get("Età h")) for r in group_rows]
+            ages = [_parse_age(r.get("Age h")) for r in group_rows]
             max_age = max(ages) if ages else 0
             if err > 0:
                 worst = "Err"
@@ -892,7 +904,7 @@ class SBKBridge:
                 return f"{int(hours * 60)}min"
             elif hours < 24:
                 return f"{hours:.0f}h"
-            return f"{hours / 24:.0f}g"
+            return f"{hours / 24:.0f}d"
 
         def _parse_run_info(cmd):
             ""
@@ -923,7 +935,7 @@ class SBKBridge:
 
 
         for row in rows:
-            row["_run_info"] = _parse_run_info(row.get("Comando run", ""))
+            row["_run_info"] = _parse_run_info(row.get("Run command", ""))
 
 
         layer_map = {}
@@ -2080,11 +2092,14 @@ class SBKBridge:
         person = self._data.resolve_person(query)
 
 
-        if not person and "@" not in query:
-            contacts = self._data.contacts
+        contacts = self._data.contacts
+        if not person and "@" not in query and "name" in contacts.columns:
+            # An empty data root has no address book yet (no columns): nothing to match.
             q = query.strip().lower()
-            mask = contacts["name"].fillna("").str.lower().str.contains(q, na=False)
-            matches = contacts[mask].sort_values("score", ascending=False)
+            mask = contacts["name"].fillna("").str.lower().str.contains(q, na=False, regex=False)
+            matches = contacts[mask]
+            if "score" in matches.columns:
+                matches = matches.sort_values("score", ascending=False)
             if not matches.empty:
                 person = matches.iloc[0].to_dict()
 
@@ -9575,294 +9590,6 @@ Idea:
 
 
 
-    _MOMENTUM_FILE = FUNDRAISING_DIR / "momentum-scores.json"
-
-    _STAGE_WEIGHTS = {
-        "term sheet": 100,
-        "dd / second meeting": 95,
-        "follow-up / dd": 90,
-        "first meeting held": 80,
-        "in_conversazione": 80,
-        "in_follow_up": 70,
-        "intro sent": 60,
-        "contattato": 60,
-        "silenzio": 30,
-        "passed / not a fit": 0,
-        "rejected": 0,
-        "rifiutato": 0,
-    }
-
-    def get_investor_momentum(self, email: str | None = None) -> dict:
-        ""
-
-
-
-
-
-
-
-        data = _safe_json_load(self._MOMENTUM_FILE, {"metadata": {}, "scores": {}})
-        if email:
-            entry = data.get("scores", {}).get(email.lower())
-            return {"metadata": data.get("metadata", {}), "entry": entry}
-        return data
-
-    @_ttl_cache(ttl_seconds=300)
-    def get_fundraising_pipeline(
-        self,
-        stage_filter: str | None = None,
-        sort_by: str = "priority",
-        order: str = "desc",
-    ) -> list[dict]:
-        ""
-
-
-
-
-
-
-
-
-
-
-
-
-        from sbk_config import is_own_email
-
-        attio_dir = DATA_ROOT / "attio"
-        deal_flow_path = attio_dir / "list-deal-flow.parquet"
-        people_path = attio_dir / "people.parquet"
-        companies_path = attio_dir / "companies.parquet"
-        notes_path = attio_dir / "notes.parquet"
-
-        if not deal_flow_path.exists():
-            return []
-
-        try:
-            _flow_cols = ["status", "parent_record_id", "source_type"]
-            _people_cols = [
-                "company",
-                "email_addresses",
-                "name",
-                "record_id",
-                "job_title",
-                "last_email_interaction",
-                "last_interaction",
-            ]
-            _company_cols = ["record_id", "name"]
-            _notes_cols = ["parent_record_id"]
-            try:
-                df_flow = pd.read_parquet(deal_flow_path, columns=_flow_cols)
-            except (KeyError, Exception):
-                df_flow = pd.read_parquet(deal_flow_path)
-            try:
-                df_people = (
-                    pd.read_parquet(people_path, columns=_people_cols)
-                    if people_path.exists()
-                    else pd.DataFrame()
-                )
-            except (KeyError, Exception):
-                df_people = pd.read_parquet(people_path) if people_path.exists() else pd.DataFrame()
-            try:
-                df_companies = (
-                    pd.read_parquet(companies_path, columns=_company_cols)
-                    if companies_path.exists()
-                    else pd.DataFrame()
-                )
-            except (KeyError, Exception):
-                df_companies = (
-                    pd.read_parquet(companies_path) if companies_path.exists() else pd.DataFrame()
-                )
-            try:
-                df_notes = (
-                    pd.read_parquet(notes_path, columns=_notes_cols)
-                    if notes_path.exists()
-                    else pd.DataFrame()
-                )
-            except (KeyError, Exception):
-                df_notes = pd.read_parquet(notes_path) if notes_path.exists() else pd.DataFrame()
-        except Exception as e:
-            log.error("Error loading Attio data for fundraising: %s", e)
-            return []
-
-
-        company_names: dict[str, str] = {}
-        if not df_companies.empty and "record_id" in df_companies.columns:
-            _valid = df_companies.dropna(subset=["record_id", "name"])
-            _valid = _valid[_valid["name"].astype(str) != "nan"]
-            company_names = dict(zip(_valid["record_id"].astype(str), _valid["name"].astype(str)))
-
-        people_by_company: dict[str, list[dict]] = {}
-        if not df_people.empty:
-            for rec in df_people.to_dict("records"):
-                company_id = str(rec.get("company", ""))
-                if not company_id or company_id == "nan":
-                    continue
-                email = str(rec.get("email_addresses", "")).strip().lower()
-                name = str(rec.get("name", ""))
-                if email == "nan":
-                    email = ""
-                if name == "nan":
-                    name = ""
-                if is_own_email(email):
-                    continue
-                people_by_company.setdefault(company_id, []).append(
-                    {
-                        "name": name,
-                        "email": email,
-                        "record_id": str(rec.get("record_id", "")),
-                        "job_title": str(rec.get("job_title", "") or ""),
-                        "last_email": str(rec.get("last_email_interaction", "") or ""),
-                        "last_interaction": str(rec.get("last_interaction", "") or ""),
-                    }
-                )
-
-
-        notes_count: dict[str, int] = {}
-        if not df_notes.empty:
-            _pids = df_notes["parent_record_id"].dropna().astype(str)
-            notes_count = _pids[_pids != ""].value_counts().to_dict()
-
-
-        momentum_data = _safe_json_load(self._MOMENTUM_FILE, {"scores": {}})
-        momentum_scores = momentum_data.get("scores", {})
-
-        now = datetime.now(UTC)
-        pipeline: list[dict] = []
-        seen_emails: set[str] = set()
-
-        for entry in df_flow.to_dict("records"):
-            status = str(entry.get("status", "")).strip()
-            status_lower = status.lower()
-            company_rid = str(entry.get("parent_record_id", ""))
-            company_name = company_names.get(company_rid, "")
-            source_type = str(entry.get("source_type", "") or "")
-
-
-            if stage_filter and stage_filter.lower() != status_lower:
-                continue
-
-
-            people = people_by_company.get(company_rid, [])
-
-
-            if not people:
-                stage_w = self._STAGE_WEIGHTS.get(status_lower, 50)
-                pipeline.append(
-                    {
-                        "name": company_name or f"Unknown ({company_rid[:8]}...)",
-                        "company": company_name,
-                        "email": "",
-                        "job_title": "",
-                        "stage": status,
-                        "stage_label": status.replace("_", " ").title(),
-                        "last_contact": None,
-                        "last_contact_source": None,
-                        "days_since": None,
-                        "momentum": None,
-                        "priority": round(stage_w * 0.3),
-                        "attio_record_id": company_rid,
-                        "source_type": source_type,
-                        "notes_count": 0,
-                        "emails_exchanged": 0,
-                    }
-                )
-                continue
-
-            for person in people:
-                email = person["email"]
-                if email in seen_emails:
-                    continue
-                if email:
-                    seen_emails.add(email)
-
-
-                momentum = momentum_scores.get(email)
-                momentum_score = momentum.get("score") if momentum else None
-                momentum_trend = momentum.get("trend", "new") if momentum else "new"
-
-
-                last_contact = None
-                last_contact_source = None
-                days_since = None
-
-
-                last_int_str = person.get("last_interaction", "")
-                if last_int_str and last_int_str not in ("", "nan", "None"):
-                    try:
-                        last_contact = pd.to_datetime(last_int_str, utc=True)
-                        last_contact_source = "attio"
-                    except Exception:
-                        pass
-
-
-                if momentum and momentum.get("last_contact"):
-                    try:
-                        mom_last = pd.to_datetime(momentum["last_contact"], utc=True)
-                        if last_contact is None or mom_last > last_contact:
-                            last_contact = mom_last
-                            last_contact_source = "email"
-                    except Exception:
-                        pass
-
-                if last_contact:
-                    days_since = (now - last_contact).days
-
-
-                stage_w = self._STAGE_WEIGHTS.get(status_lower, 50)
-                recency_score = max(0, 100 - (days_since or 30) * 5)
-                mom_val = momentum_score if momentum_score is not None else 50
-                priority = round(stage_w * 0.3 + mom_val * 0.4 + recency_score * 0.3)
-
-                n_notes = notes_count.get(person["record_id"], 0)
-                emails_exchanged = momentum.get("emails_analyzed", 0) if momentum else 0
-
-                pipeline.append(
-                    {
-                        "name": person["name"] or company_name,
-                        "company": company_name,
-                        "email": email,
-                        "job_title": person.get("job_title", ""),
-                        "stage": status,
-                        "stage_label": status.replace("_", " ").title(),
-                        "last_contact": last_contact.isoformat() if last_contact else None,
-                        "last_contact_source": last_contact_source,
-                        "days_since": days_since,
-                        "momentum": {
-                            "score": momentum_score,
-                            "trend": momentum_trend,
-                        }
-                        if momentum
-                        else None,
-                        "priority": priority,
-                        "attio_record_id": person["record_id"],
-                        "source_type": source_type,
-                        "notes_count": n_notes,
-                        "emails_exchanged": emails_exchanged,
-                    }
-                )
-
-
-        reverse = order.lower() == "desc"
-        if sort_by == "momentum":
-            pipeline.sort(
-                key=lambda x: (x.get("momentum", {}) or {}).get("score") or 0,
-                reverse=reverse,
-            )
-        elif sort_by == "days_since":
-            pipeline.sort(
-                key=lambda x: x.get("days_since") or 999,
-                reverse=reverse,
-            )
-        elif sort_by == "name":
-            pipeline.sort(key=lambda x: x.get("name", "").lower(), reverse=reverse)
-        else:
-            pipeline.sort(key=lambda x: x.get("priority", 0), reverse=reverse)
-
-        return pipeline
-
-
-
     _INSIGHTS_DIR = DATA_ROOT / "insights"
 
     def get_weekly_insights(self, week: str | None = None) -> dict | None:
@@ -11447,89 +11174,6 @@ Idea:
         return {"labels": labels, "matrix": matrix, "total_interactions": total}
 
     @_ttl_cache(ttl_seconds=600)
-    def get_investor_sankey(self) -> dict:
-        ""
-
-
-
-        from sbk_config import FUNDRAISING_DIR
-
-        data = _safe_json_load(
-            FUNDRAISING_DIR / "momentum-scores.json",
-            {"metadata": {}, "scores": {}},
-        )
-        scores = data.get("scores", {})
-
-
-        stage_order = [
-            "cold",
-            "contacted",
-            "first_meeting",
-            "deep_dive",
-            "committed",
-        ]
-        stage_labels = {
-            "cold": "Cold Lead",
-            "contacted": "Contacted",
-            "first_meeting": "First Meeting",
-            "deep_dive": "Deep Dive",
-            "committed": "Committed",
-        }
-
-        def _normalize_stage(raw: str) -> str:
-            raw = (raw or "").lower().strip()
-            if not raw or raw in ("dropped", "inactive", "on hold"):
-                return "cold"
-            if raw in ("first meeting held", "first meeting scheduled"):
-                return "first_meeting"
-            if "deep dive" in raw or "diligence" in raw or "dd" in raw:
-                return "deep_dive"
-            if "term sheet" in raw or "committed" in raw:
-                return "committed"
-            if "intro" in raw or "contattato" in raw or "contacted" in raw:
-                return "contacted"
-            return "cold"
-
-
-        investors_by_stage: dict[str, list[str]] = {s: [] for s in stage_order}
-        for _key, entry in scores.items():
-            if not isinstance(entry, dict):
-                continue
-            name = entry.get("name", _key.split("|||")[0] if "|||" in _key else _key)
-            stage = _normalize_stage(entry.get("stage", ""))
-            investors_by_stage[stage].append(name)
-
-
-        nodes = []
-        for sid in stage_order:
-            nodes.append(
-                {
-                    "id": sid,
-                    "label": stage_labels[sid],
-                    "count": len(investors_by_stage[sid]),
-                }
-            )
-
-
-
-        links = []
-        for i in range(len(stage_order) - 1):
-            src = stage_order[i]
-            tgt = stage_order[i + 1]
-
-            count = sum(
-                len(investors_by_stage[stage_order[j]]) for j in range(i + 1, len(stage_order))
-            )
-            if count > 0:
-                links.append({"source": src, "target": tgt, "value": count})
-
-        return {
-            "nodes": nodes,
-            "links": links,
-            "investors": investors_by_stage,
-        }
-
-    @_ttl_cache(ttl_seconds=600)
     def get_communication_matrix(self, top_n=30) -> dict:
         ""
 
@@ -11691,3 +11335,30 @@ Idea:
         delta = round((last - first) / first * 100)
         sign = "+" if delta >= 0 else ""
         return f"{sign}{delta}%"
+
+
+def _no_process_exit(fn):
+    """A tool module that calls sys.exit() inside a bridge method must not end the web server: SystemExit becomes a
+    RuntimeError, which the endpoint's own error handling (or the 500 handler) deals with."""
+    import functools
+
+    @functools.wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except SystemExit as e:
+            raise RuntimeError(
+                f"{fn.__qualname__}: a tool tried to end the process (exit code {e.code})"
+            ) from None
+
+    return wrapper
+
+
+for _name, _attr in list(vars(SBKBridge).items()):
+    if (
+        callable(_attr)
+        and not isinstance(_attr, type | staticmethod | classmethod)
+        and not _name.startswith("__")
+    ):
+        setattr(SBKBridge, _name, _no_process_exit(_attr))
+del _name, _attr

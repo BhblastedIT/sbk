@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Draft generator: writes a message to a person in your voice, using the segment they fall in (investor, client,
+partner...), similar emails from the vector index, and the rules in sbk/identity/communication-playbook.md.
+"""
 
 from __future__ import annotations
 
@@ -468,7 +457,12 @@ def generate_draft(
     )
 
 
-    log.info("Calling Claude Sonnet for draft generation...")
+    log.info(
+        "Sending the draft request (%d characters: the recipient's profile and history, similar "
+        "e-mails, your identity rules, what you asked for) to Claude through the Anthropic API with "
+        "your ANTHROPIC_API_KEY",
+        len(system_prompt) + len(user_prompt),
+    )
     draft = call_claude(
         prompt=user_prompt,
         system=system_prompt,

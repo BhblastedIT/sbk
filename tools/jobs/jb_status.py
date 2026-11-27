@@ -1,33 +1,13 @@
 #!/usr/bin/env python3
-""
+"""Status of your scheduled jobs: for each job in the catalog, how its last runs went and whether it ran on time.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+It reads the catalog written by jb_catalog.py, the start/end events the jobs record (jb-record.py, jb.sh,
+jb_auto.py) and their logs, and prints one line per job. --write also saves <data root>/jobs/status.json.
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import re
@@ -763,7 +743,10 @@ def _gap(d) -> str:
 _GLYPH = {"ok": "v", "nothing": "-", "failed": "X", "skipped": "s", "running": ">", "unknown": "?"}
 
 if __name__ == "__main__":
-    st = write() if "--write" in sys.argv else compute()
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("--write", action="store_true", help="also save <data root>/jobs/status.json")
+    _args = _ap.parse_args()
+    st = write() if _args.write else compute()
     if st.get("error"):
         print(st["error"])
         raise SystemExit(1)

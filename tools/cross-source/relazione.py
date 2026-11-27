@@ -1,68 +1,7 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Recognises the composite names that describe a relationship ("Sam and Drew", "Sam / Drew") so the pipeline does
+not create one entity for the pair. --prova judges names against the knowledge base; --diario summarizes the
+decisions log (resolutions/relazioni.jsonl). SBK_RELAZIONE sets the mode.
+"""
 
 from __future__ import annotations
 

@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
+"""NLP daily stats: the decisions and action items extracted per day, into l3/nlp/daily-stats.parquet."""
 
 from __future__ import annotations
 

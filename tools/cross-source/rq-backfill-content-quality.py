@@ -1,25 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Fills the content_quality field of the event store (rq/events.db): how much substance there is in what you
+exchange with each person, from relationship facts, deep facts, signals, source variety and transcript quality.
+"""
 
 from __future__ import annotations
 
@@ -510,6 +492,10 @@ def main() -> None:
         format="%(asctime)s %(levelname)-5s %(name)s — %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    if not EVENTS_DB.exists():
+        log.info("No event store yet (%s): rq-05-backfill-events.py builds it. Nothing to update.", EVENTS_DB)
+        return
 
     stats = backfill_content_quality(dry_run=args.dry_run, verbose=args.verbose)
 

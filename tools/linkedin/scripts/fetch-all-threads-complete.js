@@ -29,11 +29,14 @@ const safety = require('./li-safety.js');
 
 
 
-const SESSION_FILE = process.env.LINKEDIN_SESSION || path.join(__dirname, '..', '..', '..', 'sbk', 'raw', 'linkedin', 'linkedin-session.json');
-const OUTPUT_DIR = path.join(__dirname, '..', '..', '..', 'sbk', 'raw', 'linkedin');
+// Under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo.
+const OUTPUT_DIR = path.join(process.env.SBK_DATA_ROOT || path.join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw');
+const SESSION_FILE = process.env.LINKEDIN_SESSION || path.join(OUTPUT_DIR, 'linkedin-session.json');
 const CHECKPOINT_DIR = path.join(OUTPUT_DIR, '.checkpoints');
 
-const MY_URN = 'ACoAAEXAMPLE_URN_PLACEHOLDER';
+const ownUrn = require('./li-own-urn.js');
+// Your own member id: SBK_LINKEDIN_OWN_URN or sbk.config.json linkedin.own_urn, else read from LinkedIn below.
+let MY_URN = ownUrn.ownUrnFromConfig();
 const VOYAGER_BASE = 'https://www.linkedin.com/voyager/api';
 const SALES_BASE = 'https://www.linkedin.com/sales-api';
 
@@ -187,6 +190,7 @@ async function fetchStandardConversations(session) {
   if (!me) { console.error('Login failed!'); return null; }
   const myProfile = (me.included || []).find(e => e['$type']?.includes('MiniProfile'));
   console.log(`  Logged in as: ${myProfile?.firstName} ${myProfile?.lastName}\n`);
+  MY_URN = ownUrn.requireOwnUrn(MY_URN || ownUrn.ownUrnFromMe(me));
 
 
   console.log('  [1/3] Fetching conversation list...\n');
@@ -785,6 +789,11 @@ async function main() {
 
 
   if (doSalesNav) {
+    if (!MY_URN) {
+      // --sales-nav alone: your own profile, once, to tell your messages apart
+      const me = await apiFetch(`${VOYAGER_BASE}/me`, makeHeaders(session));
+      MY_URN = ownUrn.requireOwnUrn(ownUrn.ownUrnFromMe(me));
+    }
     salesNavResult = await fetchSalesNavigatorConversations(session);
     if (salesNavResult) {
       const outFile = path.join(OUTPUT_DIR, 'linkedin-threads-sales-navigator.json');

@@ -152,7 +152,8 @@ def _check_slack_interaction(name: str, cutoff: datetime) -> bool:
 
     from slack_esclusi import e_escluso, esclusi
 
-    fuori = esclusi()
+    # Slack never downloaded: nothing to read, so the channel index is not needed.
+    fuori = esclusi() if SLACK_CONVERSATIONS_DIR.exists() else frozenset()
     try:
         for jf in SLACK_CONVERSATIONS_DIR.glob("*.json"):
             try:

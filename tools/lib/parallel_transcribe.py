@@ -1,45 +1,7 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Parallel transcription of a long recording with Whisper: converts it to 16 kHz WAV, splits it at silences, runs
+the chunks on several workers (GPU and CPU), merges them removing the duplicates at the boundaries, and checks
+the quality of each chunk.
+"""
 
 from __future__ import annotations
 
@@ -1285,8 +1247,8 @@ Examples:
   # Dry run: show estimated time and chunk plan
   python parallel_transcribe.py --input meeting.m4a --estimate-only
 
-  # Italian audio with context prompt
-  python parallel_transcribe.py --input call.m4a --language it --prompt "Acme, Globex, Mia Conti"
+  # Audio in a given language with a context prompt (names that occur in it)
+  python parallel_transcribe.py --input call.m4a --language en --prompt "Company X, Company Y, Person A"
         """,
     )
     parser.add_argument("--input", "-i", required=True, help="Input audio file")

@@ -5,8 +5,8 @@ Only if you used ChatGPT. Your ChatGPT export is read by the AI history plugin, 
 Claude.ai and Manus exports and your Claude Code logs: see [AI history](../../docs/CONNECTING.md#ai-history).
 
 The folder `tools/chatgpt/` also keeps an older script, `cg-l1-enrich.py`, which classifies a
-`conversations.json` placed in `<data root>/chatgpt/`. The registry marks that source closed. If you
-fill `enabled_sources` and leave `chatgpt` out, the pipeline does not run it. The names it tags are
+`conversations.json` placed in `<data root>/chatgpt/`. The registry marks that source closed. The pipeline
+runs it only when `enabled_sources` lists `chatgpt` (an empty list does not). The names it tags are
 your organisations plus `chatgpt.people` and `chatgpt.companies` in `sbk.config.json` (empty = only
 your organisations).
 

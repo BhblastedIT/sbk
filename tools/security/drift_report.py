@@ -1,17 +1,17 @@
-""
+"""Read-only drift report of a backup archive: lists the members that hold secrets or vector databases according
+to the data classification rules.
 
+The rules are built in (DEFAULT_CLASSIFICATION below). Pass --path to use your own YAML file with the same three
+sections (classes, backup_policy, forbidden_in_tar).
 
-
-
-
-
-
-
-
+Usage: uv run python tools/security/drift_report.py <archive.tar[.gz]> | --members-file FILE [--path rules.yaml]
+Exit 2 when a high-severity member is found, 0 otherwise.
+"""
 
 from __future__ import annotations
 
 import re
+import sys
 import tarfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,9 +19,23 @@ from typing import Any
 
 import yaml
 
-DEFAULT_CLASSIFICATION_PATH = (
-    Path(__file__).resolve().parent / "registries" / "data-classification.yaml"
-)
+# Built-in rules: what must never sit inside a backup archive. Secrets are high (exit 2); the vector index is
+# rebuilt by the pipeline (L3 Index), so it is only flagged.
+DEFAULT_CLASSIFICATION: dict[str, Any] = {
+    "classes": {
+        "secret": "keys, tokens, passwords: they live in .env or the Keychain, never in an archive",
+        "vector_db": "the search index under <data root>/l3/vectordb, rebuilt by L3 Index",
+    },
+    "backup_policy": {"secret": "exclude", "vector_db": "exclude"},
+    "forbidden_in_tar": [
+        {"name": "env_file", "pattern": r"(^|/)\.env(\.(?!example$)[^/]+)?$", "severity": "high"},
+        {"name": "private_key", "pattern": r"\.(pem|key|p12|pfx)$", "severity": "high"},
+        {"name": "oauth_client_secret", "pattern": r"(^|/)client_secret[^/]*\.json$", "severity": "high"},
+        {"name": "credentials_file", "pattern": r"(^|/)[^/]*credentials[^/]*\.json$", "severity": "high"},
+        {"name": "oauth_token_file", "pattern": r"(^|/)token[^/]*\.(json|pickle)$", "severity": "high"},
+        {"name": "vector_db", "pattern": r"(^|/)vectordb/", "severity": "medium"},
+    ],
+}
 
 
 class ClassificationError(Exception):
@@ -36,15 +50,17 @@ class DriftFinding:
 
 
 def load_classification(path: str | Path | None = None) -> dict[str, Any]:
-    p = Path(path) if path is not None else DEFAULT_CLASSIFICATION_PATH
+    if path is None:
+        return DEFAULT_CLASSIFICATION
+    p = Path(path)
     if not p.exists():
-        raise ClassificationError(f"classificazione assente: {p}")
+        raise ClassificationError(f"classification missing: {p}")
     doc = yaml.safe_load(p.read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
-        raise ClassificationError("classificazione: root non è un mapping")
+        raise ClassificationError("classification: the root is not a mapping")
     for key in ("classes", "backup_policy", "forbidden_in_tar"):
         if key not in doc:
-            raise ClassificationError(f"classificazione: sezione mancante: {key}")
+            raise ClassificationError(f"classification: missing section: {key}")
     return doc
 
 
@@ -74,7 +90,7 @@ def scan_tar(tar_path: str | Path, path: str | Path | None = None) -> list[Drift
 
     tp = Path(tar_path)
     if not tp.exists():
-        raise ClassificationError(f"archivio assente: {tp}")
+        raise ClassificationError(f"archive missing: {tp}")
     with tarfile.open(tp, "r:*") as tf:
         names = tf.getnames()
     return scan_members(names, path)
@@ -85,11 +101,13 @@ def _main(argv: list[str] | None = None) -> int:
     import json
 
     parser = argparse.ArgumentParser(
-        description="Drift report read-only: segreti/vectordb in un archivio."
+        description="Read-only drift report: secrets and vector databases inside an archive."
     )
-    parser.add_argument("tar", nargs="?", help="path dell'archivio tar/tar.gz")
-    parser.add_argument("--members-file", help="file con un path per riga (invece del tar)")
-    parser.add_argument("--path", default=None, help="path alternativo a data-classification.yaml")
+    parser.add_argument("tar", nargs="?", help="path of the tar/tar.gz archive")
+    parser.add_argument("--members-file", help="file with one path per line (instead of the tar)")
+    parser.add_argument(
+        "--path", default=None, help="your own rules YAML (default: the built-in rules)"
+    )
     args = parser.parse_args(argv)
 
     if args.members_file:
@@ -100,9 +118,13 @@ def _main(argv: list[str] | None = None) -> int:
         ]
         findings = scan_members(members, args.path)
     elif args.tar:
-        findings = scan_tar(args.tar, args.path)
+        try:
+            findings = scan_tar(args.tar, args.path)
+        except ClassificationError as exc:
+            print(exc, file=sys.stderr)
+            return 1
     else:
-        parser.error("serve un tar oppure --members-file")
+        parser.error("needs a tar or --members-file")
 
     payload = [{"member": f.member, "rule": f.rule, "severity": f.severity} for f in findings]
     print(json.dumps(payload, ensure_ascii=False, indent=2))

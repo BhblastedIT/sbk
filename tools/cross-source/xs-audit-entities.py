@@ -1,18 +1,11 @@
 #!/usr/bin/env python3
-""
+"""Audits the NLP entity table (nlp/entities.parquet) for misclassified entities.
 
+Prints the type distribution, stop words, common words, single letters and numbers tagged as entities, and an
+estimate of noise versus clean rows. It reads only; nothing is written.
+"""
 
-
-
-
-
-
-
-
-
-
-
-
+import argparse
 import re
 
 
@@ -681,6 +674,10 @@ MEASUREMENT_PATTERNS = [
 
 
 def main():
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+    if not ENTITIES_PATH.exists():
+        print(f"No entity table yet ({ENTITIES_PATH}). Run the NLP step first.", file=_sys.stderr)
+        _sys.exit(1)
     print("=" * 100)
     print("SBK ENTITY AUDIT — Full Misclassification Analysis")
     print("=" * 100)

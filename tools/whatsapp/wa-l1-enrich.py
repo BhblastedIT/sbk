@@ -1042,7 +1042,20 @@ def build_gruppi(chats: list[dict], adesso: datetime | None = None) -> pd.DataFr
                 "perche": perche,
             }
         )
-    df = pd.DataFrame(righe)
+    # the columns are named even with no group at all (a parquet without columns has no schema)
+    colonne = [
+        "chiave",
+        "nome",
+        "membri",
+        "messaggi",
+        "tuoi",
+        "ultimo_tuo",
+        "di_lavoro",
+        "calcolato",
+        "tipo",
+        "perche",
+    ]
+    df = pd.DataFrame(righe, columns=colonne)
     if not df.empty:
         log.info(
             "Groups: %d, noise %d (%d messages), doubts %d",

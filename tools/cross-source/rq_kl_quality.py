@@ -1,16 +1,10 @@
-""
+"""Knowledge depth of a person for relationship scoring: from the facts the knowledge base holds about them it
+computes a depth and a confidence (how many facts and sources, personal and professional detail, equity or
+partner roles) and the signals behind them.
 
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/cross-source/rq_kl_quality.py <entity.json> [...]
+       uv run python tools/cross-source/rq_kl_quality.py --search <name fragment>
+"""
 
 from __future__ import annotations
 
@@ -23,7 +17,7 @@ _TOOLS_DIR = Path(__file__).resolve().parents[1]
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from sbk_config import owner_name_regex  # noqa: E402
+from sbk_config import KNOWLEDGE_ENTITIES_DIR, owner_name_regex  # noqa: E402
 
 log = logging.getLogger("rq.kl_quality")
 
@@ -393,25 +387,26 @@ def compute_kl_depth(entity_facts: list[dict], person_id: str = "") -> dict:
 
 
 if __name__ == "__main__":
+    import argparse
     import json
-    import sys
-    from pathlib import Path
+
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("files", nargs="*", metavar="entity.json", help="person entity files to score")
+    _ap.add_argument("--search", nargs="+", metavar="TEXT", help="score the people whose name contains TEXT")
+    _args = _ap.parse_args()
+    if not _args.files and not _args.search:
+        _ap.error("give entity files or --search TEXT")
 
     logging.basicConfig(
         level=logging.DEBUG,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    if len(sys.argv) < 2:
-        print("Usage: python rq_kl_quality.py <entity_file.json> [entity_file2.json ...]")
-        print("   or: python rq_kl_quality.py --search <name_fragment>")
-        sys.exit(1)
-
-    if sys.argv[1] == "--search":
+    if _args.search:
         import os
 
-        search_term = " ".join(sys.argv[2:]).lower()
-        kl_dir = Path("~/.sbk-data/knowledge/entities/person").expanduser()
+        search_term = " ".join(_args.search).lower()
+        kl_dir = KNOWLEDGE_ENTITIES_DIR / "person"
         if not kl_dir.exists():
             print(f"KL directory not found: {kl_dir}")
             sys.exit(1)
@@ -443,7 +438,7 @@ if __name__ == "__main__":
             except (json.JSONDecodeError, OSError):
                 continue
     else:
-        for fpath in sys.argv[1:]:
+        for fpath in _args.files:
             try:
                 with open(fpath, encoding="utf-8") as f:
                     ent = json.load(f)

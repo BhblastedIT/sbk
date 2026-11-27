@@ -1,7 +1,7 @@
 <!-- generated from docs/CONNECTING.md -->
 # Google Drive (`gd-`)
 
-Signs in through your own Google app, which you set up once for the five Google plugins: [Google](../../docs/CONNECTING.md#google).
+Signs in through your own Google app, which you set up once for the Google plugins: [Google](../../docs/CONNECTING.md#google).
 
 **Status** mature · registry `continua`, every 7 days.
 **Reads** the text of your documents, their owners, the shared drives you are a member of, the files

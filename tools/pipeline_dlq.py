@@ -1,20 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Failure queue of the pipeline (<data root>/system/failure-queue.json): every failed stage with its error (secrets
+masked), retries with backoff, and closing when the stage later succeeds or you resolve it by hand
+(--resolve <id> --nota "<who and why>").
+"""
 
 from __future__ import annotations
 

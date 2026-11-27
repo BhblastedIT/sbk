@@ -86,7 +86,9 @@ A file you already have is never overwritten: the new version goes next to it as
 `--only <file> ...`, `--lang it|es|fr|de|pt` (default: the language you use most).
 
 `sbk/identity/` is in `.gitignore`, and your AI history lives in `~/.sbk-data/`, outside the repo:
-none of it goes into git.
+none of it goes into git. Like `messages.jsonl`, the files these steps write are readable by you only
+(mode 600): `how-you-work-stats.json`, the text `--show-payload` saves, the `--stats-json` files of the
+readers and the identity files.
 
 **Check**
 

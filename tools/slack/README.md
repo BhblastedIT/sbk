@@ -2,9 +2,10 @@
 # Slack (`sl-`)
 
 **Status** mature · registry `continua`, every 3 days.
-**Reads** the workspace your own Slack app is installed in: its public and private channels, the
-threads, your DMs and group DMs, the user directory. It reads only what your own account can see in
-Slack.
+**Reads** the workspace your own Slack app is installed in: the channels and private channels you are a
+member of, their threads, your DMs and group DMs, and the user directory. Public channels you never
+joined are not read. Archived conversations are skipped unless you add `--include-archived` to
+`sl-l0-download.py`.
 **You need** a personal Slack app in your workspace and its User OAuth Token (`xoxp-…`). You create
 the app yourself; it is visible only in your workspace and acts as you.
 
@@ -16,7 +17,7 @@ the app yourself; it is visible only in your workspace and acts as you.
 
    | Scope | Used by |
    |---|---|
-   | `channels:read`, `groups:read`, `im:read`, `mpim:read` | the lists of channels, private channels, DMs and group DMs (`conversations.list`, `users.conversations`) |
+   | `channels:read`, `groups:read`, `im:read`, `mpim:read` | the lists of your channels, private channels, DMs and group DMs (`users.conversations`; the channel index also uses `conversations.list` for names) |
    | `channels:history`, `groups:history`, `im:history`, `mpim:history` | the messages and thread replies (`conversations.history`, `conversations.replies`) |
    | `users:read` | names of people (`users.list`, `users.info`) |
    | `users:read.email` | the email of each person in the user directory, so SBK can match them with your other sources |
@@ -49,7 +50,10 @@ the dashboard's connection check read Slack with the same user token as the down
 
 One more optional field under `slack` in `sbk.config.json`:
 - `own_user_id`: your own Slack user id (`U…`), used to spot mentions of you and as the DM target of
-  alerts. Leave it empty and SBK asks Slack for it (`auth.test` on your user token).
+  alerts. Leave it empty and SBK asks Slack for it (`auth.test` on your user token). The
+  signal-quality stage (`tools/cross-source/xs-l2-signal-quality.py`) also reads it, to score your
+  participation in channels; that stage never asks Slack, so there an empty value means your
+  participation is not scored.
 
 **Notifications (optional)** Alerts from the monitor, the dashboard's send box and
 `tools/notify/slack_notify.py` post messages. They need one of these, on the same app you created
@@ -77,13 +81,17 @@ The channel index comes first: the download refuses to start without it, because
 exclusions are applied.
 
 **Check** `<data root>/slack/channel-index.json` (the line `Downloadable: N` in the log says how many
-channels will be read), then `<data root>/slack/conversations/`, `<data root>/slack/dm/` and
+channels will be read: the ones you are a member of, not excluded and not
+archived), then `<data root>/slack/conversations/`, `<data root>/slack/dm/` and
 `<data root>/slack/slack-users.json`. The data root is `~/.sbk-data` unless you set `SBK_DATA_ROOT`.
 
 **Limits**
 - One token reads one workspace. If you are in several workspaces, the download reads only the one
   the app is installed in.
 - It never reads other people's DMs or channels you cannot open in Slack.
+- The channel index (`sl-l0-channel-index.py`) lists the names, topics and member counts of every public
+  channel of the workspace, to mark which ones you are in; the download reads messages only from the
+  conversations you are a member of.
 - If your workspace requires approval for apps, *Install to Workspace* becomes *Request to Install*
   and the app works only after the people who manage your workspace approve it.
 - On the free Slack plan only the last 90 days of messages are visible

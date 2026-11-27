@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Turn a Markdown dossier into a PDF.
 
-Usage: uv run python tools/util/gen-dossier-pdf.py <input.md> [output.pdf]  (default output: dossier.pdf)
+Usage: uv run python tools/util/gen-dossier-pdf.py <input.md> [output.pdf]
+Default output: <data root>/dossiers/<input name>.pdf (outside the repo, so a dossier is never committed).
 Needs the optional reportlab package: `uv add reportlab`.
 """
 
@@ -33,13 +34,14 @@ try:
 except ImportError:  # optional dependency, not installed by default
     sys.exit("gen-dossier-pdf needs reportlab, which is optional: run `uv add reportlab` first.")
 
-from sbk_config import OWNER_NAME  # noqa: E402
+from sbk_config import DATA_ROOT, OWNER_NAME  # noqa: E402
 
 INPUT = Path(sys.argv[1]) if len(sys.argv) > 1 else None
-OUTPUT = Path(
-    sys.argv[2]
+# Default under the data root, never the current folder (the repo root when run as documented).
+OUTPUT = (
+    Path(sys.argv[2])
     if len(sys.argv) > 2
-    else "dossier.pdf"
+    else DATA_ROOT / "dossiers" / f"{INPUT.stem if INPUT else 'dossier'}.pdf"
 )
 
 text_primary = HexColor("#18181B")
@@ -320,6 +322,7 @@ def main():
         sys.exit(f"Input not found: {INPUT}")
     md = INPUT.read_text(encoding="utf-8")
     flowables = parse_markdown(md)
+    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     doc = SimpleDocTemplate(
         str(OUTPUT),
         pagesize=A4,

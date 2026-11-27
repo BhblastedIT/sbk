@@ -204,6 +204,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--quiet", action="store_true")
     a = ap.parse_args()
+    if not any((cfg.DATA_ROOT / s).exists() for s in ("gsc", "analytics", "github")):
+        # None of the three inventory sources was ever downloaded: nothing to reread, not an error.
+        log.info("Inventory: nothing downloaded yet for gsc, analytics or github, nothing to do")
+        return 0
     e = rileggi()
     if not e:
         return 1

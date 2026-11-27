@@ -73,7 +73,9 @@ BACKOFF_MAX_ATTEMPTS = 3
 BACKOFF_JITTER_FRACTION = 0.30
 
 
-DATA_DIR = Path.home() / ".sbk-data" / "linkedin"
+DATA_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser() / "linkedin"
+)
 KILLSWITCH_LOCK = DATA_DIR / ".linkedin-killswitch"
 
 
@@ -464,7 +466,12 @@ __all__ = [
 
 
 if __name__ == "__main__":
+    import argparse
 
+    argparse.ArgumentParser(
+        description="Self-test of the LinkedIn safety guard: classifies a few sample responses. "
+        "It makes no LinkedIn call and writes nothing."
+    ).parse_args()
     g = LinkedInSafetyGuard.__new__(LinkedInSafetyGuard)
     g.session_cap = DEFAULT_SESSION_CAP
     g.daily_cap = DEFAULT_DAILY_CAP

@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
+"""RQ-07: deeper analysis of each relationship over time: the events that changed it and the interruptions in
+contact, compared with the previous snapshots.
+"""
 
 from __future__ import annotations
 

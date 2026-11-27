@@ -732,7 +732,7 @@ def discover_documents(
     log.info(
         "Matched %d contacts (%s, %d unmatched)",
         len(contact_to_person),
-        "tutte le chat, gruppi rumore fuori" if tutte else f"top {len(top_contacts or [])}",
+        "all chats, noisy groups left out" if tutte else f"top {len(top_contacts or [])}",
         len(unmatched),
     )
 

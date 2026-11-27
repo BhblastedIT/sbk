@@ -27,6 +27,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import logging
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -43,7 +44,7 @@ log = logging.getLogger("sbk-l3-staleness")
 try:
     from sbk_config import L3_DIR as _L3_DIR
 except ImportError:  # pragma: no cover - run outside the repo
-    _L3_DIR = Path.home() / ".sbk-data" / "l3"
+    _L3_DIR = Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser() / "l3"
 
 ALERT_FILE = _L3_DIR / "logs" / "staleness.alert"
 

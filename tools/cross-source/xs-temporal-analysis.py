@@ -1,34 +1,23 @@
 #!/usr/bin/env python3
-""
+"""Temporal analysis: your productivity patterns (peak hours, load by day), relationship patterns (dormant
+contacts) and deal movement over the last weeks, from email, Slack, calendar and the CRM, into
+<data root>/insights/weekly-<week>.json.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Nothing is sent to a model by default: the analysis is local and the insights list stays empty. Written
+insights from Claude are your choice: --ai for one run, or "insights": {"synthesis": true} in
+sbk.config.json. It then sends a summary of the week (your name, e-mail/Slack/meeting counts, peak hours and
+day, the e-mail addresses of up to 5 top and 5 dormant contacts, up to 5 deal names with stage and days in
+stage) to Claude through the Anthropic API with your ANTHROPIC_API_KEY, and the log says so first, with the
+size. --no-ai is still accepted: it forces the local analysis even when the config turns insights on.
+--dry-run sends nothing and writes nothing.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 from collections import Counter
@@ -388,15 +377,34 @@ Rules:
 - Sort by severity (alert first)"""
 
 
-def generate_insights(
+WHAT_IS_SENT = (
+    "your name, e-mail/Slack/meeting counts, peak hours and day, the e-mail addresses of up to 5 top "
+    "and 5 dormant contacts, up to 5 deal names with stage and days in stage"
+)
+
+
+def insights_wanted(ai_flag: bool = False, no_ai_flag: bool = False) -> bool:
+    """True only when you asked for model insights: --ai, or insights.synthesis true in sbk.config.json.
+
+    Off by default, so a plain run sends nothing to a model. --no-ai always wins.
+    """
+    if no_ai_flag:
+        return False
+    if ai_flag:
+        return True
+    import sbk_config
+
+    return sbk_config.user_cfg("insights.synthesis", False) is True
+
+
+def build_insight_prompt(
     stats: dict,
     productivity: dict,
     relational: dict,
     deals: dict,
     week: str,
-) -> list[dict]:
-    ""
-
+) -> str:
+    """The exact text that --ai sends to the model."""
     dormant = relational.get("dormant_contacts", [])
     if dormant:
         dormant_text = "\n".join(
@@ -423,7 +431,7 @@ def generate_insights(
     else:
         top_contacts_text = "Insufficient data"
 
-    prompt = INSIGHT_PROMPT.format(
+    return INSIGHT_PROMPT.format(
         owner=OWNER_LABEL,
         week=week,
         sent=stats.get("emails_sent", 0),
@@ -439,6 +447,12 @@ def generate_insights(
         top_contacts_text=top_contacts_text,
     )
 
+
+def generate_insights(prompt: str) -> list[dict]:
+    """Send the prompt to Claude (Anthropic API, ANTHROPIC_API_KEY) and parse the insights it returns.
+
+    Called only after insights_wanted() said yes and the log announced what is sent.
+    """
     try:
         from xs_anthropic_client import get_client
 
@@ -462,11 +476,11 @@ def generate_insights(
 
 
 def run(
-    use_ai: bool = True,
+    use_ai: bool = False,
     dry_run: bool = False,
     lookback_days: int = 30,
 ) -> dict:
-    ""
+    """The local analysis; model insights only with use_ai=True (--ai or insights.synthesis), never on --dry-run."""
     now = datetime.now(UTC)
     week = now.strftime("%G-W%V")
 
@@ -515,13 +529,32 @@ def run(
 
 
     insights = []
-    if use_ai and (stats["emails_sent"] + stats["emails_received"]) > 0:
-        insights = generate_insights(stats, productivity, relational, deals_analysis, week)
-        log.info("Generated %d insights", len(insights))
-    elif not use_ai:
-        log.info("AI skipped (--no-ai flag)")
+    if (stats["emails_sent"] + stats["emails_received"]) == 0:
+        log.info("No email data, no insights to write; nothing was sent to a model")
     else:
-        log.info("No email data, skipping insight generation")
+        prompt = build_insight_prompt(stats, productivity, relational, deals_analysis, week)
+        if not use_ai or dry_run:
+            log.info(
+                'Nothing was sent to a model. Model insights off: --ai (or "insights": '
+                '{"synthesis": true} in sbk.config.json) sends the week summary (%d characters: %s) '
+                "to Claude through the Anthropic API with your ANTHROPIC_API_KEY",
+                len(prompt),
+                WHAT_IS_SENT,
+            )
+        elif not os.environ.get("ANTHROPIC_API_KEY"):
+            log.info(
+                "No model insights: ANTHROPIC_API_KEY is not set (put it in .env or in the "
+                "environment), so nothing was sent"
+            )
+        else:
+            log.info(
+                "Sending the week summary (%d characters: %s) to Claude through the Anthropic API "
+                "with your ANTHROPIC_API_KEY for the insights",
+                len(prompt),
+                WHAT_IS_SENT,
+            )
+            insights = generate_insights(prompt)
+            log.info("Generated %d insights", len(insights))
 
 
     period_start = (now - timedelta(days=7)).strftime("%Y-%m-%d")
@@ -567,16 +600,38 @@ if __name__ == "__main__":
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    parser = argparse.ArgumentParser(description="SBK Temporal Intelligence")
-    parser.add_argument("--no-ai", action="store_true", help="Skip Claude AI analysis")
-    parser.add_argument("--dry-run", action="store_true", help="Preview without saving")
+    parser = argparse.ArgumentParser(
+        description="SBK temporal analysis: productivity, relationship and deal patterns of the last "
+        "weeks, computed locally. Nothing is sent to a model unless you ask (--ai, or insights.synthesis "
+        "true in sbk.config.json)."
+    )
+    parser.add_argument(
+        "--ai",
+        "--synthesize",
+        dest="ai",
+        action="store_true",
+        help="Also send a summary of the week (your name, counts, peak hours, the e-mail addresses of up "
+        "to 5 top and 5 dormant contacts, up to 5 deal names) to Claude through the Anthropic API with "
+        "your ANTHROPIC_API_KEY and save the insights it returns. Off by default; insights.synthesis "
+        "true in sbk.config.json turns it on for every run",
+    )
+    parser.add_argument(
+        "--no-ai",
+        action="store_true",
+        help="Local analysis only (the default); overrides insights.synthesis true in sbk.config.json",
+    )
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show the analysis; send nothing, save nothing"
+    )
     parser.add_argument(
         "--weeks", type=int, default=4, help="Lookback period in weeks (default: 4)"
     )
     args = parser.parse_args()
+    if args.ai and args.no_ai:
+        parser.error("--ai and --no-ai together: choose one")
 
     result = run(
-        use_ai=not args.no_ai,
+        use_ai=insights_wanted(args.ai, args.no_ai),
         dry_run=args.dry_run,
         lookback_days=args.weeks * 7,
     )

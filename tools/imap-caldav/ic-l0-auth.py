@@ -56,7 +56,7 @@ def _prompt(label: str) -> str:
 
 def device_code_login(acc: icc.Account, *, sleep=time.sleep, echo=print) -> str:
     """OAuth 2.0 device authorization grant against the consumers authority; returns the
-    refresh token. Scope: IMAP.AccessAsUser.All + offline_access (delegated, your own mailbox)."""
+    refresh token. Scope: IMAP.AccessAsUser.All + offline_access (per-user, your own mailbox)."""
     form = urllib.parse.urlencode(
         {"client_id": acc.oauth_client_id, "scope": icc.MS_IMAP_SCOPE}
     ).encode()

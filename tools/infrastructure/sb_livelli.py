@@ -55,6 +55,10 @@ DATA_ROOT = Path(os.environ.get("SBK_DATA_ROOT", HOME / ".sbk-data"))
 WORK = DATA_ROOT / "work"
 STATO = DATA_ROOT / "state" / "backup"
 REGISTRO_SORGENTI = Path(__file__).resolve().parents[1] / "sorgenti.py"
+# the repo is wherever you cloned it, found from where this file sits (tools/infrastructure/)
+REPO = Path(__file__).resolve().parents[2]
+# Claude Code's folder; CLAUDE_CONFIG_DIR moves it
+CLAUDE_HOME = Path(os.environ.get("CLAUDE_CONFIG_DIR") or HOME / ".claude").expanduser()
 
 MIB = 2**20
 GIB = 2**30
@@ -128,12 +132,6 @@ RADICI: dict[str, tuple[int | str, str, bool, bool]] = {
     "commitments": (1, "consolidation of commitments with a model", False, False),
     "system": (1, "API spend log", False, False),
     "jobs": (1, "job results", False, False),
-    "archivio-drive": (
-        1,
-        "record of what is on the Drive: without it, the files cannot be found",
-        False,
-        False,
-    ),
     "security": (1, "injections log", False, False),
     "chat-uploads": (1, "files uploaded by the user in the chat", False, False),
     "content": (1, "ideas and texts", False, False),
@@ -202,6 +200,12 @@ RADICI: dict[str, tuple[int | str, str, bool, bool]] = {
     "inventory": (2, "derivatives", False, False),
     "l1-checkpoints": (2, "watermark: without it, the next run is full", False, False),
 
+    "backups-knowledge": (
+        3,
+        "KB tars before the re-read (brain copy of xs-l0-refresh), read by sb-kb-ripara",
+        False,
+        False,
+    ),
     "backups-compaction": (
         3,
         "KB tars before compaction, read by sb-kb-ripara",
@@ -250,6 +254,7 @@ PROTETTI: dict[str, int] = {
     "attio": 1,
     "slack": 1,
     "docusign": 1,
+    "backups-knowledge": 3,
     "backups-compaction": 3,
     "backups-reanchor": 3,
 }
@@ -910,7 +915,9 @@ class Fuori:
     recenti_giorni: int | None = None
 
 
-PROGETTO_CLAUDE = HOME / ".claude" / "projects" / "-Users-you-Projects-SBK"
+# Claude Code names a project's folder after its path, every character that is not a letter or a
+# digit turned into "-"
+PROGETTO_CLAUDE = CLAUDE_HOME / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(REPO))
 SUBAGENTI_GIORNI = 60
 FUORI: list[Fuori] = [
     Fuori(
@@ -959,7 +966,7 @@ FUORI: list[Fuori] = [
     ),
     Fuori(
         "regole-claude",
-        HOME / ".claude",
+        CLAUDE_HOME,
         1,
         "rules, settings, hooks, personal skills and Claude's status line",
         file=("CLAUDE.md", "settings.json", "keybindings.json", "status-line.sh"),
@@ -969,7 +976,7 @@ FUORI: list[Fuori] = [
     ),
     Fuori(
         "prompt-claude",
-        HOME / ".claude",
+        CLAUDE_HOME,
         1,
         "the prompts written by the user in all sessions",
         delicato=True,
@@ -977,7 +984,7 @@ FUORI: list[Fuori] = [
     ),
     Fuori(
         "storia-file-claude",
-        HOME / ".claude" / "file-history",
+        CLAUDE_HOME / "file-history",
         3,
         "prior versions of files changed by the sessions, last 60 days",
         delicato=True,
@@ -986,47 +993,41 @@ FUORI: list[Fuori] = [
         recenti_giorni=SUBAGENTI_GIORNI,
     ),
     Fuori(
-        "vault",
-        HOME / ".sbk-credentials",
-        1,
-        "credentials: encrypted, never in clear",
-        delicato=True,
-        cartelle=(".",),
-    ),
-    Fuori(
         "repo-sbk",
-        HOME / "Projects" / "SBK" / "sbk",
+        REPO / "sbk",
         1,
-        "repo context (live-state, errors, identity)",
-        cartelle=(".",),
-    ),
-    Fuori(
-        "tar-kb",
-        HOME / ".sbk-backups",
-        3,
-        "KB tars before large operations, read by sb-kb-ripara",
-        cartelle=(".",),
-    ),
-    Fuori(
-        "tracciabilita",
-        HOME / "Backups" / "sbk-safety",
-        3,
-        "sole witness of the fact files",
-        cartelle=(".",),
-    ),
-    Fuori(
-        "downloads",
-        HOME / "Downloads",
-        3,
-        "personal documents that are nowhere else",
-        delicato=True,
-        solo_usb=True,
+        "repo context (identity files)",
         cartelle=(".",),
     ),
 ]
 
-SENZA_NOMI = {"vault"}
+# Your ~/Downloads folder goes into the backup only when you ask for it in sbk.config.json
+# ("backup": {"include_downloads": true}). Off by default: it is your folder, not SBK's.
+DOWNLOADS = Fuori(
+    "downloads",
+    HOME / "Downloads",
+    3,
+    "your Downloads folder, included because backup.include_downloads is true",
+    delicato=True,
+    solo_usb=True,
+    cartelle=(".",),
+)
 
+
+def downloads_nel_backup() -> bool:
+    """True only when sbk.config.json has "backup": {"include_downloads": true}."""
+    tools = str(Path(__file__).resolve().parents[1])
+    if tools not in sys.path:
+        sys.path.insert(0, tools)
+    try:
+        from sbk_config import user_cfg
+    except Exception:  # noqa: BLE001 -- without the config the folder stays out
+        return False
+    return user_cfg("backup.include_downloads", False) is True
+
+
+if downloads_nel_backup():
+    FUORI.append(DOWNLOADS)
 
 def _uno_fuori(
     f: Fuori, p: str, es: Esito, ora: float, s: os.stat_result | None = None
@@ -1539,10 +1540,6 @@ def main() -> int:
         print(f"✅ backup levels: {len(RADICI)} roots in the registry, no reds")
     if args.dove:
         voluta = Path(os.path.abspath(args.dove.expanduser()))
-        senza_nomi = any(
-            f.nome in SENZA_NOMI and (_dentro(voluta, f.base) or _dentro(f.base, voluta))
-            for f in FUORI
-        )
         conta = defaultdict(lambda: [0, 0])
         esempio: dict[tuple, Path] = {}
         for p, s, e in cammina_cartella(args.dove):
@@ -1553,7 +1550,7 @@ def main() -> int:
         for (liv, regola, usb), (b, n) in sorted(
             conta.items(), key=lambda kv: (kv[0][0], -kv[1][0])
         ):
-            es = "names not shown" if senza_nomi else f"e.g. {esempio[(liv, regola, usb)].name}"
+            es = f"e.g. {esempio[(liv, regola, usb)].name}"
             print(
                 f"L{liv}{' usb' if usb else '    '} {b / GIB:7.2f} GiB {n:7d} file  {regola}  ({es})"
             )

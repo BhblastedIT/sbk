@@ -35,7 +35,8 @@ from sbk_config import DATA_ROOT, safe_write_json  # noqa: E402
 
 GDRIVE = DATA_ROOT / "gdrive"
 INDICE = GDRIVE / "gdrive-index.json"
-_RELATIVO = re.compile(r"/\.sbk-data/gdrive/(.+)$")
+# A stored path under the default data root folder (.sbk-data) or under yours (SBK_DATA_ROOT).
+_RELATIVO = re.compile(r"/(?:\.sbk-data|" + re.escape(DATA_ROOT.name) + r")/gdrive/(.+)$")
 
 
 def candidati(percorso: str, base: Path) -> list[Path]:

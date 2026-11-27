@@ -33,7 +33,7 @@ import re
 import sys
 import time
 from collections import Counter
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pandas as pd
@@ -47,16 +47,16 @@ from sbk_config import (  # noqa: E402
     LINKEDIN_DIR,
     LINKEDIN_RAW_DIR,
     OWNER_LABEL,
-    is_own_name,
     mark_last_run,
     safe_write_parquet,
 )
 
 
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent.parent
-RAW_LINKEDIN_DIR = PROJECT_DIR / "sbk" / "raw" / "linkedin"
-RAW_INVESTORS_DIR = PROJECT_DIR / "sbk" / "raw" / "linkedin-investors"
+# Everything is read from the data root: the export that li-l0-import-export.py imports
+# (<data root>/linkedin/raw/export-*.parquet) and, if you ran them, the browser scripts' JSON files
+# in the same folder. Nothing is read from or written into the repo.
+RAW_LINKEDIN_DIR = LINKEDIN_RAW_DIR
 PROCESSED_DIR = LINKEDIN_DIR
 
 log = logging.getLogger("linkedin-enrich")
@@ -68,157 +68,11 @@ RAW_CONVERSATIONS_FULL = RAW_LINKEDIN_DIR / "linkedin-conversations-full.json"
 
 
 
-leadsync_FILE = PROCESSED_DIR / "interactions-leadsync.parquet"
-leadsync_SCRIPT = Path(__file__).resolve().parent / "li-l1-leadsync-interactions.py"
-PERIMETRO_leadsync = "leadsync-linkedin"
 # Your name in the interactions, from sbk.config.json "owner".
 OWNER_NOME = OWNER_LABEL
 
 
 
-
-
-def _lettore_leadsync():
-    ""
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("li_l1_leadsync_interactions", leadsync_SCRIPT)
-    mod = importlib.util.module_from_spec(spec)
-    sys.modules["li_l1_leadsync_interactions"] = mod
-    spec.loader.exec_module(mod)
-    return mod
-
-
-def note_attio() -> Path:
-    ""
-    from sbk_config import DATA_ROOT
-
-    return DATA_ROOT / "attio" / "notes.parquet"
-
-
-def aggiorna_leadsync(scrivi: bool = True) -> pd.DataFrame | None:
-    ""
-
-
-
-
-
-    try:
-        from security.perimeter_loader import check_ingestion
-
-        decisione = check_ingestion(PERIMETRO_leadsync)
-    except Exception as e:  # noqa: BLE001
-        log.warning(
-            f"LeadSync: perimeter {PERIMETRO_leadsync} could not be read ({e}), LeadSync chats stay excluded"
-        )
-        return None
-    if not decisione.allowed:
-        log.info(
-            f"LeadSync: perimeter {PERIMETRO_leadsync} {decisione.state}, LeadSync chats stay excluded"
-        )
-        return None
-    try:
-        ricevuta = _lettore_leadsync().run(caller="li-l1-enrich", dry_run=not scrivi)
-        log.info(
-            f"LeadSync: {ricevuta.status.value}, {ricevuta.records_seen} rows read from Attio notes"
-        )
-    except Exception as e:  # noqa: BLE001
-        log.warning(
-            f"LeadSync: reader failed ({type(e).__name__}: {e}), using the file from the previous run"
-        )
-    if not leadsync_FILE.exists():
-        return None
-    try:
-        return pd.read_parquet(leadsync_FILE)
-    except Exception as e:  # noqa: BLE001
-        log.warning(f"LeadSync: {leadsync_FILE.name} could not be read ({e}), LeadSync chats stay excluded")
-        return None
-
-
-def _minuto(ts: object, scarto: int = 0) -> str:
-    ""
-
-    dt = parse_iso_datetime(str(ts or ""))
-    if dt is None:
-        return ""
-    if dt.tzinfo is not None:
-        dt = dt.astimezone(UTC)
-    return (dt + timedelta(minutes=scarto)).strftime("%Y-%m-%dT%H:%M")
-
-
-def righe_leadsync_nuove(
-    leadsync: pd.DataFrame | None,
-    threads_complete: list[dict],
-    sales_nav: list[dict],
-    export_invitations: pd.DataFrame | None = None,
-) -> list[dict]:
-    ""
-
-
-
-
-
-
-    if leadsync is None or len(leadsync) == 0:
-        return []
-    visti: set[tuple[str, str, bool]] = set()
-    for conv in [*threads_complete, *sales_nav]:
-        partecipanti = conv.get("participants") or []
-        if not partecipanti:
-            continue
-        nome = normalize_name(partecipanti[0].get("name", ""))
-        for msg in conv.get("messages", []):
-
-
-            for scarto in (-1, 0, 1):
-                visti.add(
-                    (nome, _minuto(msg.get("deliveredAt"), scarto), bool(msg.get("senderIsMe")))
-                )
-    invitati: set[str] = set()
-    if export_invitations is not None and len(export_invitations) > 0:
-        for _, r in export_invitations.iterrows():
-            if str(r.get("direction", "")).strip() == "OUTGOING":
-                invitati.add(normalize_name(str(r.get("person_name", "")).strip()))
-    righe: list[dict] = []
-    proprie: set[tuple] = set()
-    for r in leadsync.to_dict("records"):
-        tipo = str(r.get("interaction_type") or "")
-        if tipo not in ("message", "invitation_sent", "invitation_accepted"):
-            continue
-        nome_pers = str(r.get("person_name") or "").strip()
-        nome = normalize_name(nome_pers)
-        if not nome:
-            continue
-        inviato = str(r.get("direction") or "") == "sent"
-        minuto = _minuto(r.get("ts_utc"))
-        chiave = (nome, minuto, inviato, tipo)
-        if chiave in proprie:
-            continue
-        proprie.add(chiave)
-        if tipo == "message" and (nome, minuto, inviato) in visti:
-            continue
-        if tipo == "invitation_sent" and nome in invitati:
-            continue
-        url = str(r.get("linkedin_url") or "").strip()
-        testo = str(r.get("message_text") or "")
-        righe.append(
-            {
-                "tipo": tipo,
-                "nome": nome_pers,
-                "linkedin_url": url,
-                "linkedin_id": extract_linkedin_id(url) or nome,
-                "inviato": inviato,
-                "timestamp": str(r.get("ts_utc") or ""),
-                "data": parse_iso_date(str(r.get("ts_utc") or "")),
-                "testo": testo,
-                "oggetto": str(r.get("subject") or ""),
-            }
-        )
-    log.info(
-        f"  LeadSync: {len(righe)} new rows out of {len(leadsync)} "
-        f"(the others were already in the older scrape or the export, or were duplicates)"
-    )
-    return righe
 
 
 def parse_iso_date(s: str) -> str | None:
@@ -244,10 +98,14 @@ def parse_iso_datetime(s: str) -> datetime | None:
 
 def load_json(path: Path) -> dict | list | None:
     ""
+    if not path.exists():
+        # The conversation files come from the optional browser scripts: the export path has none.
+        log.info(f"{path.name}: not there (optional, only the browser scripts write it)")
+        return None
     try:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
-    except (json.JSONDecodeError, UnicodeDecodeError, FileNotFoundError) as e:
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
         log.warning(f"Cannot load {path.name}: {e}")
         return None
 
@@ -304,7 +162,7 @@ def build_profile_enrichment_map() -> dict[str, dict]:
 
     data = load_json(RAW_CONVERSATIONS_FULL)
     if not data:
-        log.warning("linkedin-conversations-full.json not found — no headline enrichment")
+        log.info("no linkedin-conversations-full.json: no headline enrichment")
         return {}
 
     enrichment: dict[str, dict] = {}
@@ -383,7 +241,8 @@ def parse_threads_complete() -> list[dict]:
     path = RAW_LINKEDIN_DIR / "linkedin-threads-complete.json"
     data = load_json(path)
     if not data:
-        log.warning("linkedin-threads-complete.json not found or invalid")
+        if path.exists():
+            log.warning("linkedin-threads-complete.json is empty or invalid")
         return []
 
     conversations = data.get("conversations", [])
@@ -396,7 +255,8 @@ def parse_sales_navigator() -> list[dict]:
     path = RAW_LINKEDIN_DIR / "linkedin-threads-sales-navigator.json"
     data = load_json(path)
     if not data:
-        log.warning("linkedin-threads-sales-navigator.json not found or invalid")
+        if path.exists():
+            log.warning("linkedin-threads-sales-navigator.json is empty or invalid")
         return []
 
     conversations = data.get("conversations", [])
@@ -409,7 +269,8 @@ def parse_sent_notes() -> list[dict]:
     path = RAW_LINKEDIN_DIR / "linkedin-sent-notes.json"
     data = load_json(path)
     if not data or not isinstance(data, list):
-        log.warning("linkedin-sent-notes.json not found or invalid")
+        if path.exists():
+            log.warning("linkedin-sent-notes.json is empty or invalid")
         return []
 
     log.info(f"Phase 1c: Loaded {len(data)} sent notes")
@@ -446,7 +307,6 @@ def build_contacts(
     profile_enrichment: dict[str, dict] | None = None,
     export_connections: pd.DataFrame | None = None,
     export_invitations: pd.DataFrame | None = None,
-    leadsync: list[dict] | None = None,
 ) -> pd.DataFrame:
     ""
 
@@ -745,31 +605,6 @@ def build_contacts(
         log.info(f"  Export invitations: {inv_new} new contacts, {inv_enriched} existing enriched")
 
 
-    if leadsync:
-        prima = set(contacts)
-        for r in leadsync:
-            c = get_or_create(r["nome"], r["linkedin_url"])
-            if c is None:
-                continue
-            c["sources"].add("leadsync")
-            if r["tipo"] == "message":
-                if r["inviato"]:
-                    c["messages_sent"] += 1
-                else:
-                    c["messages_received"] += 1
-                data = r["data"]
-                if data:
-                    if c["first_message_date"] is None or data < c["first_message_date"]:
-                        c["first_message_date"] = data
-                    if c["last_message_date"] is None or data > c["last_message_date"]:
-                        c["last_message_date"] = data
-            elif r["tipo"] == "invitation_sent" and r["testo"].strip():
-                c["has_connection_note"] = True
-            elif r["tipo"] == "invitation_accepted" and r["data"] and not c["connection_date"]:
-                c["connection_date"] = r["data"]
-        log.info(f"  LeadSync: {len(set(contacts) - prima)} new contacts, {len(leadsync)} rows")
-
-
     enriched_count = 0
     company_count = 0
     for lid, c in contacts.items():
@@ -832,7 +667,6 @@ def build_interactions(
     threads_complete: list[dict],
     sales_nav: list[dict],
     export_invitations: pd.DataFrame | None = None,
-    leadsync: list[dict] | None = None,
 ) -> pd.DataFrame:
     ""
 
@@ -974,27 +808,24 @@ def build_interactions(
         log.info(f"  Export invitations: {inv_added} new interactions added")
 
 
-    tipi_leadsync = {"invitation_sent": "invitation", "invitation_accepted": "invitation_accepted"}
-    for r in leadsync or []:
-        rows.append(
-            {
-                "from_name": OWNER_NOME if r["inviato"] else r["nome"],
-                "to_name": r["nome"] if r["inviato"] else OWNER_NOME,
-                "timestamp": r["timestamp"],
-                "date": r["data"] or "",
-                "message_type": tipi_leadsync.get(r["tipo"], "sent" if r["inviato"] else "received"),
-                "linkedin_url": r["linkedin_url"],
-                "linkedin_id": r["linkedin_id"],
-                "message_text": r["testo"][:5000],
-                "body_length": len(r["testo"]),
-                "has_subject": bool(r["oggetto"]),
-                "source": "leadsync",
-            }
-        )
-    if leadsync:
-        log.info(f"  LeadSync: {len(leadsync)} interactions added")
-
-    df = pd.DataFrame(rows)
+    # A data export with connections only (no conversations, no invitations) gives no rows:
+    # keep the columns, so the file is still written and readable.
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            "from_name",
+            "to_name",
+            "timestamp",
+            "date",
+            "message_type",
+            "linkedin_url",
+            "linkedin_id",
+            "message_text",
+            "body_length",
+            "has_subject",
+            "source",
+        ],
+    )
     df.sort_values("timestamp", ascending=False, inplace=True)
     df.reset_index(drop=True, inplace=True)
 
@@ -1014,138 +845,9 @@ def build_interactions(
 
 
 
-# Optional investor-list import. Tiers, thesis keywords and the source platform
-# are user-specific; defaults are empty so no investment thesis ships in the core.
-# Load these from user config to enable tiering and thesis-fit tagging.
-INVESTOR_TIER_A_CHEQUES: tuple[str, ...] = ()
-INVESTOR_TIER_B_CHEQUES: tuple[str, ...] = ()
-INVESTOR_THESIS_KEYWORDS: dict[str, tuple[str, ...]] = {}
-INVESTOR_SOURCE_PLATFORM = ""
-
-
-def build_investors() -> pd.DataFrame:
-    ""
-
-
-
-
-
-
-    log.info("Phase 4: Building investors-linkedin.parquet...")
-    t0 = time.time()
-
-
-    full_path = RAW_INVESTORS_DIR / "investors-full-database.json"
-    full_data = load_json(full_path)
-    investors_raw = (
-        full_data.get("investors", []) if full_data and isinstance(full_data, dict) else []
-    )
-
-
-    premium_path = RAW_INVESTORS_DIR / "premium-investors-detailed.json"
-    premium_data = load_json(premium_path)
-    premium_map: dict[str, dict] = {}
-    if premium_data and isinstance(premium_data, list):
-        for p in premium_data:
-            uid = p.get("userId", "")
-            if uid:
-                premium_map[uid] = p
-
-    log.info(f"  Full DB: {len(investors_raw)} investors, Premium details: {len(premium_map)}")
-
-    rows = []
-    for inv in investors_raw:
-        inv_id = inv.get("id", "")
-
-
-        name = inv.get("name", "")
-        if is_own_name(name):
-            continue
-
-
-        source_lists = ["investors"]
-        if inv.get("isPremiumInvestor"):
-            source_lists.append("premium")
-        premium_detail = premium_map.get(inv_id, {})
-        if premium_detail:
-            source_lists.append("premium-detailed")
-
-
-        tags = inv.get("tags", [])
-        investment_domains = premium_detail.get("investment_domains", [])
-
-
-        tier = ""
-        cheque = premium_detail.get("max_cheque_size", "")
-        if cheque:
-            if any(c in cheque for c in INVESTOR_TIER_A_CHEQUES):
-                tier = "A"
-            elif any(c in cheque for c in INVESTOR_TIER_B_CHEQUES):
-                tier = "B"
-            else:
-                tier = "C"
-
-
-        thesis_fit_signals = []
-        for domain in investment_domains:
-            dl = domain.lower()
-            for label, keywords in INVESTOR_THESIS_KEYWORDS.items():
-                if any(k.lower() in dl for k in keywords):
-                    thesis_fit_signals.append(label)
-        for tag in tags:
-            if tag.lower() in ("ai", "saas", "tech", "deeptech", "fintech"):
-                thesis_fit_signals.append(f"tag:{tag}")
-        thesis_fit = ", ".join(sorted(set(thesis_fit_signals))) if thesis_fit_signals else ""
-
-        rows.append(
-            {
-                "name": name,
-                "linkedin_url": inv.get("linkedin", "") or "",
-                "platform_url": inv.get("profileUrl", "") or "",
-                "company": premium_detail.get("business_name", "") or inv.get("company", "") or "",
-                "role": premium_detail.get("job_role", "") or inv.get("role", "") or "",
-                "headline": inv.get("headline", "") or "",
-                "bio": inv.get("bio", "") or "",
-                "location": inv.get("location", "") or "",
-                "country_code": inv.get("countryCode", "") or "",
-                "user_type": inv.get("userType", "") or "",
-                "is_premium_investor": inv.get("isPremiumInvestor", False),
-                "max_cheque_size": cheque,
-                "investment_domains": ", ".join(investment_domains) if investment_domains else "",
-                "investment_stages": ", ".join(premium_detail.get("investment_stages", [])),
-                "investment_preferences": ", ".join(
-                    premium_detail.get("investment_preferences", [])
-                ),
-                "tags": ", ".join(tags) if tags else "",
-                "thesis_fit": thesis_fit,
-                "tier": tier,
-                "source_list": ", ".join(source_lists),
-                "source_platform": INVESTOR_SOURCE_PLATFORM,
-            }
-        )
-
-    df = pd.DataFrame(rows)
-    df.sort_values("name", inplace=True)
-    df.reset_index(drop=True, inplace=True)
-
-    elapsed = time.time() - t0
-    premium_count = df["is_premium_investor"].sum() if len(df) > 0 else 0
-    with_thesis = len(df[df["thesis_fit"] != ""]) if len(df) > 0 else 0
-    log.info(
-        f"Investors: {len(df)} total, {premium_count} premium, "
-        f"{with_thesis} with thesis_fit signals, "
-        f"built in {elapsed:.1f}s"
-    )
-    return df
-
-
-
-
-
 def build_summary(
     contacts_df: pd.DataFrame,
     interactions_df: pd.DataFrame,
-    investors_df: pd.DataFrame,
     threads_complete: list[dict],
     sales_nav: list[dict],
 ) -> dict:
@@ -1193,16 +895,6 @@ def build_summary(
             source_counts[part] += 1
 
 
-    investor_countries = (
-        investors_df["country_code"].value_counts().head(10).to_dict()
-        if len(investors_df) > 0
-        else {}
-    )
-    investor_types = (
-        investors_df["user_type"].value_counts().to_dict() if len(investors_df) > 0 else {}
-    )
-
-
     category_counts = Counter()
     for cats in contacts_df["categories"]:
         for cat in cats.split(", "):
@@ -1215,7 +907,6 @@ def build_summary(
         "totals": {
             "contacts": len(contacts_df),
             "interactions": len(interactions_df),
-            "investors": len(investors_df),
             "threads_complete_conversations": len(threads_complete),
             "sales_nav_conversations": len(sales_nav),
         },
@@ -1248,17 +939,6 @@ def build_summary(
         "source_distribution": dict(source_counts.most_common()),
         "category_distribution": dict(category_counts.most_common()),
         "top_contacts": top_contacts,
-        "investors": {
-            "total": len(investors_df),
-            "premium": int(investors_df["is_premium_investor"].sum())
-            if len(investors_df) > 0
-            else 0,
-            "with_thesis_fit": len(investors_df[investors_df["thesis_fit"] != ""])
-            if len(investors_df) > 0
-            else 0,
-            "top_countries": investor_countries,
-            "user_types": investor_types,
-        },
     }
 
     return summary
@@ -1266,7 +946,12 @@ def build_summary(
 
 
 
-STEP_NAMES = ["contacts", "interactions", "investors", "summary"]
+STEP_NAMES = ["contacts", "interactions", "summary"]
+
+
+def _li_inputs() -> list[Path]:
+    """The folders this step reads: the conversation files and the imported data export."""
+    return list(dict.fromkeys([RAW_LINKEDIN_DIR, LINKEDIN_RAW_DIR]))
 
 
 def main():
@@ -1287,15 +972,16 @@ def main():
     if args.incremental:
         from sbk_config import check_inputs_changed
 
-        if not check_inputs_changed("li-l1", [RAW_LINKEDIN_DIR, note_attio()]):
+        if not check_inputs_changed("li-l1", _li_inputs()):
             log.info("Incremental: inputs unchanged — skipping")
             mark_last_run("li-l1")
             return
 
 
-    if not RAW_LINKEDIN_DIR.exists():
-        log.error(f"LinkedIn raw directory not found: {RAW_LINKEDIN_DIR}")
-        sys.exit(1)
+    if not any(d.exists() for d in _li_inputs()):
+        # First run: nothing imported or downloaded yet. Nothing to do, not an error.
+        log.info(f"LinkedIn: nothing imported yet in {LINKEDIN_RAW_DIR}, nothing to do")
+        return
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -1311,22 +997,22 @@ def main():
     export_invitations = load_export_invitations()
 
     if not threads_complete and not sales_nav:
-        log.error("No conversation data loaded. Check raw directory.")
-        sys.exit(1)
+        if export_connections is None and export_invitations is None:
+            log.info(
+                "LinkedIn: no conversations and no imported data export yet "
+                "(tools/linkedin/li-l0-import-export.py), nothing to do"
+            )
+            return
+        log.info("LinkedIn: no conversation files, building from your data export only")
 
 
     profile_enrichment = build_profile_enrichment_map()
 
 
-    leadsync = righe_leadsync_nuove(
-        aggiorna_leadsync(scrivi=not args.dry_run), threads_complete, sales_nav, export_invitations
-    )
-
     steps_to_run = [args.step] if args.step else STEP_NAMES
 
     contacts_df = None
     interactions_df = None
-    investors_df = None
 
 
     if "contacts" in steps_to_run:
@@ -1337,7 +1023,6 @@ def main():
             profile_enrichment,
             export_connections,
             export_invitations,
-            leadsync=leadsync,
         )
         if not args.dry_run:
             out = PROCESSED_DIR / "contacts-linkedin.parquet"
@@ -1346,20 +1031,10 @@ def main():
 
 
     if "interactions" in steps_to_run:
-        interactions_df = build_interactions(
-            threads_complete, sales_nav, export_invitations, leadsync=leadsync
-        )
+        interactions_df = build_interactions(threads_complete, sales_nav, export_invitations)
         if not args.dry_run:
             out = PROCESSED_DIR / "interactions-linkedin.parquet"
             safe_write_parquet(interactions_df, out, index=False)
-            log.info(f"  Saved -> {out}")
-
-
-    if "investors" in steps_to_run:
-        investors_df = build_investors()
-        if not args.dry_run:
-            out = PROCESSED_DIR / "investors-linkedin.parquet"
-            safe_write_parquet(investors_df, out, index=False)
             log.info(f"  Saved -> {out}")
 
 
@@ -1372,22 +1047,17 @@ def main():
                 profile_enrichment,
                 export_connections,
                 export_invitations,
-                leadsync=leadsync,
             )
         if interactions_df is None:
             interactions_df = build_interactions(
                 threads_complete,
                 sales_nav,
                 export_invitations,
-                leadsync=leadsync,
             )
-        if investors_df is None:
-            investors_df = build_investors()
 
         summary = build_summary(
             contacts_df,
             interactions_df,
-            investors_df,
             threads_complete,
             sales_nav,
         )
@@ -1408,13 +1078,11 @@ def main():
         log.info(f"  Contacts:     {len(contacts_df)}")
     if interactions_df is not None:
         log.info(f"  Interactions: {len(interactions_df)}")
-    if investors_df is not None:
-        log.info(f"  Investors:    {len(investors_df)}")
     if not args.dry_run:
         log.info(f"\n  Output: {PROCESSED_DIR}")
         from sbk_config import save_input_checkpoint
 
-        save_input_checkpoint("li-l1", [RAW_LINKEDIN_DIR, note_attio()])
+        save_input_checkpoint("li-l1", _li_inputs())
         mark_last_run("li-l1")
 
 

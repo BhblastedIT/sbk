@@ -16,7 +16,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from app.core.task_utils import safe_create_task
-from sbk_config import DATA_ROOT, to_utc_aware, utc_now
+from sbk_config import (
+    DATA_ROOT,
+    automatic_cascades_on,
+    source_listed,
+    to_utc_aware,
+    utc_now,
+)
 
 if TYPE_CHECKING:
     from app.core.cascade_monitor import CascadeMonitor
@@ -96,15 +102,22 @@ DEFAULT_SCHEDULES: dict[str, dict] = {
     "slack": {"l1": 0, "recommended": "Recommended: L1 every hour"},
     "slack-dm": {"l0": 0, "recommended": "Recommended: L0 every 5 min"},
     "whatsapp": {"l1": 0, "recommended": "Manual only (chat export from your phone)"},
-    "linkedin": {"l0": 0, "l1": 0, "recommended": "Manual only (browser scrape)"},
-    "plaud": {"l0": 0, "l1": 0, "recommended": "Manual only (Playwright scrape)"},
-    "tactiq": {"l0": 0, "l1": 0, "recommended": "Recommended: L0 weekly"},
+    "linkedin": {"l0": 0, "l1": 0, "recommended": "Manual only (your LinkedIn data export)"},
+    "plaud": {
+        "l0": 0,
+        "l1": 0,
+        "recommended": "Manual only (Plaud desktop app session; L0 needs \"plaud\" in enabled_sources)",
+    },
+    "tactiq": {
+        "l0": 0,
+        "l1": 0,
+        "recommended": "L0 weekly (Tactiq web app session in Chrome; needs \"tactiq\" in enabled_sources)",
+    },
     "notion": {"l0": 0, "l1": 0, "recommended": "Recommended: L0 daily"},
     "chatgpt": {"l1": 0, "recommended": "Manual only (JSON export)"},
     "gdrive": {"l0": 0, "l1": 0, "recommended": "Recommended: L0 daily"},
-    "docusign": {"l0": 0, "l1": 0, "recommended": "Manual only (scrape)"},
+    "docusign": {"l0": 0, "l1": 0, "recommended": "Manual only (DocuSign API, ds-l0-api.py)"},
     "personio": {"l1": 0, "recommended": "Recommended: L1 weekly"},
-    "iphone": {"recommended": "Manual only (VCF export)"},
     "voicememos": {"l0": 0, "l1": 0, "recommended": "Manual only"},
     "calendar": {"l0": 0, "recommended": "Recommended: L0 daily"},
     "cross-source": {"l2": 0, "l3": 0, "recommended": "Manual after L1 batch"},
@@ -207,14 +220,14 @@ _STATUS_REGEN_DEBOUNCE_SEC = 300
 
 
 
-_AUTOPILOT_OFF_FLAG = Path.home() / ".sbk-data" / "AUTOPILOT_OFF"
+# Automatic cascades off (sb-pipeline-ctl.py off) = the scheduler starts nothing either.
+def _cascades_off() -> bool:
+    return not automatic_cascades_on()
 
 
-def _autopilot_off() -> bool:
-    try:
-        return _AUTOPILOT_OFF_FLAG.exists()
-    except OSError:
-        return False
+# L0 downloads that read a login session of an app or a browser on this Mac: the scheduler
+# starts them only when their source is written in enabled_sources (sbk.config.json).
+_L0_SESSIONE = frozenset({"plaud", "tactiq"})
 
 
 class AutoScheduler:
@@ -298,7 +311,7 @@ class AutoScheduler:
 
 
 
-        if _autopilot_off():
+        if _cascades_off():
             return
 
         config = load_schedule_config()
@@ -319,6 +332,8 @@ class AutoScheduler:
                 if not isinstance(interval_min, int) or interval_min <= 0:
                     continue
                 if (source_id, stage) in _SENZA_COMANDO_DALLA_DASHBOARD:
+                    continue
+                if stage == "l0" and source_id in _L0_SESSIONE and not source_listed(source_id):
                     continue
 
 

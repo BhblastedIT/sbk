@@ -41,7 +41,21 @@ from zoneinfo import ZoneInfo
 _TOOLS = Path(__file__).resolve().parents[1]
 
 
-LISTA = os.environ.get("SB_COSE_LISTA", "900000000000")
+def _config(chiave: str) -> str:
+    """A text value of sbk.config.json ("clickup.tasks_list"), "" when it is not set."""
+    if str(_TOOLS) not in sys.path:
+        sys.path.insert(0, str(_TOOLS))
+    try:
+        from sbk_config import user_cfg
+    except ImportError:
+        return ""
+    v = user_cfg(chiave, "")
+    return str(v).strip() if isinstance(v, str | int) and not isinstance(v, bool) else ""
+
+
+# The ClickUp list your tasks are read from (one-time import into the tasks engine):
+# "clickup": {"tasks_list": "<list id>"} in sbk.config.json. No default: unset = no import.
+LISTA = os.environ.get("SB_COSE_LISTA") or _config("clickup.tasks_list")
 API = "https://api.clickup.com/api/v2"
 
 CARTELLA = Path(
@@ -276,6 +290,10 @@ TESTI: dict[str, str] = {
 
     "errore_clickup": "ClickUp is not responding.",
     "errore_rete": "The Mac is not connected to the internet.",
+    "errore_lista": (
+        "No ClickUp list is set for your tasks. Put its id in sbk.config.json, "
+        '"clickup": {"tasks_list": "<list id>"}, then try again.'
+    ),
     "errore_troppe": "ClickUp refused due to too many requests in a row.",
     "errore_rifiutato": "ClickUp refused the change.",
     "errore_strano": "ClickUp replied in a way I do not understand.",
@@ -355,6 +373,8 @@ def _api(metodo: str, percorso: str, corpo: dict | None = None) -> dict:
 
 
 def _leggi_clickup() -> list[dict]:
+    if not LISTA:
+        raise Errore("errore_lista")
     task: list[dict] = []
     pagina = 0
     while pagina < 20:

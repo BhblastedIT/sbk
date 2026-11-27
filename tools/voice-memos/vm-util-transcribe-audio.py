@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
+"""Transcribes a folder of audio files with whisper.cpp and separates the speakers, writing one JSON transcript per
+file with timestamps, speakers and metadata.
+"""
 
 import argparse
 import concurrent.futures

@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Query router: decides whether a question goes to the structured episodes/KNOWS queries (who attended, who knows
+about, when) or to the semantic search, and runs it.
+"""
 
 from __future__ import annotations
 
@@ -57,6 +38,8 @@ _EP_INTENTS = [
         [
             r"\bchi\s+(?:c'?\s*era|era(?:no)?|ha partecipato|erano present[ei])\b.*\b(?:riunione|meeting|call|episodio|ep_)\b",
             r"\bpartecipant[ei]\b.*\bep_\w+",
+            r"\bwho\s+(?:was\s+(?:there|present)|attended|took\s+part)\b.*\b(?:meeting|call|episode|ep_)",
+            r"\bparticipants?\b.*\bep_\w+",
         ],
     ),
 
@@ -66,6 +49,8 @@ _EP_INTENTS = [
             r"\bchi\s+(?:sa|conosce|e'?\s+a\s+conoscenza)\b.*\b(?:di|del|della|dei|delle|sul|sulla)\b",
             r"\bchi\s+ha\s+(?:avuto\s+)?accesso\b",
             r"\bchi\s+(?:e'?\s+)?(?:informato|al corrente)\b",
+            r"\bwho\s+(?:knows|is\s+aware|is\s+informed)\s+(?:about|of)\b",
+            r"\bwho\s+(?:has\s+)?had\s+access\b",
         ],
     ),
 
@@ -75,6 +60,9 @@ _EP_INTENTS = [
             r"\bcon\s+chi\b.*\b(?:mi\s+(?:vedo|incontro)|ho\s+(?:piu'?\s+)?(?:meeting|riunion|incontr|interazion))\b",
             r"\bcome\s+(?:ho\s+)?conosc\w+\b",
             r"\bprimo\s+(?:incontro|meeting|episodio)\s+con\b",
+            r"\bwith\s+whom\b.*\b(?:do\s+i\s+meet|have\s+i\s+(?:had\s+)?(?:the\s+)?(?:most\s+)?(?:meetings|interactions))\b",
+            r"\bhow\s+did\s+i\s+(?:meet|get\s+to\s+know)\b",
+            r"\bfirst\s+(?:meeting|episode)\s+with\b",
         ],
     ),
 
@@ -84,6 +72,9 @@ _EP_INTENTS = [
             r"\b(?:quali|che)\s+(?:meeting|riunion\w+|episod\w+|incontr\w+)\b.*\bcon\b",
             r"\b(?:meeting|riunion\w+|episod\w+|incontr\w+)\s+(?:con|avut[oi]\s+con)\b",
             r"\bcosa\s+ho\s+fatto\s+con\b",
+            r"\b(?:which|what)\s+(?:meetings?|episodes?)\b.*\bwith\b",
+            r"\b(?:meetings?|episodes?)\s+(?:with|held\s+with|had\s+with)\b",
+            r"\bwhat\s+did\s+i\s+do\s+with\b",
         ],
     ),
 ]
@@ -108,7 +99,7 @@ def _extract_ep_id(query: str) -> str | None:
 def _extract_subject(query: str) -> str:
     ""
     m = re.search(
-        r"\b(?:di|del|della|dei|delle|sul|sulla|sui|sulle|su|riguardo)\s+(.+?)[\?\.!]*$",
+        r"\b(?:di|del|della|dei|delle|sul|sulla|sui|sulle|su|riguardo|about|regarding|of)\s+(.+?)[\?\.!]*$",
         query,
         re.IGNORECASE,
     )

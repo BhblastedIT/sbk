@@ -624,13 +624,6 @@ def build_full_index() -> dict[str, dict]:
 
 
 def main():
-    if not acquire_pid_lock("sl-l0-download-dm", logger=log):
-
-
-
-        log.warning("Another instance is running, exiting")
-        sys.exit(75)
-
     parser = argparse.ArgumentParser(description="Slack L0 Download DM -- SBK")
     parser.add_argument(
         "--dry-run",
@@ -644,6 +637,10 @@ def main():
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Debug logging")
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    if not acquire_pid_lock("sl-l0-download-dm", logger=log):
+        log.warning("Another instance is running, exiting")
+        sys.exit(75)
 
 
     log_level = logging.DEBUG if args.verbose else logging.INFO

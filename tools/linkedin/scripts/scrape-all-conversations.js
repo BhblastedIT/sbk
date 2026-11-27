@@ -34,6 +34,9 @@
 
 const { chromium } = require('playwright');
 const fs = require('fs');
+// Files go under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo or the current folder.
+const LI_RAW = require('path').join(process.env.SBK_DATA_ROOT || require('path').join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw');
+fs.mkdirSync(LI_RAW, { recursive: true });
 
 const safety = require('./li-safety.js');
 const {
@@ -44,8 +47,10 @@ const {
 } = safety;
 
 const LINKEDIN_STORAGE = './linkedin-session.json';
-const MY_URN = 'ACoAAEXAMPLE_URN_PLACEHOLDER';
-const OUTPUT_FILE = './data/linkedin/linkedin-all-conversations-raw.json';
+const ownUrn = require('./li-own-urn.js');
+// Your own member id: SBK_LINKEDIN_OWN_URN or sbk.config.json linkedin.own_urn, else read from the mailbox the messaging page asks for.
+let MY_URN = ownUrn.ownUrnFromConfig();
+const OUTPUT_FILE = require('path').join(LI_RAW, 'linkedin-all-conversations-raw.json');
 
 
 
@@ -110,10 +115,12 @@ function parseGraphqlConversation(conv) {
     return { name: 'Unknown', urn: p?.hostIdentityUrn || '' };
   });
 
-  const otherParticipants = participants.filter(p => !p.urn.includes(MY_URN));
+  // An unknown id must never match everyone ('x'.includes('') is true).
+  const isMe = (urn) => Boolean(MY_URN) && (urn || '').includes(MY_URN);
+  const otherParticipants = participants.filter(p => !isMe(p.urn));
 
   const messages = (conv.messages?.elements || []).map(msg => ({
-    senderIsMe: (msg.sender?.hostIdentityUrn || '').includes(MY_URN),
+    senderIsMe: isMe(msg.sender?.hostIdentityUrn),
     body: msg.body?.text || '',
     deliveredAt: msg.deliveredAt ? new Date(msg.deliveredAt).toISOString() : null,
     subject: msg.subject || null,
@@ -192,6 +199,13 @@ function parseGraphqlConversation(conv) {
 
     if (!isMessaging) return;
     if (response.status() !== 200) return;
+    if (!MY_URN) {
+      // the conversation queries name your own mailbox: mailboxUrn:urn:li:fsd_profile:<your id>
+      let decoded = url;
+      try { decoded = decodeURIComponent(url); } catch (e) {}
+      const m = decoded.match(/mailboxUrn:urn:li:fsd_profile:(ACoA[A-Za-z0-9_-]+)/);
+      if (m) MY_URN = m[1];
+    }
 
     try {
       const json = JSON.parse(text);
@@ -206,7 +220,7 @@ function parseGraphqlConversation(conv) {
           for (const conv of queryResult.elements) {
             const urn = conv.entityUrn || conv.backendUrn;
             if (urn && !conversationMap.has(urn)) {
-              conversationMap.set(urn, parseGraphqlConversation(conv));
+              conversationMap.set(urn, conv); // parsed at the end, when your own id is known
               newCount++;
             }
           }
@@ -305,11 +319,18 @@ function parseGraphqlConversation(conv) {
 
     console.log(`\nScrolling complete: ${conversationMap.size} conversations\n`);
 
-    const allConvos = [...conversationMap.values()];
+    if (!MY_URN) {
+      console.error(
+        '  Your own LinkedIn id was not seen, so your sent messages cannot be marked. Set "linkedin": ' +
+          '{"own_urn": "ACoA..."} in sbk.config.json or SBK_LINKEDIN_OWN_URN, then run again.'
+      );
+    }
+    const allConvos = [...conversationMap.values()].map(parseGraphqlConversation);
     const withMySent = allConvos.filter(c => c.hasMySentMessage);
 
     const output = {
       fetchedAt: new Date().toISOString(),
+      myUrn: MY_URN, // read by fetch-conversation-messages.js
       stats: {
         totalConversations: allConvos.length,
         withInlineMessages: allConvos.filter(c => c.inlineMessages.length > 0).length,

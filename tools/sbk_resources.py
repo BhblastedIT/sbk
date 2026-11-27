@@ -1,37 +1,11 @@
 #!/usr/bin/env python3
-""
+"""Shared memory budget for SBK jobs on this Mac.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+It measures the machine as it is now (total RAM, compressor pressure, the memory of interactive sessions,
+Chrome, Docker and the system) and gives each job its share of what is left, through leases on files under
+<data root>/runtime/leases. In code: budget(), job_cap(), configure_duckdb(con). Run as a script to print how the
+machine is shared right now.
+"""
 
 from __future__ import annotations
 
@@ -309,7 +283,9 @@ def tree_footprint(pid: int) -> int:
 
 
 
-LEASE_DIR = DATA_ROOT_FALLBACK = Path.home() / ".sbk-data" / "runtime" / "leases"
+LEASE_DIR = DATA_ROOT_FALLBACK = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data") / "runtime" / "leases"
+)
 
 
 def _proc_starttime(pid: int) -> str:
@@ -1041,6 +1017,9 @@ def wait_for_headroom(
 
 
 if __name__ == "__main__":
+    import argparse
+
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
     st = shared_state()
     b = budget()
     p = b.pressure

@@ -2,7 +2,7 @@
 
 Personal access only: your own mailbox password for apps (app-specific password), your own
 CalDAV app password, your own private ICS link, or, for Outlook.com, a token from your own
-app registration. No admin scopes, no delegation, no service accounts.
+app registration. No admin scopes and no organisation-wide access: only your own account.
 
 The plugin writes into the EXISTING kernel slots:
   mail     -> <data root>/emails/<account>/messages.parquet   (read by tools/email/em-l1-enrich.py)

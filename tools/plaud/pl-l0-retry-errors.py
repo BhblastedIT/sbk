@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
+"""Plaud: retries the transcripts that failed in the last download (<data root>/plaud/_errors.json) and keeps only
+the ones still failing.
+"""
 
 import argparse
 import json

@@ -1,25 +1,13 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Voice naming queue: from the voice clusters, the voices worth naming first (how many recordings they cover),
+with sample quotes and guesses from the slots already named; --dossier writes full cards.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -30,8 +18,16 @@ if str(_TOOLS) not in sys.path:
 
 from sbk_config import is_own_name, is_owner_speaker  # noqa: E402
 
-RAW_DIR = Path.home() / ".sbk-data" / "plaud" / "raw"
-EMB_DIR = Path.home() / ".sbk-data" / "plaud" / "embeddings"
+RAW_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "raw"
+)
+EMB_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "embeddings"
+)
 CLUSTERS_PATH = EMB_DIR / "voice-clusters.json"
 EMB_PATH = EMB_DIR / "speaker-embeddings.json"
 
@@ -163,17 +159,17 @@ def build_dossier(queue: list[dict], max_notes: int = 5) -> str:
 
     emb = json.loads(EMB_PATH.read_text())
     index = {str(e["id"]): e for e in json.loads((RAW_DIR / "_file_index.json").read_text())}
-    out = ["# Coda di battesimo — card-dossier", ""]
+    out = ["# Voice naming queue, dossier cards", ""]
     out.append(
-        f"{len(queue)} voci · {sum(q['slots'] for q in queue)} slot · battezzare una voce = risolvere TUTTE le sue note\n"
+        f"{len(queue)} voices · {sum(q['slots'] for q in queue)} slots · naming a voice = resolving ALL its notes\n"
     )
     for n, q in enumerate(queue, 1):
         out.append(
-            f"## Voce #{n} — {q['slots']} slot in {q['notes']} note · {q['speech_min']} min · {q['date_range'][0]} → {q['date_range'][1]}"
+            f"## Voice #{n}, {q['slots']} slots in {q['notes']} notes · {q['speech_min']} min · {q['date_range'][0]} → {q['date_range'][1]}"
         )
         anc = ", ".join(f"{k}×{v}" for k, v in q["anchors"].items())
         if anc:
-            out.append(f"Ipotesi dagli slot nominati nel cluster: **{anc}**")
+            out.append(f"Guesses from the named slots in the cluster: **{anc}**")
         for quote in q["quotes"]:
             out.append(f'> "{quote}"')
         out.append("")
@@ -196,7 +192,7 @@ def build_dossier(queue: list[dict], max_notes: int = 5) -> str:
                 if not (is_own_name(x) or is_owner_speaker(x)) and not re.match(r"^U[A-Z0-9]{8,}$", x)
             ]
             named = ", ".join(named_list[:4]) or "—"
-            out.append(f"- **{when}** ({dur:.0f}m) «{title}» · con (già nominati): {named}")
+            out.append(f"- **{when}** ({dur:.0f}m) «{title}» · with (already named): {named}")
             for ev in (ctx.get("calendar_events") or [])[:2]:
                 out.append(
                     f"  - 📅 «{ev['title']}»"
@@ -204,7 +200,7 @@ def build_dossier(queue: list[dict], max_notes: int = 5) -> str:
                     + (" [call-link]" if ev.get("has_link") else "")
                 )
             for pp in (ctx.get("attendee_pool") or [])[:4]:
-                out.append(f"  - 👤 invitato: {pp['name']}")
+                out.append(f"  - 👤 invitee: {pp['name']}")
             for h in (ctx.get("email_hits") or [])[:2]:
                 ppl = ", ".join(x["name"] for x in h["people"][:3])
                 out.append(f"  - ✉️ {h['when'][11:16]} «{h['subject'][:60]}» ({ppl})")
@@ -212,40 +208,40 @@ def build_dossier(queue: list[dict], max_notes: int = 5) -> str:
             for sl in ctx.get("slack_activity") or []:
                 if re.match(r"^U[A-Z0-9]{8,}$", sl["person"]) or sl_shown >= 2:
                     continue
-                out.append(f"  - 💬 slack con {sl['person']} ({sl['messages']} msg ±3h)")
+                out.append(f"  - 💬 slack with {sl['person']} ({sl['messages']} msg ±3h)")
                 sl_shown += 1
         if len(fids) > max_notes:
-            out.append(f"- … e altre {len(fids) - max_notes} note")
+            out.append(f"- … and {len(fids) - max_notes} more notes")
         out.append("")
     return "\n".join(out)
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Coda di battesimo dai cluster voce")
+    ap = argparse.ArgumentParser(description="Voice naming queue from the voice clusters")
     ap.add_argument("--min-slots", type=int, default=2)
     ap.add_argument("--quotes", type=int, default=2)
-    ap.add_argument("--json", action="store_true", help="output JSON (per la card UI)")
-    ap.add_argument("--dossier", help="scrive le card-dossier complete nel file indicato")
+    ap.add_argument("--json", action="store_true", help="JSON output (for the UI card)")
+    ap.add_argument("--dossier", help="write the full dossier cards to this file")
     args = ap.parse_args()
 
     queue = build_queue(min_slots=args.min_slots, quotes=args.quotes)
     if args.dossier:
         md = build_dossier(queue)
         Path(args.dossier).write_text(md)
-        print(f"dossier scritto: {args.dossier} ({len(queue)} voci)")
+        print(f"dossier written: {args.dossier} ({len(queue)} voices)")
         return 0
     if args.json:
         print(json.dumps(queue, ensure_ascii=False, indent=1))
         return 0
 
     tot_slots = sum(q["slots"] for q in queue)
-    print(f"CODA DI BATTESIMO: {len(queue)} voci, {tot_slots} slot coperti da battezzare\n")
+    print(f"VOICE NAMING QUEUE: {len(queue)} voices, {tot_slots} covered slots to name\n")
     for n, q in enumerate(queue, 1):
-        anc = ", ".join(f"{k}×{v}" for k, v in q["anchors"].items()) or "nessuna"
+        anc = ", ".join(f"{k}×{v}" for k, v in q["anchors"].items()) or "none"
         print(
-            f"── voce #{n} · {q['slots']} slot in {q['notes']} note · {q['speech_min']} min di parlato · {q['date_range'][0]}→{q['date_range'][1]} (sim {q['median_sim']})"
+            f"── voice #{n} · {q['slots']} slots in {q['notes']} notes · {q['speech_min']} min of speech · {q['date_range'][0]}→{q['date_range'][1]} (sim {q['median_sim']})"
         )
-        print(f"   ipotesi da slot nominati nel cluster: {anc}")
+        print(f"   guesses from the named slots in the cluster: {anc}")
         for quote in q["quotes"]:
             print(f'   » "{quote}"')
         print()

@@ -1,52 +1,7 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""The deposit of homeless facts: facts the pipeline refused to attach to a new entity (unknown, relationship,
+role...) are kept in deposito/fatti.jsonl instead of being lost. --riepilogo summarizes a deposit, --ripesca
+fishes facts back out by name, rule or id.
+"""
 
 from __future__ import annotations
 

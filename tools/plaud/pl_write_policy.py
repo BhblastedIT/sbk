@@ -1,32 +1,11 @@
 #!/usr/bin/env python3
-""
+"""Decides what to do with each speaker of a Plaud recording once its name has been resolved: write the name in
+the transcript (certain or suggested), only confirm it, keep Plaud's label, flag a conflict for review, or skip
+for lack of evidence; and whether to enroll the voice.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/plaud/pl_write_policy.py <resolutions.json>
+       (a JSON object speaker_id -> SpeakerResolution.to_dict(); prints the decisions, writes nothing)
+"""
 
 from __future__ import annotations
 
@@ -148,7 +127,7 @@ def decide_write(res: SpeakerResolution) -> WriteDecision:
                 None,
                 enroll=False,
                 certain=True,
-                reason=f"Plaud dice '{label}' e il motore concorda: identità confermata, nessun write",
+                reason=f"Plaud says '{label}' and the engine agrees: identity confirmed, no write",
             )
 
         proposes_other = res.proposed_name is not None and _norm(res.proposed_name) != _norm(label)
@@ -161,8 +140,8 @@ def decide_write(res: SpeakerResolution) -> WriteDecision:
                 enroll=False,
                 certain=False,
                 reason=(
-                    f"Plaud dice '{label}' ma il motore propone '{alt}': conflitto su un nome "
-                    "esistente -> all'utente, mai auto-overwrite (rischio di peggiorare)"
+                    f"Plaud says '{label}' but the engine proposes '{alt}': conflict on an existing "
+                    "name -> to you, never an automatic overwrite (it could make it worse)"
                 ),
             )
 
@@ -172,7 +151,7 @@ def decide_write(res: SpeakerResolution) -> WriteDecision:
             None,
             enroll=False,
             certain=False,
-            reason=f"Plaud dice '{label}', nessuna evidenza migliore: si mantiene",
+            reason=f"Plaud says '{label}', no better evidence: kept",
         )
 
 
@@ -187,7 +166,7 @@ def decide_write(res: SpeakerResolution) -> WriteDecision:
             res.proposed_name,
             enroll=True,
             certain=True,
-            reason="slot generico + nome corroborato da >=2 fonti indipendenti: scrivo e insegno la voce",
+            reason="generic slot + name backed by >=2 independent sources: write it and teach the voice",
         )
 
 
@@ -199,7 +178,7 @@ def decide_write(res: SpeakerResolution) -> WriteDecision:
             best.name,
             enroll=False,
             certain=False,
-            reason="slot generico, evidenza debole ma candidato risolto al KB: proposto (flaggato), no enrollment",
+            reason="generic slot, weak evidence but candidate resolved in the KB: proposed (flagged), no enrollment",
         )
 
     return WriteDecision(
@@ -208,7 +187,7 @@ def decide_write(res: SpeakerResolution) -> WriteDecision:
         None,
         enroll=False,
         certain=False,
-        reason="slot generico senza candidati: resta 'Speaker N'",
+        reason="generic slot with no candidates: stays 'Speaker N'",
     )
 
 
@@ -226,18 +205,16 @@ def summarize(decisions: dict[str, WriteDecision]) -> dict[str, int]:
 
 
 if __name__ == "__main__":
+    import argparse
     import json
 
-    if len(sys.argv) < 2:
-        print(
-            "uso: pl_write_policy.py <resolutions.json>  (dict speaker_id -> SpeakerResolution.to_dict)"
-        )
-        raise SystemExit(2)
-    raw = json.loads(Path(sys.argv[1]).read_text())
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("resolutions", help="JSON file: speaker_id -> SpeakerResolution.to_dict()")
+    raw = json.loads(Path(_ap.parse_args().resolutions).read_text())
     res = {sid: SpeakerResolution.from_dict(d) for sid, d in raw.items()}
     decs = decide_all(res)
     for sid, d in decs.items():
         print(
             f"{sid:12} {d.action.value:16} write={d.write_name!r:24} enroll={d.enroll} :: {d.reason}"
         )
-    print("\nRiepilogo:", summarize(decs))
+    print("\nSummary:", summarize(decs))

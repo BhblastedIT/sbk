@@ -23,10 +23,13 @@ const safety = require('./li-safety.js');
 const { LinkedInSafetyGuard, OK, GONE, TRANSIENT } = safety;
 
 
+// Under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo.
 const SESSION_FILE = process.env.LINKEDIN_SESSION
-  || path.join(__dirname, '..', '..', '..', 'sbk', 'raw', 'linkedin', 'linkedin-session.json');
+  || path.join(process.env.SBK_DATA_ROOT || path.join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw', 'linkedin-session.json');
 
-const MY_URN = 'ACoAAEXAMPLE_URN_PLACEHOLDER';
+const ownUrn = require('./li-own-urn.js');
+// Your own member id: SBK_LINKEDIN_OWN_URN or sbk.config.json linkedin.own_urn, else read from LinkedIn below.
+let MY_URN = ownUrn.ownUrnFromConfig();
 const VOYAGER_BASE = 'https://www.linkedin.com/voyager/api';
 
 
@@ -42,7 +45,7 @@ const sinceDate = sinceIdx >= 0 ? args[sinceIdx + 1] : '2020-01-01';
 const sinceDateMs = new Date(sinceDate + 'T00:00:00Z').getTime();
 
 const outputIdx = args.indexOf('--output');
-const OUTPUT_DIR = path.join(process.env.HOME, '.sbk-data', 'linkedin', 'raw');
+const OUTPUT_DIR = path.join(process.env.SBK_DATA_ROOT || path.join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw');
 const OUTPUT_FILE = outputIdx >= 0 ? args[outputIdx + 1]
   : path.join(OUTPUT_DIR, 'linkedin-threads-recent.json');
 
@@ -275,6 +278,7 @@ async function main() {
   if (!me) { console.error('Login failed.'); process.exit(1); }
   const myProfile = (me.included || []).find(e => (e['$type'] || '').indexOf('MiniProfile') >= 0);
   console.log('Logged in as: ' + (myProfile ? myProfile.firstName + ' ' + myProfile.lastName : 'unknown'));
+  MY_URN = ownUrn.requireOwnUrn(MY_URN || ownUrn.ownUrnFromMe(me));
   console.log('');
 
 

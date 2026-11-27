@@ -1,25 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Commitment tracker: checks the deadlines of the consolidated commitments (reminder 24 hours before, overdue),
+verifies with later facts whether they were kept, expires the stale ones, and shows statistics.
+"""
 
 from __future__ import annotations
 
@@ -185,6 +167,14 @@ def verify_commitments(
         return stats
 
     log.info("Verifying %d broken commitments (max %d)", len(candidates), max_verify)
+    if dry_run:
+        log.info(
+            "[DRY RUN] Nothing was sent to a model: --verify without --dry-run sends up to %d "
+            "commitment(s), each with up to 10 later facts, to Claude through the Anthropic API",
+            min(len(candidates), max_verify),
+        )
+        stats["skipped"] = min(len(candidates), max_verify)
+        return stats
 
     for c in candidates[:max_verify]:
         try:
@@ -347,6 +337,13 @@ Rules:
         sys.path.insert(0, str(_CROSS_SOURCE_DIR))
     from xs_anthropic_client import get_client
 
+    log.info(
+        "Sending commitment %s (%d characters: who, to whom, what, deadline, up to 300 characters of "
+        "the original context, up to 10 later facts) to Claude through the Anthropic API with your "
+        "ANTHROPIC_API_KEY to check it",
+        commitment.get("commitment_id", "?"),
+        len(prompt),
+    )
     client = get_client()
     response = client.messages.create(
         model="claude-haiku-4-5-20251001",
@@ -544,7 +541,9 @@ def main():
     parser.add_argument(
         "--verify",
         action="store_true",
-        help="Verify broken commitments with LLM (search for evidence)",
+        help="Check broken commitments with Claude: sends each one (who, to whom, what, deadline, its "
+        "context) with up to 10 later facts through the Anthropic API with your ANTHROPIC_API_KEY. "
+        "Only with this flag; --all never includes it",
     )
     parser.add_argument(
         "--expire", action="store_true", help="Expire stale commitments (no deadline, >30 days)"

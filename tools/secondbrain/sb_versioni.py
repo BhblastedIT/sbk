@@ -1,22 +1,9 @@
 #!/usr/bin/env python3
-""
+"""Versions of the SecondBrain app: the release manifest tools/secondbrain/versioni.json (current version and
+history), and the proposal for the next version from the commits that touched the app since the last release.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/secondbrain/sb_versioni.py [--bump]   (prints the manifest, or the proposed bump)
+"""
 
 from __future__ import annotations
 
@@ -168,9 +155,11 @@ def aggiungi_rilascio(
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    if "--bump" in sys.argv:
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("--bump", action="store_true", help="propose the next version from the commits since the last")
+    if _ap.parse_args().bump:
         print(json.dumps(proponi_bump(), ensure_ascii=False, indent=2))
     else:
         print(json.dumps(leggi(), ensure_ascii=False, indent=2))

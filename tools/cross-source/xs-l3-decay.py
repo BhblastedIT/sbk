@@ -1,31 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Relationship decay tracker: for each person, the contact timeline across sources, a score that decays with the
+time since the last contact, the tier (inner, sympathy, affinity, active) and alerts when a relationship is
+fading.
+"""
 
 from __future__ import annotations
 
@@ -693,6 +670,9 @@ def run_decay_analysis(
     today_str = today.isoformat()
 
     contacts_df = data.contacts.copy()
+    if contacts_df.empty or "person_id" not in contacts_df.columns:
+        log.warning("No merged contacts yet (enriched/contacts-merged.parquet): nothing to analyse")
+        return []
 
 
     valid_pids = set(contacts_df["person_id"].dropna().astype(str))
@@ -701,11 +681,15 @@ def run_decay_analysis(
     if "is_automated" in contacts_df.columns:
         contacts_df = contacts_df[contacts_df["is_automated"] != True]  # noqa: E712
     contacts_df = contacts_df[contacts_df["score"].fillna(0) > 0]
+    if contacts_df.empty:
+        # e.g. an address book alone: its people have no interaction to score yet
+        log.info("No contact with a relationship score yet: nothing to analyse")
+        return []
 
 
     if "name" in contacts_df.columns:
-        human_mask = ~contacts_df["name"].fillna("").apply(is_bot_or_service)
-        non_human_count = (~human_mask).sum()
+        human_mask = ~contacts_df["name"].fillna("").apply(is_bot_or_service).astype(bool)
+        non_human_count = int((~human_mask).sum())
         if non_human_count > 0:
             log.info(f"Filtered {non_human_count} non-human entities (bots/services)")
         contacts_df = contacts_df[human_mask]

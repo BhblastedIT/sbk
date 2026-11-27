@@ -1,33 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Moves into the organization folder the person entities the reclassification registry proved to be companies.
+Dry run by default; --esegui writes, with a journal.
+"""
 
 from __future__ import annotations
 

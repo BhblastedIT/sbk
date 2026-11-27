@@ -138,7 +138,8 @@ def notifications_panel(request: Request):
     bridge = request.app.state.bridge
     notifications = _aggregate_notifications(bridge)
 
-    return _templates.TemplateResponse(
+    templates = getattr(request.app.state, "templates", None) or _templates
+    return templates.TemplateResponse(
         "partials/notifications_panel.html",
         {"request": request, "notifications": notifications},
     )

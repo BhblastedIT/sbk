@@ -1,23 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Calendar daily stats: for each day, how many meetings, how many hours, the hour of the first and last one and
+the back-to-back meetings, from the events of every account (duplicates removed), into daily-stats.parquet.
+"""
 
 from __future__ import annotations
 

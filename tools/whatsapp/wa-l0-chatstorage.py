@@ -596,7 +596,7 @@ def main() -> int:
         "chat_senza_nome",
     ):
         print(f"  {k}: {conti[k]}")
-    print("  scarto dei gia' presenti, ore:", dict(sorted(scarti.items())))
+    print("  already present, discarded, by hour:", dict(sorted(scarti.items())))
     if not args.esegui:
         print("dry run: nothing written. To write, add --apply")
         return 0

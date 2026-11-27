@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Clinical alerts: from the lab values table, the markers out of range, worsening over time, close to a limit or
+improving, written to alerts.json.
+"""
 
 import argparse
 import json

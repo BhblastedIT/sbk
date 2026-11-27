@@ -1,20 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Deep extraction with Claude: reads your long documents (meetings, calls, CRM notes, email, Slack, voice memos)
+and extracts deep facts, commitments and decisions about people, with cost estimate (--dry-run), parallel or
+Batch API runs and a cache. The documents are sent to the Anthropic API.
+"""
 
 from __future__ import annotations
 
@@ -1746,6 +1734,8 @@ def main():
         help="Economy provider for smart routing (default: deepseek)",
     )
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    _acquire_lock()
 
     setup_logging(verbose=args.verbose, name="sbk-deep-extract")
 
@@ -1983,7 +1973,6 @@ from pipeline_decorator import pipeline_step
 
 @pipeline_step(name="l3-deep-extract", source="l3-deep-extract", stage="l3", mark_run=False)
 def _pipeline_run():
-    _acquire_lock()
     main()
 
 

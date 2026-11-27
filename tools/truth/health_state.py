@@ -1,20 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Health state of the pipeline units, built from their run receipts (ok, degraded, broken); --write saves
+health-state.json.
+"""
 
 from __future__ import annotations
 
@@ -58,7 +44,6 @@ DEFAULT_UNITS: tuple[str, ...] = (
     "chatgpt",
     "gdrive",
     "linkedin",
-    "leadsync",
     "contacts",
     "personio",
     "docusign",
@@ -281,7 +266,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.write:
         out = write_health_state(state, root=root)
-        print(f"scritto: {out}", file=sys.stderr)
+        print(f"written: {out}", file=sys.stderr)
     print(json.dumps(state, ensure_ascii=False, indent=2))
     return 0
 

@@ -1,26 +1,7 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Relationship score v4: event-driven, every event decays on its own; scores intimacy, interaction quality,
+communication quality, structure and trust into a 0-10 score with a confidence and momentum. Scores one person,
+the top N, or all (updating the cache).
+"""
 
 from __future__ import annotations
 
@@ -28,6 +9,7 @@ import argparse
 import json
 import logging
 import math
+import os
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -115,7 +97,11 @@ def _load_golden_tiers() -> dict[str, str]:
     if _GOLDEN_TIER_CACHE is not None:
         return _GOLDEN_TIER_CACHE
 
-    golden_path = Path("~/.sbk-data/rq/golden-ranking.json").expanduser()
+    golden_path = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "rq"
+        / "golden-ranking.json"
+    )
     if not golden_path.exists():
         _GOLDEN_TIER_CACHE = {}
         return _GOLDEN_TIER_CACHE
@@ -815,7 +801,11 @@ def score_person_v4(
 
 
     try:
-        golden_path = Path("~/.sbk-data/rq/golden-ranking.json").expanduser()
+        golden_path = (
+            Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+            / "rq"
+            / "golden-ranking.json"
+        )
         if golden_path.exists():
             import json as _json
 

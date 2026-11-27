@@ -6,8 +6,8 @@ struct PaginaSpesa: View {
     let stato: Stato
 
     var body: some View {
-        PaginaScorrevole(stato: stato, titolo: "Spending and keys",
-                         sottotitolo: "Paid steps are chosen one by one, the keys take turns") {
+        PaginaScorrevole(stato: stato, titolo: "Spending and API key",
+                         sottotitolo: "Paid steps are chosen one by one, and they use your ANTHROPIC_API_KEY") {
             SchedaLottiSospesi(lotti: stato.lotti_in_sospeso ?? [])
             SchedaSpesa(stato: stato)
             SchedaChiavi(chiavi: stato.chiavi ?? [])
@@ -105,39 +105,33 @@ struct SchedaChiavi: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TitoloGruppo(titolo: "Anthropic API keys", conteggio: "\(chiavi.count)")
+            TitoloGruppo(titolo: "Anthropic API key", conteggio: "")
             VStack(spacing: 0) {
                 if chiavi.isEmpty {
-                    Text("No key in the queue. To add one ask Claude, it puts it in the Keychain under its name.")
+                    Text("No information about ANTHROPIC_API_KEY yet.")
                         .foregroundStyle(.secondary)
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                ForEach(Array(chiavi.enumerated()), id: \.element.id) { i, c in
-                    if i > 0 { Separatore().padding(.leading, 62) }
+                ForEach(chiavi) { c in
                     HStack(spacing: 14) {
-                        TesseraIcona(simbolo: "key.fill", colore: c.paga == true ? .blue : Color(nsColor: .systemGray), lato: 32)
+                        TesseraIcona(simbolo: "key.fill", colore: c.presente == true ? .blue : Color(nsColor: .systemGray), lato: 32)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(c.nome).font(.headline)
-                            Text(c.origine.map { "Taken from \($0), kept in the Keychain" } ?? "In the Keychain")
+                            Text(c.origine.map { "Set in \($0)" } ?? "Not set in .env nor in the environment")
                                 .font(Testo.secondario).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: Spazio.fratelli)
                         Pillola(segnale: segnale(c))
                             .fixedSize()
-                        Text(uso(c))
-                            .font(Testo.secondario.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .frame(minWidth: 70, idealWidth: 150, maxWidth: 150, alignment: .trailing)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 12)
                 }
                 Separatore()
 
-                Label("Every run that spends charges the next key. A key whose quota ran out stays idle for a day, one rejected by Anthropic stays idle until you replace it. Here you only see the names, the keys live in the Keychain.",
-                      systemImage: "arrow.triangle.2.circlepath")
+                Label("Every paid step uses this one key. Put it in .env (or in the environment) to turn the paid steps on, remove it to turn them off. Here you only see whether it is set, never its value.",
+                      systemImage: "key.fill")
                     .font(Testo.secondario)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -149,25 +143,9 @@ struct SchedaChiavi: View {
     }
 
     private func segnale(_ c: Chiave) -> Segnale {
-        if c.presente == false {
-            return Segnale(salute: .errore, parola: "missing from the Keychain")
+        if c.presente == true {
+            return Segnale(salute: .ok, simbolo: "checkmark.circle.fill", parola: "set")
         }
-        if let errore = c.errore {
-
-
-            let altra = chiavi.contains { $0.paga == true }
-            return Segnale(salute: altra ? .neutra : .attenzione, parola: "\(errore), set aside")
-        }
-
-
-        if c.paga == true {
-            return Segnale(salute: .ok, simbolo: "arrow.right.circle.fill", parola: "its turn")
-        }
-        return Segnale(salute: .neutra, simbolo: "clock", parola: "reserve")
-    }
-
-    private func uso(_ c: Chiave) -> String {
-        guard let t = c.ultimo_uso else { return "never used from here" }
-        return "used " + Quando.frase(Quando.parser.string(from: Date(timeIntervalSince1970: t)))
+        return Segnale(salute: .errore, parola: "missing")
     }
 }

@@ -1,21 +1,88 @@
 #!/usr/bin/env python3
-""
+"""Builds the Plaud overview page: a single HTML file with the recordings that still have unnamed speakers, their
+calendar context and the naming progress, from <data root>/plaud/quadro/quadro.json (written by pl_quadro.py).
 
-
-
-
-
-
+Writes <data root>/plaud/quadro/pagina/index.html.
+"""
 
 from __future__ import annotations
 
+import argparse
 import html
 import json
 import os
+import sys
 from pathlib import Path
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 QUADRO = DATA / "plaud" / "quadro"
+
+# English labels of the codes pl_quadro.py writes into quadro.json. The codes stay as they are in
+# the data (the app, the rules and the measures read them); the page shows these labels instead.
+ETICHETTE = {
+    # how solid a speaker's name is
+    "confermato": "confirmed",
+    "solido": "solid",
+    "una prova": "one proof",
+    "solo nome": "name only",
+    "sospetto": "suspect",
+    "smentito": "denied",
+    "senza nome": "no name",
+    # proofs for a name
+    "calendario": "calendar",
+    "testo": "text",
+    "agenti con citazione": "agents with a quote",
+    "voce (Plaud, proprietario)": "voice (Plaud, your own)",
+    # signals against a name, and warnings
+    "il testo la chiama con un altro nome": "the text calls them by another name",
+    "stesso nome su più speaker": "the same name on several speakers",
+    "il proprietario su più speaker": "you on several speakers",
+    "nome di più persone nel KB": "a name of several people in the knowledge base",
+    "solo il nome di battesimo": "first name only",
+    # where a name comes from
+    "il proprietario": "you",
+    "noi": "SBK",
+    "Plaud o il proprietario": "Plaud or you",
+    # how a recording was made
+    "registratore": "recorder",
+    "app": "app",
+    "audio importato": "imported audio",
+    "esempio di Plaud": "Plaud example",
+    "altro": "other",
+    "non letto": "not read",
+    # confidence bands of the proposed names
+    "90% e oltre": "90% and over",
+    "sotto il 50%": "below 50%",
+    # state of an activity
+    "fatto": "done",
+    "in corso": "in progress",
+    "da fare": "to do",
+    "aspetta te": "waiting for you",
+}
+
+
+def etichetta(codice: str) -> str:
+    """The English label of a quadro.json code; anything else is shown as it is."""
+    return ETICHETTE.get(codice, codice)
+
+
+def _in_inglese(voci: list) -> list:
+    """The verification rows with their proofs, signals against and warnings as English labels."""
+    out = []
+    for v in voci:
+        if isinstance(v, dict):
+            v = {
+                **v,
+                **{
+                    k: [etichetta(x) if isinstance(x, str) else x for x in v[k]]
+                    for k in ("prove", "contro", "avvisi")
+                    if isinstance(v.get(k), list)
+                },
+            }
+        out.append(v)
+    return out
 
 
 def compatta(q: dict) -> dict:
@@ -45,17 +112,23 @@ def compatta(q: dict) -> dict:
 
     _mesi = sorted({m["mese"] for m in q.get("per_mese", []) if m.get("mese")})
     _cut = _mesi[-12] if len(_mesi) > 12 else (_mesi[0] if _mesi else "")
+    lotto = (
+        json.loads((QUADRO / "lotto-verifiche.json").read_text())
+        if (QUADRO / "lotto-verifiche.json").exists()
+        else {}
+    )
+    if isinstance(lotto, dict) and isinstance(lotto.get("voci"), list):
+        lotto = {**lotto, "voci": _in_inglese(lotto["voci"])}
 
     return {
+        "etichette": ETICHETTE,
         "generato": q.get("generato"),
         "obiettivo": q.get("obiettivo"),
         "perche": q.get("perche"),
         "metodo": q.get("metodo"),
         "indizi": [{k: v for k, v in i.items() if k != "casi"} for i in q.get("indizi", [])],
         "fiducia": q.get("fiducia_nomi", {}),
-        "lotto": json.loads((QUADRO / "lotto-verifiche.json").read_text())
-        if (QUADRO / "lotto-verifiche.json").exists()
-        else {},
+        "lotto": lotto,
         "attivita": q.get("attivita"),
         "totali": q.get("totali"),
         "nomi": q.get("nomi"),
@@ -174,10 +247,11 @@ const n=x=>(x??0).toLocaleString('en-US');
 const ore=m=>m>=60?`${Math.floor(m/60)} h ${String(Math.round(m%60)).padStart(2,'0')}`:`${Math.round(m)} min`;
 const data=s=>s?s.slice(8,10)+'/'+s.slice(5,7)+'/'+s.slice(2,4):'';
 const link=id=>`https://web.plaud.ai/file/${id}`;
+const EN=k=>(D.etichette||{})[k]??k;
 const COL={"confermato":"#2f6f62","solido":"#5c9b8b","una prova":"#a9cfc4","solo nome":"#ddd8cc","sospetto":"#e2b65c","smentito":"#c47a6c","senza nome":"#f0ede6"};
 const st=D.storia||[];const s0=st[0]||{};const sN=st[st.length-1]||{};
 function kpi(v,t,c=''){return `<div class="kpi ${c}"><b>${v}</b><span>${t}</span></div>`}
-function stato(s){const c=s==='fatto'?'fatto':s==='in corso'?'corso':s==='aspetta te'?'te':'';return `<span class="pill ${c}">${e(s)}</span>`}
+function stato(s){const c=s==='fatto'?'fatto':s==='in corso'?'corso':s==='aspetta te'?'te':'';return `<span class="pill ${c}">${e(EN(s))}</span>`}
 let h='';
 h+=`<h1>Plaud, who's speaking</h1><p class="sub">${e(D.obiettivo?.frase)}<br><span class="small">Updated on ${e((D.generato||'').slice(0,16).replace('T',' at '))} · ${n(D.totali.registrazioni)} recordings, ${n(D.totali.ore)} hours</span></p>`;
 // where we are
@@ -274,7 +348,7 @@ if(RG.length||(D.indizi||[]).length){
  if(SB.length)h+=`<h3 class="fig">Ready rules waiting for a datum</h3><div class="sblocchi">${SB.map(r=>`<div class="sb"><b>${e(r.regola)}</b><span>${e(r.sottotipo)}</span><small>${e(r.stato_perche)}</small></div>`).join('')}</div>`;
  if((D.indizi||[]).length)h+=`<details><summary>How much your answers weigh, the earlier calculation</summary><p class="small muted">Every time you tell me «it's him» or «it's not him», the rules that pointed to that name gain or lose weight. Today it rests on few verifications, so it is a signal. It becomes a measure with the batch below, chosen at random.</p><table class="resp"><thead><tr><th>Clue</th><th class="n">Weight</th><th class="n">Correct</th><th class="n">Wrong</th><th>Starting point</th></tr></thead><tbody>`+
  D.indizi.map(i=>`<tr><td><b>${e(i.indizio)}</b></td><td class="n">${Math.round(i.punteggio*100)}%</td><td class="n">${i.giusti}</td><td class="n">${i.sbagliati}</td><td class="small muted">${Math.round(i.partenza*100)}%, ${e(i.perche_partenza)}</td></tr>`).join('')+`</tbody></table>`+
- `<p class="small muted" style="margin-top:10px">With these weights, of the names present: ${Object.entries(D.fiducia||{}).map(([k,v])=>`${n(v)} with confidence ${k}`).join(', ')}.</p></details>`;
+ `<p class="small muted" style="margin-top:10px">With these weights, of the names present: ${Object.entries(D.fiducia||{}).map(([k,v])=>`${n(v)} with confidence ${e(EN(k))}`).join(', ')}.</p></details>`;
  h+=`</section>`;}
 const LV=(D.lotto||{}).voci||[];
 if(LV.length){const BL=[['tua voce','Is this your voice?','Answer yes or no.'],['seconda voce','Is this your voice too?','You are already on another voice from the same recording. Yes or no.'],['altre persone','Who is speaking?','Choose 1, 2 or 3, or write the right name.'],['etichetta Plaud','Plaud set this name. Is it right?','It tells us how often Plaud is wrong. Yes or no.']];
@@ -284,14 +358,14 @@ if(LV.length){const BL=[['tua voce','Is this your voice?','Answer yes or no.'],[
  `<p class="small muted" style="margin-top:10px">Open the link, go to the minute, listen. Reply to me in chat with the number and the answer, many at once too. For example «3 yes», «7 no, it's Marco Rossi», «28 2», «12 wasn't there», «15 mixed voice», «20 don't know».</p>`;
  for(const [b,t,come] of BL){const vv=LV.filter(v=>v.blocco===b);if(!vv.length)continue;
   h+=`<h3 class="fig">${e(t)} <span class="muted small">· ${vv.length}</span></h3><p class="small muted" style="margin:0 0 6px">${e(come)}</p><table class="resp"><thead><tr><th class="n">N</th><th>Recording</th><th>${b==='altre persone'?'Choices':'Name'}</th><th>Phrase</th></tr></thead><tbody>`+
-  vv.map(v=>`<tr${v.risposta?' style="background:#f3faf7"':''}><td class="n">${v.n}</td><td><a href="${v.link}" target="_blank">${e((v.titolo||'').slice(0,70))}</a><div class="ind">${data((v.inizio||'').slice(0,10))} · minute ${e(v.minuto||'0:00')} · speaks ${v.minuti_voce>=1?Math.round(v.minuti_voce)+' min':'less than a minute'} · sure at ${Math.round((v.fiducia||0)*100)}%</div></td><td>${b==='altre persone'&&(v.scelte||[]).length?v.scelte.map((x,i)=>`<div><b>${i+1}</b> ${e(x)}</div>`).join(''):`<b>${e(v.nome_proposto)}</b>`}${(v.prove||[]).length?`<div class="ind">${e(v.prove[0])}</div>`:''}${v.risposta?`<div class="ind"><b>answer</b> ${e(v.risposta)}</div>`:''}</td><td class="small">«${e(v.frase)}»</td></tr>`).join('')+`</tbody></table>`;}
+  vv.map(v=>`<tr${v.risposta?' style="background:#f3faf7"':''}><td class="n">${v.n}</td><td><a href="${v.link}" target="_blank">${e((v.titolo||'').slice(0,70))}</a><div class="ind">${data((v.inizio||'').slice(0,10))} · minute ${e(v.minuto||'0:00')} · speaks ${v.minuti_voce>=1?Math.round(v.minuti_voce)+' min':'less than a minute'} · sure at ${Math.round((v.fiducia||0)*100)}%</div></td><td>${b==='altre persone'&&(v.scelte||[]).length?v.scelte.map((x,i)=>`<div><b>${i+1}</b> ${e(x)}</div>`).join(''):`<b>${e(v.nome_proposto)}</b>`}${(v.prove||[]).length?`<div class="ind">${e(EN(v.prove[0]))}</div>`:''}${v.risposta?`<div class="ind"><b>answer</b> ${e(v.risposta)}</div>`:''}</td><td class="small">«${e(v.frase)}»</td></tr>`).join('')+`</tbody></table>`;}
  h+=`</section>`;}
 // solidità
 const L=D.solidita.livelli;const totMin=Object.values(L).reduce((a,b)=>a+b.minuti,0)||1;
 const SPIEGA={"confermato":"you said it yourself","solido":"two independent proofs (calendar, text, agents with a quote, voice)","una prova":"a single proof","solo nome":"the name is there, no proof","sospetto":"a signal against, for example the same name on several speakers","smentito":"you said it's not him","senza nome":"Speaker 1, 2, 3"};
-h+=`<section><h2>How solid the names are</h2><div class="barra">`+Object.entries(L).map(([k,v])=>`<div title="${k}: ${n(v.minuti)} min" style="width:${100*v.minuti/totMin}%;background:${COL[k]}"></div>`).join('')+`</div>`+
- `<div class="leg">`+Object.entries(L).map(([k,v])=>`<span><i style="background:${COL[k]};border:1px solid #d8d4ca"></i>${k}: ${n(v.voci)} speaker, ${ore(v.minuti)}</span>`).join('')+`</div>`+
- `<table style="margin-top:14px"><tbody>`+Object.keys(L).map(k=>`<tr><td><span class="pill" style="background:${COL[k]};color:${['confermato','smentito'].includes(k)?'#fff':'#333'}">${k}</span></td><td class="muted small">${SPIEGA[k]}</td></tr>`).join('')+`</tbody></table>`+
+h+=`<section><h2>How solid the names are</h2><div class="barra">`+Object.entries(L).map(([k,v])=>`<div title="${e(EN(k))}: ${n(v.minuti)} min" style="width:${100*v.minuti/totMin}%;background:${COL[k]}"></div>`).join('')+`</div>`+
+ `<div class="leg">`+Object.entries(L).map(([k,v])=>`<span><i style="background:${COL[k]};border:1px solid #d8d4ca"></i>${e(EN(k))}: ${n(v.voci)} speaker, ${ore(v.minuti)}</span>`).join('')+`</div>`+
+ `<table style="margin-top:14px"><tbody>`+Object.keys(L).map(k=>`<tr><td><span class="pill" style="background:${COL[k]};color:${['confermato','smentito'].includes(k)?'#fff':'#333'}">${e(EN(k))}</span></td><td class="muted small">${SPIEGA[k]}</td></tr>`).join('')+`</tbody></table>`+
  `<p class="small muted">The truthfulness is not a measure today: you verified ${D.veridicita.voci_verificate_da_owner} speakers, ${D.veridicita.giuste} correct and ${D.veridicita.sbagliate} wrong, and they were cases noticed because something did not add up. It becomes a measure with at least 50 verifications chosen at random.</p></section>`;
 // per mese
 const mesi=D.per_mese;
@@ -314,7 +388,7 @@ h+=`<section><h2>Where the facts are missing</h2><p>The knowledge base has the f
 // contesto
 const C=D.contesto;
 h+=`<section><h2>The context we have</h2><div class="kpis">`+kpi(n(C.con_evento),'recordings with a calendar event at that time')+kpi(n(C.con_invitati),'with invitees we know')+kpi(n(C.in_call),'in a call (link in the event)')+kpi(n(C.di_persona||0),'in person (physical place, no call)')+kpi(n(C.con_luogo),'with a place in the event')+`</div>`+
- `<p class="small muted" style="margin-top:10px">Recorded with: `+Object.entries(C.per_tipo||{}).filter(([k])=>!/^\d+$/.test(k)).map(([k,v])=>`${k} ${n(v)}`).join(' · ')+`. Plaud does not give the place: we reconstruct it from calendar, time zone, text and locations.</p></section>`;
+ `<p class="small muted" style="margin-top:10px">Recorded with: `+Object.entries(C.per_tipo||{}).filter(([k])=>!/^\d+$/.test(k)).map(([k,v])=>`${e(EN(k))} ${n(v)}`).join(' · ')+`. Plaud does not give the place: we reconstruct it from calendar, time zone, text and locations.</p></section>`;
 // activities
 h+=`<section><h2>What we are doing</h2><table class="resp"><tbody>`+(D.attivita||[]).map(a=>`<tr><td>${stato(a.stato)}</td><td>${e(a.cosa)}${a.esito?`<div class="small muted">${e(a.esito)}</div>`:''}</td></tr>`).join('')+`</tbody></table></section>`;
 h+=`<section><h2>How it is measured</h2><details><summary>The rules of the measures</summary><ul class="small">
@@ -336,6 +410,10 @@ function disegna(){const q=document.getElementById('q').value.toLowerCase(),ci=d
 
 
 def main() -> int:
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+    if not (QUADRO / "quadro.json").exists():
+        print(f"No overview yet ({QUADRO / 'quadro.json'}). Run pl_quadro.py first.", file=sys.stderr)
+        return 1
     q = json.loads((QUADRO / "quadro.json").read_text())
     dati = json.dumps(compatta(q), ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
     out = QUADRO / "pagina"

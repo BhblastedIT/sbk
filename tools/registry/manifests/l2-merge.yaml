@@ -1,5 +1,5 @@
-# Manifest job registro — l2-merge
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: l2-merge
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: l2-merge
 cmd: python3
 args:
@@ -16,4 +16,4 @@ backend: subprocess
 fragile: false
 artifact_refs: []
 forbidden_adapter_types: []
-description: Merge cross-source L2 (unione contatti/entita).
+description: Cross-source L2 merge (contacts and entities).

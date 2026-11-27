@@ -1,25 +1,13 @@
 #!/usr/bin/env python3
-""
+"""Context around a Plaud recording: the calendar events that overlap it, their attendees, the emails that mention a
+meeting shortly before, and the Slack activity around it. The speaker-naming queue uses it to suggest names.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/plaud/pl_context_correlate.py <file_id> [<file_id> ...]   (prints JSON)
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
 import sys
@@ -47,7 +35,8 @@ try:
 except Exception:  # pragma: no cover
     _alias_canonical = lambda raw: None  # noqa: E731
 
-_DATA = Path.home() / ".sbk-data"
+from sbk_config import DATA_ROOT as _DATA  # noqa: E402
+
 INDEX_PATH = _DATA / "plaud" / "raw" / "_file_index.json"
 EMAILS_GLOB = _DATA / "emails"
 SLACK_INTERACTIONS = _DATA / "slack" / "processed" / "interactions-slack.parquet"
@@ -315,10 +304,12 @@ def correlate(file_id: str) -> dict:
 
 
 def main() -> int:
-    ids = sys.argv[1:]
-    if not ids:
-        print("uso: pl_context_correlate.py <file_id> [file_id...]")
-        return 2
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("file_id", nargs="+", help="Plaud file id (from <data root>/plaud/raw/_file_index.json)")
+    ids = ap.parse_args().file_id
+    if not INDEX_PATH.exists():
+        print(f"No Plaud file index yet ({INDEX_PATH}). Run pl-l0-download.py first.", file=sys.stderr)
+        return 1
     for fid in ids:
         c = correlate(fid)
         print(json.dumps(c, ensure_ascii=False, indent=1)[:3000])

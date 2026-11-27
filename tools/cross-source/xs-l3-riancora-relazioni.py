@@ -1,63 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Restores the anchoring columns (fact_id, source date, subject and object person) of the relationship facts from
+the cached responses, without calling any API; --scrivi writes a new file next to the one in use.
+"""
 
 from __future__ import annotations
 

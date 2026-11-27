@@ -117,7 +117,9 @@ def load_all_messages(account: str = None) -> pd.DataFrame:
         accounts = [account]
     else:
         accounts = [
-            d.name for d in DATA_DIR.iterdir() if d.is_dir() and (d / "messages.parquet").exists()
+            d.name
+            for d in (DATA_DIR.iterdir() if DATA_DIR.is_dir() else [])
+            if d.is_dir() and (d / "messages.parquet").exists()
         ]
 
     for acc in accounts:

@@ -1,17 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Read-only check of the scheduled jobs: compares the launchd agents loaded on this Mac with the job manifests of
+the registry and flags the SBK jobs not in the census and leftovers of older schedulers.
+"""
 
 from __future__ import annotations
 
@@ -134,7 +123,7 @@ def run_doctor(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="registry doctor — diagnosi read-only")
+    parser = argparse.ArgumentParser(description="registry doctor — read-only diagnosis")
     parser.add_argument("--json", action="store_true", help="output in JSON")
     args = parser.parse_args(argv)
 
@@ -143,15 +132,15 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
     else:
         print(f"registry doctor — ok={report.ok}")
-        print(f"  plist caricati: {len(report.loaded_labels)}")
+        print(f"  plists loaded: {len(report.loaded_labels)}")
         if report.sbk_loaded_uncensused:
-            print(f"  SBK non censiti: {report.sbk_loaded_uncensused}")
+            print(f"  SBK not in the census: {report.sbk_loaded_uncensused}")
         if report.external_missing:
-            print(f"  esterni censiti ma NON caricati: {report.external_missing}")
+            print(f"  external, in the census but NOT loaded: {report.external_missing}")
         if report.external_present:
-            print(f"  esterni presenti: {report.external_present}")
+            print(f"  external, present: {report.external_present}")
         if report.jobs_scheduled_without_plist:
-            print(f"  job con cadenza senza plist: {report.jobs_scheduled_without_plist}")
+            print(f"  scheduled jobs with no plist: {report.jobs_scheduled_without_plist}")
 
     return 0
 

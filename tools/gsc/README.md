@@ -1,7 +1,7 @@
 <!-- generated from docs/CONNECTING.md -->
 # Google Search Console (`gs-`)
 
-Signs in through your own Google app, which you set up once for the five Google plugins: [Google](../../docs/CONNECTING.md#google).
+Signs in through your own Google app, which you set up once for the Google plugins: [Google](../../docs/CONNECTING.md#google).
 
 **Status** mature (feeds the domain inventory, not people) · registry `periodica`, every 30 days.
 **Reads** the Search Console properties your Google account can see, with clicks, impressions, top

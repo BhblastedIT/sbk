@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
-""
+"""Plaud section of the SecondBrain app: who speaks in your recordings, how solid each name is, which recordings
+still need names and which are outside the knowledge base, read from <data root>/plaud/quadro/quadro.json
+(written by tools/plaud/pl_quadro.py).
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/secondbrain/sb_plaud.py json   (prints the state the app shows)
+"""
 
 from __future__ import annotations
 
@@ -31,7 +18,9 @@ from pathlib import Path
 
 QUADRO = Path(
     os.environ.get("SB_PLAUD_QUADRO")
-    or Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+    or Path(
+        os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+    ).expanduser()
     / "plaud"
     / "quadro"
     / "quadro.json"
@@ -770,6 +759,9 @@ def per_app() -> dict:
 
 
 def main(argv: list[str]) -> int:
+    if argv[1:2] in (["-h"], ["--help"]):
+        print(__doc__)
+        return 0
     if argv[1:2] == ["json"]:
         print(json.dumps(stato(), ensure_ascii=False))
         return 0

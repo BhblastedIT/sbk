@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Download Slack channel messages and thread replies into L0."""
+"""Download Slack channel messages and thread replies into L0.
+
+Only the conversations you are a member of (users.conversations): your channels, private
+channels, DMs and group DMs. Public channels you never joined are not read. Archived
+conversations are skipped unless you pass --include-archived.
+"""
 
 
 
@@ -271,13 +276,13 @@ def slack_api(
 
 
 def list_all_conversations(token: str, team_ids: list[str] | None = None) -> list[dict]:
-    ""
+    """The conversations you are a member of (users.conversations), archived ones included.
 
-
-
-
-
-
+    users.conversations returns only the channels, private channels, DMs and group DMs your
+    own account is in, never the public channels of the workspace you did not join.
+    Archived conversations are kept in the list (and in the cache) and dropped later by
+    keep_your_conversations() unless you ask for them with --include-archived.
+    """
     if team_ids is None:
         team_ids = [""]
 
@@ -301,10 +306,12 @@ def list_all_conversations(token: str, team_ids: list[str] | None = None) -> lis
                 if cursor:
                     params["cursor"] = cursor
 
-                result = slack_api("conversations.list", token, params)
+                result = slack_api("users.conversations", token, params)
                 if not result:
                     if page == 0 and conv_type == "public_channel":
-                        log.warning(f"  [{ws_name}] conversations.list failed for type={conv_type}")
+                        log.warning(
+                            f"  [{ws_name}] users.conversations failed for type={conv_type}"
+                        )
                     break
 
                 channels = result.get("channels", [])
@@ -328,6 +335,31 @@ def list_all_conversations(token: str, team_ids: list[str] | None = None) -> lis
         f"Total conversations discovered: {len(result_list)} across {len(team_ids)} workspace(s)"
     )
     return result_list
+
+
+def keep_your_conversations(channels: list[dict], include_archived: bool = False) -> list[dict]:
+    """Keep only the conversations you are a member of; archived ones only on request.
+
+    A conversation whose is_member is False is dropped: that is a public channel you never
+    joined, as an older cache built from conversations.list could still hold. DMs and group
+    DMs carry no is_member field and are always yours. Archived conversations are dropped
+    unless include_archived is True (--include-archived).
+    """
+    kept: list[dict] = []
+    not_member = archived = 0
+    for ch in channels:
+        if ch.get("is_member") is False:
+            not_member += 1
+            continue
+        if ch.get("is_archived") and not include_archived:
+            archived += 1
+            continue
+        kept.append(ch)
+    if not_member:
+        log.info(f"Left out {not_member} channels you are not a member of")
+    if archived:
+        log.info(f"Left out {archived} archived conversations (--include-archived to read them)")
+    return kept
 
 
 def _channel_type(ch: dict) -> str:
@@ -1292,6 +1324,11 @@ def main():
         help="Also download the channels excluded in sbk.config.json (default: skip them)",
     )
     parser.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Also read the archived conversations you are a member of (default: skip them)",
+    )
+    parser.add_argument(
         "--workers",
         type=int,
         default=1,
@@ -1418,6 +1455,8 @@ def main():
         )
         sys.exit(1)
 
+    # Only what your own account is in; archived conversations only with --include-archived.
+    channels = keep_your_conversations(channels, include_archived=args.include_archived)
 
     if excluded_ids:
         before = len(channels)

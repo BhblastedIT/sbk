@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Smoke test: every pipeline script touched recently (--da N days) must at least start, run with harmless
+arguments (--help or a dry run).
+"""
 
 from __future__ import annotations
 
@@ -41,7 +30,6 @@ INNOCUI: dict[str, list[str]] = {
     "xs-l4-disfa-fusione.py": ["--entita", "person_inesistente"],
     "sb-copertura.py": ["--presidio", "episodio"],
     "sb-vocabolario.py": ["--help"],
-    "sb-stale-check.py": ["--tipo", "vivo"],
     "sb-persone.py": ["--help"],
     "sb-identita.py": ["--help"],
     "sb-entita.py": ["--help"],
@@ -76,7 +64,7 @@ def _toccati(giorni: int) -> set[str]:
 def prova(nome: str, argomenti: list[str], timeout: int = 900) -> dict:
     percorso = _trova(nome)
     if percorso is None:
-        return {"script": nome, "esito": "NON TROVATO"}
+        return {"script": nome, "esito": "NOT FOUND"}
     t = time.time()
     try:
         r = subprocess.run(  # noqa: S603
@@ -98,7 +86,7 @@ def prova(nome: str, argomenti: list[str], timeout: int = 900) -> dict:
     rotto = "Traceback (most recent call last)" in coda
     return {
         "script": nome,
-        "esito": "ROTTO" if rotto else ("ok" if r.returncode == 0 else f"exit {r.returncode}"),
+        "esito": "BROKEN" if rotto else ("ok" if r.returncode == 0 else f"exit {r.returncode}"),
         "secondi": round(durata, 1),
         "errore": [x for x in coda.splitlines() if x.strip()][-1][:120] if rotto else "",
     }
@@ -121,7 +109,7 @@ def main() -> int:
     rotti = []
     for nome, argomenti in da_provare.items():
         r = prova(nome, argomenti, a.timeout)
-        segno = "❌" if r["esito"] in ("ROTTO", "NON TROVATO") or "TIMEOUT" in r["esito"] else "  "
+        segno = "❌" if r["esito"] in ("BROKEN", "NOT FOUND") or "TIMEOUT" in r["esito"] else "  "
         print(f"{segno} {nome:38} {r['esito']:12} {r.get('secondi', '')}s")
         if r.get("errore"):
             print(f"     {r['errore']}")

@@ -1,126 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Collapses the repeated observations of the same fact (same assertion hash) on the knowledge-base entities into one,
+with the evidence units kept. Writes to a shadow folder (--shadow) or, with --apply, into the store itself
+(destructive, with a brake); a report says what changed.
+"""
 
 from __future__ import annotations
 
@@ -871,7 +753,13 @@ def main(argv: list[str] | None = None) -> int:
     report = Path(
         os.path.expanduser(
             a.report
-            or f"~/.sbk-data/knowledge/reports/collasso/report-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.md"  # noqa: UP017
+            or str(
+                Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+                / "knowledge"
+                / "reports"
+                / "collasso"
+                / f"report-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}.md"  # noqa: UP017
+            )
         )
     )
     scrivi_report(

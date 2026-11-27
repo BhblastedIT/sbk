@@ -1,23 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Personio absences per day: expands each absence (by day or by hours, weekdays only) into one row per person per
+day, with its category.
+"""
 
 from __future__ import annotations
 

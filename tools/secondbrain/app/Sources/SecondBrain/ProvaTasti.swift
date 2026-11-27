@@ -800,19 +800,19 @@ extension ProvaTasti {
                     && store.coseScrittiInCorso["\(a.id)|titolo"] == nil)
         if let ed = fin.firstResponder as? NSTextView {
             ed.selectAll(nil)
-            ed.insertText("Esempio", replacementRange: ed.selectedRange())
+            ed.insertText("Example", replacementRange: ed.selectedRange())
             await giro()
         }
-        controlla("M · the typed text is among the pending (app close)", store.coseScrittiInCorso["\(a.id)|titolo"]?.testo == "Esempio")
+        controlla("M · the typed text is among the pending (app close)", store.coseScrittiInCorso["\(a.id)|titolo"]?.testo == "Example")
         tasto(fin, "\t", 48)
-        await aspetta { store.coseIndice[a.id]?.titolo == "Esempio" && store.coseFoglioModifica == b.id }
+        await aspetta { store.coseIndice[a.id]?.titolo == "Example" && store.coseFoglioModifica == b.id }
         controlla("M · Tab saves («\(store.coseIndice[a.id]?.titolo ?? "")») and moves to the next row in editing, with its whole title (editing \(store.coseFoglioModifica == b.id), selection \(store.coseScelte == [b.id]), draft «\(store.coseFoglioBozza.prefix(30))» vs «\(titoloB.prefix(30))»)",
-                  store.coseIndice[a.id]?.titolo == "Esempio" && store.coseFoglioModifica == b.id && store.coseScelte == [b.id]
+                  store.coseIndice[a.id]?.titolo == "Example" && store.coseFoglioModifica == b.id && store.coseScelte == [b.id]
                     && store.coseFoglioBozza == titoloB)
         await aspetta { fin.firstResponder is NSTextView }
         if let ed = fin.firstResponder as? NSTextView {
             ed.selectAll(nil)
-            ed.insertText("Titolo da non salvare", replacementRange: ed.selectedRange())
+            ed.insertText("Title not to save", replacementRange: ed.selectedRange())
             await giro()
         }
         tasto(fin, "\u{1b}", 53)

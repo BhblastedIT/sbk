@@ -1,47 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Schema migration of the L3 vector table (sbk_chunks): adds the new columns in place, with a check (--check exits
+1 when a migration is pending), backup and disk checks, rollback and verify.
+"""
 
 from __future__ import annotations
 
@@ -50,6 +10,7 @@ import fcntl
 import hashlib
 import json
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -70,9 +31,11 @@ log = logging.getLogger("sbk-l3-schema-migrate")
 TABLE_NAME = "sbk_chunks"
 TARGET_SCHEMA_VERSION = 2
 LOCK_FILE = VECTOR_DB_DIR / ".schema-migration.lock"
-AUDIT_LOG = Path.home() / ".sbk-data" / "l3" / "migration-audit.jsonl"
-
-
+AUDIT_LOG = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "l3"
+    / "migration-audit.jsonl"
+)
 
 
 SCALAR_COLUMNS_SQL = {
@@ -92,7 +55,11 @@ PII_PUBLIC = ["network", "raw", "domain"]
 
 
 def _setup_logging(verbose: bool = False) -> None:
-    log_dir = Path.home() / ".sbk-data" / "l3" / "logs"
+    log_dir = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "l3"
+        / "logs"
+    )
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"schema-migrate-{datetime.now().strftime('%Y%m%d-%H%M%S')}.log"
     handlers: list[logging.Handler] = [logging.StreamHandler(), logging.FileHandler(log_file)]
@@ -130,13 +97,30 @@ def _check_freeze() -> list[str]:
     return [p for p in ["xs-l3-index.py", "xs-l3-brief", "xs-l3-search.py"] if _running(p)]
 
 
-def _check_backup() -> tuple[bool, str]:
-    bdir = Path.home() / "Backups" / "sbk"
-    if not bdir.exists():
-        return False, "no dir ~/Backups/sbk"
-    backups = sorted(bdir.glob("sbk-full-*.tar.gz"), key=lambda p: p.stat().st_mtime)
+# The default --destination of tools/infrastructure/sb-backup.py (its DEFAULT_DESTINATION).
+BACKUP_DIR_DEFAULT = Path.home() / "Backups" / "sbk"
+
+
+def _sb_backup_archives(bdir: Path) -> list[Path]:
+    """The finished archives sb-backup writes: sbk-<full|l1|l2|l3|l1-drive...>-<ts>.tar.gz, plain or .enc.
+
+    Left out: config-only archives (sbk-config-*, they hold no data) and unfinished ones (*.parziale).
+    """
+    found = {*bdir.glob("sbk-*.tar.gz"), *bdir.glob("sbk-*.tar.gz.enc")}
+    return sorted(
+        (f for f in found if f.is_file() and not f.name.startswith("sbk-config-")),
+        key=lambda f: f.stat().st_mtime,
+    )
+
+
+def _check_backup(backup_dir: Path | None = None) -> tuple[bool, str]:
+    bdir = Path(backup_dir).expanduser() if backup_dir else BACKUP_DIR_DEFAULT
+    hint = "run tools/infrastructure/sb-backup.py first, or pass --backup-dir where you keep its archives"
+    if not bdir.is_dir():
+        return False, f"no backup folder {bdir} ({hint})"
+    backups = _sb_backup_archives(bdir)
     if not backups:
-        return False, "no backup"
+        return False, f"no sb-backup archive in {bdir} ({hint})"
     latest = backups[-1]
     age_h = (datetime.now().timestamp() - latest.stat().st_mtime) / 3600
     return True, f"{latest.name} (age {age_h:.1f}h)"
@@ -202,7 +186,7 @@ def cmd_dry_run(args) -> int:
     log.info("  restricted->2, %s", ", ".join(PII_RESTRICTED))
     log.info("  public->0,     %s", ", ".join(PII_PUBLIC))
     log.info("  internal->1,   default (rest)")
-    ok_bk, bk = _check_backup()
+    ok_bk, bk = _check_backup(getattr(args, "backup_dir", None))
     log.info("\nPre-conditions,")
     log.info("  backup, %s -> %s", "OK" if ok_bk else "MISSING", bk)
     log.info("  free disk, %.1f GB", _disk_free_gb())
@@ -221,7 +205,7 @@ def cmd_apply(args) -> int:
         return 0
 
 
-    ok_bk, bk = _check_backup()
+    ok_bk, bk = _check_backup(getattr(args, "backup_dir", None))
     if not ok_bk and not args.skip_backup_check:
         log.error("Backup missing (%s). Use --skip-backup-check if sure.", bk)
         return 2
@@ -360,6 +344,12 @@ def main() -> None:
     p.add_argument("--verify", action="store_true")
     p.add_argument("--force", action="store_true")
     p.add_argument("--skip-backup-check", action="store_true")
+    p.add_argument(
+        "--backup-dir",
+        type=Path,
+        default=None,
+        help=f"folder with your sb-backup archives (sb-backup --destination; default {BACKUP_DIR_DEFAULT})",
+    )
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args()
     _setup_logging(args.verbose)

@@ -1,33 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Gives back the real name to the person entities named like an email address, when a real name is in their facts;
+the others are listed to decide by hand. Dry run by default; --esegui writes, with a journal.
+"""
 
 from __future__ import annotations
 

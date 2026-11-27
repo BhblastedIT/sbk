@@ -1,20 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Email pre-filter before extraction: drops automated senders (noreply, notifications, alerts), automated subjects
+(out of office, delivery failures, newsletters) and the noise domains you list, from the emails of your
+mailboxes, so the extraction stages read only real correspondence.
+"""
 
 import argparse
 import logging

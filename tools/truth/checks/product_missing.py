@@ -60,7 +60,7 @@ def check_product_missing(
                 check="product_missing",
                 target=tgt,
                 status=CheckStatus.BROKEN,
-                detail=f"prodotto assente: {p}",
+                detail=f"product missing: {p}",
                 metrics={"exists": False},
                 as_of=as_of_dt.isoformat(),
             )
@@ -71,7 +71,7 @@ def check_product_missing(
                 check="product_missing",
                 target=tgt,
                 status=CheckStatus.BROKEN,
-                detail=f"prodotto illeggibile: {type(exc).__name__}: {exc}",
+                detail=f"product unreadable: {type(exc).__name__}: {exc}",
                 metrics={"exists": True, "readable": False},
                 as_of=as_of_dt.isoformat(),
             )
@@ -83,7 +83,7 @@ def check_product_missing(
             check="product_missing",
             target=tgt,
             status=CheckStatus.BROKEN,
-            detail=f"prodotto vuoto: {n_rows} righe (< {min_rows})",
+            detail=f"product empty: {n_rows} rows (< {min_rows})",
             metrics=metrics,
             as_of=as_of_dt.isoformat(),
         )
@@ -99,8 +99,8 @@ def check_product_missing(
                 target=tgt,
                 status=CheckStatus.BROKEN,
                 detail=(
-                    f"caduta {drop_pct:.1f}% ({previous_count} -> {n_rows}): "
-                    "il prodotto e collassato pur con ricevuta ok"
+                    f"drop {drop_pct:.1f}% ({previous_count} -> {n_rows}): "
+                    "the product collapsed although the receipt says ok"
                 ),
                 metrics=metrics,
                 as_of=as_of_dt.isoformat(),
@@ -110,7 +110,7 @@ def check_product_missing(
         check="product_missing",
         target=tgt,
         status=CheckStatus.OK,
-        detail=f"prodotto presente: {n_rows} righe",
+        detail=f"product present: {n_rows} rows",
         metrics=metrics,
         as_of=as_of_dt.isoformat(),
     )

@@ -30,7 +30,7 @@ async def _parse_body(request: Request) -> dict:
 
 @router.post("/digest/refresh")
 async def refresh_digest(request: Request):
-    ""
+    """Today's stories again. No --synthesize here: the model digest only with brief.synthesis true."""
     runner = request.app.state.runner
     job_id = await runner.run_script(
         source="digest",
@@ -56,24 +56,32 @@ def get_pipeline_grid(request: Request):
     return bridge.get_pipeline_grid()
 
 
-def _get_allowed_grid_scripts(bridge) -> set[str]:
-    ""
+def _allowed_grid_runs(bridge) -> dict[str, set[str]]:
+    """Script -> the argument strings the pipeline grid shows for it. Empty when the grid cannot be read."""
     try:
         grid = bridge.get_pipeline_grid()
     except Exception:
-        return set()
-    allowed: set[str] = set()
-    for section in grid.get("pipeline", []):
+        return {}
+    allowed: dict[str, set[str]] = {}
+
+    def _add(row: dict) -> None:
+        info = row.get("_run_info")
+        if info and info.get("script"):
+            args = " ".join(str(info.get("args_str") or "").split())
+            allowed.setdefault(info["script"], set()).add(args)
+
+    for section in (grid or {}).get("pipeline", []):
         for row in section.get("rows", []):
-            info = row.get("_run_info")
-            if info and info.get("script"):
-                allowed.add(info["script"])
+            _add(row)
         for sg in section.get("subgroups", []):
             for row in sg.get("rows", []):
-                info = row.get("_run_info")
-                if info and info.get("script"):
-                    allowed.add(info["script"])
+                _add(row)
     return allowed
+
+
+def _get_allowed_grid_scripts(bridge) -> set[str]:
+    """The scripts the pipeline grid lists (empty = nothing may run)."""
+    return set(_allowed_grid_runs(bridge))
 
 
 @router.post("/run-grid")
@@ -86,12 +94,17 @@ async def run_grid_script(request: Request):
         raise HTTPException(status_code=400, detail="Missing 'script' parameter")
 
     bridge = request.app.state.bridge
-    allowed = _get_allowed_grid_scripts(bridge)
-    if allowed and script not in allowed:
+    allowed = _allowed_grid_runs(bridge)
+    # Fails closed: a script runs only when the pipeline grid lists it (an empty or unreadable grid
+    # runs nothing), and only with the arguments the grid shows for it, or with none.
+    if script not in allowed:
         raise HTTPException(status_code=400, detail="Script not in pipeline grid allowlist")
+    args_norm = " ".join(str(args_str or "").split())
+    if args_norm and args_norm not in allowed[script]:
+        raise HTTPException(status_code=400, detail="Arguments not in pipeline grid allowlist")
 
     runner = request.app.state.runner
-    extra_args = args_str.split() if args_str else []
+    extra_args = args_norm.split() if args_norm else []
     job_id = await runner.run_script(
         source="grid",
         script_path=script,
@@ -134,7 +147,7 @@ async def smart_pipeline_run(request: Request):
         source="pipeline",
         script_path="cross-source/xs-pipeline-run.py",
         stage="smart-run",
-        extra_args=["--propaga"],
+        extra_args=["--propagate"],
     )
     job = runner.get_job(job_id)
     return {"job_id": job_id, "status": job.status if job else "unknown"}

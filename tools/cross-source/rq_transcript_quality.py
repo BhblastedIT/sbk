@@ -1,18 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Classifies transcript content as personal, strategic, operational or transactional, by keywords and duration, so
+the relationship scores weigh meetings by substance; --backfill classifies every transcript and caches the result.
+"""
 
 from __future__ import annotations
 

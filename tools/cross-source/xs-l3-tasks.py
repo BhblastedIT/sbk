@@ -1,14 +1,7 @@
-""
-
-
-
-
-
-
-
-
-
-
+"""Daily task board: collects what needs you today (meetings to prepare, emails to answer, Slack threads, action
+items, people to reconnect with, entity reviews, Notion milestones), scores and deduplicates them and sorts them
+in the Eisenhower quadrants within a daily budget.
+"""
 
 from __future__ import annotations
 

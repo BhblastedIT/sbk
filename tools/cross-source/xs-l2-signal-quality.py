@@ -1,28 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Signal quality index: how much each email correspondent, Slack conversation, Plaud and Tactiq meeting is real
+two-way communication (reply rate, asymmetry, entropy, threads), so the scores can discount noise.
+"""
 
 from __future__ import annotations
 
@@ -30,7 +9,6 @@ import argparse
 import json
 import logging
 import math
-import os
 import re
 import sys
 from collections import Counter
@@ -51,6 +29,7 @@ from sbk_config import (
     SLACK_DIR,
     TACTIQ_DIR,
     safe_write_json,
+    user_cfg,
 )
 
 log = logging.getLogger("xs-l2-sqi")
@@ -107,11 +86,14 @@ _NOISE_LOCAL_PATTERNS = {
 }
 
 
-# load from user config: comma-separated Slack user IDs, default empty
+# Your own Slack user id: slack.own_user_id in sbk.config.json (the same key the monitor
+# and tools/slack_auth.py read). Empty = your participation in channels is not scored.
+# This step stays offline, so it does not ask Slack (auth.test) when the key is empty.
+_own_slack = user_cfg("slack.own_user_id", "") or ""
 OWNER_SLACK_IDS = {
-    s.strip().lower()
-    for s in os.environ.get("SBK_OWNER_SLACK_IDS", "").split(",")
-    if s.strip()
+    str(s).strip().lower()
+    for s in (_own_slack if isinstance(_own_slack, list) else [_own_slack])
+    if str(s).strip()
 }
 
 
@@ -853,6 +835,13 @@ def main():
 
 
     output_path = ENRICHED_DIR / "signal-quality-index.json"
+
+    def _ha_voti(voce) -> bool:
+        # An earlier run that really scored this source (not an empty placeholder).
+        return isinstance(voce, dict) and any(
+            isinstance(voce.get(k), dict) and voce.get(k) for k in ("scores", "noise_scores")
+        )
+
     try:
         existing = json.loads(output_path.read_text(encoding="utf-8"))
     except (ValueError, OSError):
@@ -895,12 +884,14 @@ def main():
         manca = result[src].pop("_manca", "")
         if not manca:
             continue
-        mancanti[src] = manca
-        if src in existing:
+        if _ha_voti(existing.get(src)):
+            # Only these are "scores from an earlier run": the note of the pipeline says so.
+            mancanti[src] = manca
             result[src] = existing[src]
             log.warning("  %s: %s, keeping the previous run's scores", src, manca)
         else:
-            log.warning("  %s: %s and no previous score, staying without scores", src, manca)
+            # Never scored (not connected, or a first install): nothing old to report.
+            log.info("  %s: %s and no previous score, staying without scores", src, manca)
     if mancanti:
         result["_meta"]["fonti_mancanti"] = mancanti
 

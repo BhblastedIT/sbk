@@ -51,7 +51,10 @@ READABLE_STATES = frozenset({"scaricato", "riusato", "doppione"})
 
 
 def index_paths() -> list[Path]:
-    mailboxes = json.loads((EMAILS_DIR / "accounts.json").read_text(encoding="utf-8"))
+    accounts = EMAILS_DIR / "accounts.json"
+    if not accounts.is_file():
+        return []
+    mailboxes = json.loads(accounts.read_text(encoding="utf-8"))
     return [
         EMAILS_DIR / c / "allegati" / "indice.parquet"
         for c in mailboxes

@@ -77,13 +77,13 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import sb_cose as C  # noqa: E402 le parole delle date e delle stime, e la lettura di ClickUp per l'importazione
+import sb_cose as C  # noqa: E402 the words for dates and estimates, and the ClickUp reading for the import
 
 
-CARTELLA = Path(os.environ.get("SB_ATTIVITA_DIR") or Path.home() / ".sbk-data" / "attivita")
-
-
-
+CARTELLA = Path(
+    os.environ.get("SB_ATTIVITA_DIR")
+    or Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser() / "attivita"
+)
 
 
 TIPI = ("da_fare", "in_corso", "aspetta", "fatta", "non_serve")
@@ -1773,7 +1773,7 @@ def _imp_da_righe(righe: list[dict]) -> dict:
                 imp["predefinito"] = dopo if isinstance(dopo, str) else None
             elif voce == "imposta" and r.get("chiave") in IMPOSTAZIONI_PARTENZA:
                 imp[r["chiave"]] = _valida_imposta(r["chiave"], dopo, imp[r["chiave"]])
-        except Exception:  # noqa: BLE001 nessuna riga strana spegne niente, anche qui
+        except Exception:  # noqa: BLE001 no odd line switches anything off, here too
             continue
     _stati_che_servono(imp)
     return imp
@@ -4249,7 +4249,7 @@ def pagina(
             try:
                 r = cal.esegui(argomenti, task=_task_calendario(tutte, imp), impostazioni=_info_impostazioni(imp),
                                vista=_vista_calendario(vista))
-            except Exception:  # noqa: BLE001 la porta del modulo non alza, ma la pagina resta sana comunque
+            except Exception:  # noqa: BLE001 the module's entry point does not raise; the page stays sound anyway
                 r = None
         if isinstance(r, dict) and r.get("ok") and isinstance(r.get("settimana"), dict):
             out["settimana"] = r["settimana"]
@@ -4504,7 +4504,7 @@ def leggi_pianificata(testo: str) -> str | None:
     if cal is not None:
         try:
             v = cal.leggi_pianificata(t)
-        except Exception as e:  # noqa: BLE001 l'Errore del modulo, o qualunque guasto: la frase è la nostra
+        except Exception as e:  # noqa: BLE001 the module's Errore, or any failure: the sentence is ours
             raise Errore("errore_quando") from e
         if v is None or _pianificata_locale(v) is not None:
             return v
@@ -6887,7 +6887,7 @@ def esegui(argv: list[str]) -> dict:
         )
         return {"ok": False, "errore": TESTI[chiave], "sparita": False, "riprova": False,
                 "dettaglio": type(e).__name__}
-    except Exception as e:  # noqa: BLE001 l'app aspetta sempre un JSON, mai una traccia
+    except Exception as e:  # noqa: BLE001 the app always expects JSON, never a traceback
         return {
             "ok": False,
             "errore": TESTI["errore_motore"],
@@ -6983,6 +6983,8 @@ def _pulita(testo: str) -> str:
 def importa() -> dict:
     ""
 
+    if not C.LISTA:
+        return {"ok": False, "errore": C.TESTI["errore_lista"]}
     gia = {(t.get("origine") or {}).get("id") for t in _carica().values()}
     pagina_n, nuove = 0, 0
     while pagina_n < 20:

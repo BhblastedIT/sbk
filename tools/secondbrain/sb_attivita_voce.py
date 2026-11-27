@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Voice for the tasks section: you dictate to your tasks, and a Claude Code session in the background understands and acts."""
+"""Voice for the tasks section: you dictate to your tasks, and a Claude Code session in the background understands and acts.
+
+The session runs with your own `claude` login and only after you opt in (sb_own_claude.py:
+"app": {"claude_sessions": true} in sbk.config.json, or SBK_APP_CLAUDE=1). It is sent what you
+dictated or wrote and your task list. Without consent the request stops and says how to turn it on.
+"""
 
 
 
@@ -67,6 +72,7 @@ if str(QUI) not in sys.path:
     sys.path.insert(0, str(QUI))
 import sb_attivita as A  # noqa: E402
 import sb_cose as C  # noqa: E402
+import sb_own_claude  # noqa: E402
 
 VENV = ROOT / ".venv" / "bin" / "python"
 ISTRUZIONI = QUI / "attivita" / "SESSIONE-VOCE.md"
@@ -76,7 +82,6 @@ TRASCRIVI = Path(
     os.environ.get("SB_ATTIVITA_TRASCRIVI")
     or ROOT / "tools" / "voce" / "trascrivi-audio.py"
 )
-POOL_SWITCH = Path(os.environ.get("SB_POOL_SWITCH") or ROOT / "tools" / "account-pool" / "switch")
 
 STRUMENTO = "attivita-voce"
 
@@ -87,12 +92,6 @@ AUDIO = re.compile(r"\.(m4a|mp3|aac|wav|ogg|opus|webm|caf|aiff?)$", re.I)
 
 INTERVALLO_TENTATIVI_S = int(os.environ.get("SB_VOCE_INTERVALLO_S") or 600)
 TENTATIVI = 7
-ATTESA_PRESTITO_S = int(os.environ.get("SB_ATTESA_PRESTITO_S") or 600)
-
-RIPROVA_PRESTITO_S = int(os.environ.get("SB_VOCE_RIPROVA_PRESTITO_S") or 600)
-
-ATTESA_ABBONAMENTO_MAX_S = int(os.environ.get("SB_VOCE_ATTESA_MAX_S") or 6 * 3600)
-
 TETTO_SESSIONE_S = int(os.environ.get("SB_VOCE_TETTO_S") or 1800)
 
 PASSO_CODA_S = float(os.environ.get("SB_VOCE_PASSO_S") or 1)
@@ -113,7 +112,6 @@ STATI = {
     "aspetta_memoria": ("I'll transcribe it as soon as the Mac has free memory", False),
     "da_verificare": ("I'm not sure I understood", True),
     "in_coda": ("Waiting for the previous request to finish", False),
-    "aspetta_abbonamento": ("Waiting for a free subscription", False),
     "in_elaborazione": ("Working on it", False),
     "fatta": ("Done", True),
     "ti_chiede": ("I have a question for you", True),
@@ -153,7 +151,6 @@ TESTI = {
     "stato_aspetta_memoria": STATI["aspetta_memoria"][0],
     "stato_da_verificare": STATI["da_verificare"][0],
     "stato_in_coda": STATI["in_coda"][0],
-    "stato_aspetta_abbonamento": STATI["aspetta_abbonamento"][0],
     "stato_in_elaborazione": STATI["in_elaborazione"][0],
     "stato_fatta": STATI["fatta"][0],
     "stato_ti_chiede": STATI["ti_chiede"][0],
@@ -237,17 +234,13 @@ TESTI = {
     "motivo_whisper": "Transcription failed. Try again, or write it.",
     "motivo_memoria": "The Mac had no free memory to transcribe it. Try again later, or write it.",
     "motivo_memoria_sessione": "The Mac had no free memory to run the session. Press Retry later.",
-    "motivo_quota": "I can't find the subscriptions on this Mac, the request can't start.",
-    "motivo_nessuno": "No subscription is free right now{quando}. I'll retry on my own.",
-    "motivo_occupato": "All subscriptions are busy with other work. I'm waiting for one to free up.",
-    "motivo_nessuno_finito": "For hours no subscription was free and I stopped retrying. Press Retry whenever you want.",
-    "motivo_vietato": "The subscriptions don't provide the model this request needs.",
+    "motivo_spento": sb_own_claude.OFF_MESSAGE.format(what="what you dictated or wrote and your task list"),
+    "motivo_claude_manca": sb_own_claude.MISSING_MESSAGE,
     "motivo_senza_esito": "The session closed without telling me what it did.",
     "motivo_tempo": "The session took too long and was stopped.",
     "motivo_processo": "The work stopped halfway. Press Retry.",
     "motivo_proposta_storta": "I wanted to ask you for confirmation, but I couldn't prepare it properly. Press Retry.",
     "motivo_gesti_diversi": "The session says it did things I can't find among the changes. Look at the actions below.",
-    "torna_alle": ", one frees up at {ora}",
     "errore_audio": "I can't find the audio to send.",
     "errore_testo": "Write what you want me to do.",
     "errore_sparita": "This request no longer exists.",
@@ -880,8 +873,8 @@ def _ultima_con_cambi(rid: str, cache=None) -> dict | None:
 def _primo_messaggio(cart: Path, ctx: dict) -> str:
     istruzioni = ISTRUZIONI.read_text(encoding="utf-8")
     return (
-        f"{istruzioni}\n\n## La tua cartella\n\n{cart}\n\nESITO.json va scritto lì, in {cart / 'ESITO.json'}.\n\n"
-        f"## Il contesto\n\n```json\n{json.dumps(ctx, ensure_ascii=False)}\n```\n"
+        f"{istruzioni}\n\n## Your folder\n\n{cart}\n\nWrite ESITO.json there, in {cart / 'ESITO.json'}.\n\n"
+        f"## The context\n\n```json\n{json.dumps(ctx, ensure_ascii=False)}\n```\n"
     )
 
 
@@ -931,13 +924,8 @@ def _impostazioni(cart: Path, rid: str) -> Path:
 
 
 def _trova_claude() -> str:
-    ""
-    try:
-        import sb_inspiration_azioni as I
-
-        return I._trova_claude()
-    except Exception:  # noqa: BLE001
-        return os.environ.get("SB_CLAUDE_CLI") or shutil.which("claude") or "claude"
+    """Your own `claude` command (SB_CLAUDE_CLI, PATH or the usual install places)."""
+    return sb_own_claude.find_claude() or "claude"
 
 
 def comando_claude(cart: Path, rid: str) -> list[str]:
@@ -963,36 +951,10 @@ def comando_claude(cart: Path, rid: str) -> list[str]:
         "--output-format",
         "json",
         "--model",
-        MODELLO,
+        sb_own_claude.model(MODELLO),
         "-n",
         f"Voice activity {rid[11:13]}:{rid[13:15]}",
     ]
-
-
-def _sbq():
-    modulo = POOL_SWITCH / "account_runner.py"
-    if not modulo.is_file():
-        raise Errore("motivo_quota")
-    m = sys.modules.get("account_runner")
-    if m is None or Path(getattr(m, "__file__", "") or "").resolve() != modulo.resolve():
-        spec = importlib.util.spec_from_file_location("account_runner", modulo)
-        m = importlib.util.module_from_spec(spec)
-        sys.modules["account_runner"] = m
-        try:
-            spec.loader.exec_module(m)
-        except Exception:  # noqa: BLE001
-            sys.modules.pop("account_runner", None)
-            raise Errore("motivo_quota") from None
-    return m
-
-
-def _quando_torna(fino) -> str:
-    if not fino:
-        return ""
-    try:
-        return TESTI["torna_alle"].format(ora=datetime.fromtimestamp(float(fino)).strftime("%H:%M"))
-    except (TypeError, ValueError, OSError, OverflowError):
-        return ""
 
 
 def _con_memoria(fai):
@@ -1037,7 +999,7 @@ def _piu_vecchia_in_coda(rid: str) -> str | None:
         if _arrivo(c) >= mia:
             break
         st = _leggi(c / "STATO.json")
-        if st.get("stato") in ("in_coda", "aspetta_abbonamento") and (
+        if st.get("stato") == "in_coda" and (
             _vivo(c) or _appena_partita(st)
         ):
             return c.name
@@ -1086,70 +1048,46 @@ def _esito_dal_result(testo: str) -> dict:
     return d if isinstance(d, dict) and ("risposta" in d or "stato" in d) else {}
 
 
+def _permesso() -> str:
+    """The consent and install check of sb_own_claude, as the key of the message to show."""
+    try:
+        sb_own_claude.check()
+    except sb_own_claude.NotAllowed:
+        return "motivo_spento"
+    except sb_own_claude.ClaudeMissing:
+        return "motivo_claude_manca"
+    return ""
+
+
 def _sessione(cart: Path, rid: str, richiesta: dict, testo: str) -> int:
     _stato(cart, stato="in_coda", testo=testo)
-    try:
-        sbq = _sbq()
-    except Errore as e:
-        _stato(cart, stato="non_riuscita", motivo=TESTI[e.chiave])
+    chiave = _permesso()
+    if chiave:
+        _stato(cart, stato="non_riuscita", motivo=TESTI[chiave])
         return 2
     with _turno(rid):
-        inizio_attesa = time.time()
-        while True:
-            ctx = contesto(rid, testo, richiesta["via"], richiesta.get("dopo") or "")
-            _scrivi(cart / "CONTESTO.json", ctx)
-            uscita = _con_memoria(lambda ctx=ctx: _una_sessione(cart, rid, sbq, ctx))
-            if uscita is None:
-                _stato(cart, stato="non_riuscita", motivo=TESTI["motivo_memoria_sessione"])
-                return 75
-            if not (isinstance(uscita, tuple) and uscita[0] == "nessuno"):
-                return uscita if isinstance(uscita, int) else 2
-            fino = uscita[1]
-            if time.time() - inizio_attesa > ATTESA_ABBONAMENTO_MAX_S:
-                _stato(cart, stato="non_riuscita", motivo=TESTI["motivo_nessuno_finito"])
-                return 7
-            _stato(
-                cart,
-                stato="aspetta_abbonamento",
-                motivo=TESTI["motivo_nessuno"].format(quando=_quando_torna(fino)),
-                fino=fino,
-            )
-            pausa = RIPROVA_PRESTITO_S
-            if fino:
-                pausa = min(max(float(fino) - time.time() + 30, 1), RIPROVA_PRESTITO_S)
-            _log(f"no subscription from AccountPool, retrying in {pausa:.0f} s")
-            time.sleep(pausa)
+        ctx = contesto(rid, testo, richiesta["via"], richiesta.get("dopo") or "")
+        _scrivi(cart / "CONTESTO.json", ctx)
+        uscita = _con_memoria(lambda ctx=ctx: _una_sessione(cart, rid, ctx))
+        if uscita is None:
+            _stato(cart, stato="non_riuscita", motivo=TESTI["motivo_memoria_sessione"])
+            return 75
+        return uscita if isinstance(uscita, int) else 2
 
 
-def _una_sessione(cart: Path, rid: str, sbq, ctx: dict):
+def _una_sessione(cart: Path, rid: str, ctx: dict):
     ""
-    args = {
-        "audit": rid,
-        "lavoro": ctx["detto"][:80],
-        "dominio": "sbk",
-        "durata_max": TETTO_SESSIONE_S + 600,
-    }
     try:
-        try:
-            prestito = sbq.prendi(STRUMENTO, MODELLO, **args)
-        except sbq.Occupato as e:
-            _stato(
-                cart,
-                stato="aspetta_abbonamento",
-                motivo=TESTI["motivo_occupato"],
-                dettaglio=str(e)[:300],
-            )
-            prestito = sbq.prendi(STRUMENTO, MODELLO, attesa=ATTESA_PRESTITO_S, **args)
-    except sbq.Occupato as e:
-        _stato(cart, dettaglio=str(getattr(e, "perche", e))[:300])
-        return ("nessuno", None)
-    except sbq.Nessuno as e:
-        _stato(cart, dettaglio=str(getattr(e, "perche", e))[:300])
-        return ("nessuno", getattr(e, "fino", None))
-    except sbq.Vietato as e:
-        _stato(cart, stato="non_riuscita", motivo=TESTI["motivo_vietato"], dettaglio=str(e)[:300])
+        sessione = sb_own_claude.session(
+            STRUMENTO, what="what you dictated or wrote and your task list"
+        )
+    except sb_own_claude.NotAllowed:
+        _stato(cart, stato="non_riuscita", motivo=TESTI["motivo_spento"])
         return 2
-    with prestito as p:
+    except sb_own_claude.ClaudeMissing:
+        _stato(cart, stato="non_riuscita", motivo=TESTI["motivo_claude_manca"])
+        return 2
+    with sessione as p:
 
 
 
@@ -1157,19 +1095,18 @@ def _una_sessione(cart: Path, rid: str, sbq, ctx: dict):
         messaggio = cart / "MESSAGGIO.md"
         messaggio.write_text(_primo_messaggio(cart, ctx), encoding="utf-8")
         cmd = comando_claude(cart, rid)
-        env = p.ambiente()
+        env = p.env()
         env.update(SB_ATTIVITA_DA=rid, SB_ATTIVITA_DIR=str(A.CARTELLA))
         t0 = time.time()
         _stato(
             cart,
             stato="in_elaborazione",
-            account=p.account,
-            prestito=p.id,
+            sessione_id=p.id,
             inizio_sessione=_ora(),
             motivo="",
             dettaglio="",
         )
-        _log(f"claude starts, account {p.account} borrowed from AccountPool ({p.id})")
+        _log(f"claude starts with your own login ({p.id})")
         if (cart / "ESITO.json").is_file():
 
             os.replace(cart / "ESITO.json", cart / f"ESITO-prima-{time.time_ns()}.json")
@@ -1193,21 +1130,12 @@ def _una_sessione(cart: Path, rid: str, sbq, ctx: dict):
                 uscita = "tempo"
         secondi = round(time.time() - t0, 1)
         risultato = _leggi(cart / "claude-esito.json")
-        if risultato:
-            with contextlib.suppress(Exception):
-                p.uso(risultato)
         finale = _leggi(cart / "ESITO.json")
         if not finale and risultato.get("result"):
             finale = _esito_dal_result(str(risultato["result"]))
             if finale:
                 finale["da"] = "risposta della sessione"
                 _scrivi(cart / "ESITO.json", finale)
-        if finale:
-            with contextlib.suppress(Exception):
-                p.prodotto(cart / "ESITO.json")
-        p.restituisci(
-            "over the cap" if uscita == "tempo" else str(finale.get("stato") or "no result")
-        )
     _log(
         f"claude closed, exit {uscita}, {secondi} s, {risultato.get('num_turns') or '?'} turns"
     )
@@ -2121,7 +2049,7 @@ def voce_di(cart: Path, riprendi: bool = True, cache=None) -> dict:
         "riprova": ["voce-riprova", cart.name] if stato == "non_riuscita" and not an else None,
 
 
-        "rispondi": ["voce-testo", "<la tua risposta>", "--dopo", cart.name]
+        "rispondi": ["voce-testo", "<your answer>", "--dopo", cart.name]
         if stato == "ti_chiede" or (stato == "non_si_puo" and not an and _propone(s.get("motivo")))
         else None,
         "annullate": an.get("saltate") or [] if an else [],
@@ -2135,8 +2063,7 @@ def voce_di(cart: Path, riprendi: bool = True, cache=None) -> dict:
             for k in (
                 "secondi_sessione",
                 "turni",
-                "account",
-                "prestito",
+                "sessione_id",
                 "inizio_sessione",
                 "fine_sessione",
             )

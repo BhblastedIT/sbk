@@ -18,6 +18,17 @@ uv run python tools/clinical/cl-l0-ingest.py --file report.pdf --type blood_test
 uv run python tools/clinical/cl-l1-parse.py         # the pipeline does not run this step
 uv run python tools/clinical/cl-alerts.py --subject <label>
 ```
+**Values by hand** `cl-build-values.py` adds lab values you type yourself, without the parsing step:
+
+```bash
+uv run python tools/clinical/cl-build-values.py --file my-values.csv --subject <label>
+```
+
+The CSV has the columns `date` (YYYY-MM-DD), `marker`, `value`, `unit`, `ref_min`, `ref_max` and,
+optionally, `subject`. The rows are merged into `values.parquet`: a row with the same date, marker and
+subject replaces the old one, and the values the parsing step wrote stay. Nothing leaves your machine.
+`--demo` adds five synthetic rows instead, only while the table is empty, to try `cl-alerts.py`.
+
 **Check** `<data root>/clinical/processed/values.parquet` and `alerts.json`.
 **Limits** **The documents leave your machine during parsing.** `cl-l1-parse.py` sends the extracted
 text to the DeepSeek API, and images, or texts under 100 characters, to the Anthropic API. Decide

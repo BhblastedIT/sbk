@@ -1,29 +1,19 @@
 #!/usr/bin/env python3
-""
+"""History of the speaker names SBK wrote into Plaud transcripts and of the voices it enrolled, one JSON line per
+write in <data root>/plaud/write_history.jsonl, so a rename can be looked up and reverted.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/plaud/pl_write_history.py [show]
+"""
 
 from __future__ import annotations
 
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-_DIR = Path.home() / ".sbk-data" / "plaud"
+_DIR = Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data") / "plaud"
 HISTORY_PATH = _DIR / "write_history.jsonl"
 
 
@@ -111,9 +101,11 @@ def _append(entry: dict[str, Any], path: Path | None = None) -> None:
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    if len(sys.argv) > 1 and sys.argv[1] == "show":
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("command", nargs="?", choices=["show"], help="show: print every entry")
+    if _ap.parse_args().command == "show":
         for e in load_history():
             if e.get("kind") == "rename":
                 ops = ", ".join(f"{k}:{v['old']}->{v['new']}" for k, v in e["ops"].items())
@@ -121,5 +113,5 @@ if __name__ == "__main__":
             else:
                 print(f"{e['ts']} {e['file_id'][:12]} ENROLL {e.get('enrolled')}")
     else:
-        print(f"Storico scritture: {HISTORY_PATH}")
-        print(f"Entry: {len(load_history())}")
+        print(f"Write history: {HISTORY_PATH}")
+        print(f"Entries: {len(load_history())}")

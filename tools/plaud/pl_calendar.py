@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import glob
 import json
+import os
 import sys
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -34,7 +35,7 @@ try:
 except ImportError:  # pragma: no cover
     from pl_types import Evidence, EvidenceDirection, EvidenceSource  # type: ignore[no-redef]
 
-_DATA = Path.home() / ".sbk-data"
+_DATA = Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
 _CAL_GLOB = str(_DATA / "calendars" / "*" / "events.parquet")
 _KB_PERSON_DIR = _DATA / "knowledge" / "entities" / "person"
 _EMAIL_INDEX_PATH = _DATA / "plaud" / "_email_index.json"

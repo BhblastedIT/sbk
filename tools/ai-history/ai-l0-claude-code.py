@@ -61,7 +61,15 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ai_common import iso_utc, make_record, output_path, parse_since, print_counts, write_messages
+from ai_common import (
+    iso_utc,
+    make_record,
+    output_path,
+    parse_since,
+    print_counts,
+    write_messages,
+    write_private,
+)
 from ai_redact import redact
 
 SOURCE = "claude-code"
@@ -322,9 +330,7 @@ def run(args: argparse.Namespace) -> int:
         "redactions": dict(redactions),
     }
     if args.stats_json:
-        Path(args.stats_json).write_text(
-            json.dumps(stats, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        write_private(args.stats_json, json.dumps(stats, indent=2, sort_keys=True) + "\n")
 
     if args.dry_run:
         print(

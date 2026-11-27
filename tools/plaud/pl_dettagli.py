@@ -27,7 +27,9 @@ if str(_REPO) not in sys.path:
 
 from tools.plaud.pl_write import WriteError, _http, get_auth  # noqa: E402
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 RAW = DATA / "plaud" / "raw"
 OUT = DATA / "plaud" / "dettagli"
 PIATTAFORME = {

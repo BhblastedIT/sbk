@@ -1,43 +1,14 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""L4-04: fuzzy merge of person entities: candidate pairs with similar names, confirmed by shared email, phone,
+LinkedIn or other signals, get a confidence. High-confidence pairs merge with --auto, the others go to a review
+queue (--review) that you decide and apply with --apply-reviewed. Dry run by default.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import logging
-import re
 import sys
 from collections import defaultdict
 from datetime import UTC, datetime
@@ -60,6 +31,7 @@ from knowledge_schema import (  # noqa: E402
     e_seconda_classe,
     identificatori_di,
 )
+from text_utils import normalize_phone  # noqa: E402
 
 from sbk_config import (  # noqa: E402
     KNOWLEDGE_ENTITIES_DIR,
@@ -198,7 +170,6 @@ _DECAY_MONTHS = 6
 _DECAY_FACTOR = 0.3
 
 
-_PHONE_CLEAN_RE = re.compile(r"[^\d+]")
 
 
 
@@ -242,10 +213,8 @@ def _jw_name_score(name_a: str, name_b: str) -> float:
 
 
 def _normalize_phone(phone: str) -> str:
-    ""
-    cleaned = _PHONE_CLEAN_RE.sub("", str(phone).strip())
-
-    return cleaned
+    """The shared normaliser (text_utils.normalize_phone, phone_country_code applied)."""
+    return normalize_phone(str(phone or "").strip())
 
 
 def _extract_email_domain(email: str) -> str:

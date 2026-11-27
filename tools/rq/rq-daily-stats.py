@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Relationship daily stats: for each day, how many new contacts and how many proactive outreaches (messages you
+started), from the weighted interactions.
+"""
 
 from __future__ import annotations
 

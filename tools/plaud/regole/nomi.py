@@ -19,7 +19,9 @@ from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 NAME_INDEX = DATA / "plaud" / "pl-name-index.json"
 PERSONE = DATA / "knowledge" / "entities" / "person"
 

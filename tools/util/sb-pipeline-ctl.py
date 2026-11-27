@@ -40,9 +40,8 @@ from sbk_resources import (  # noqa: E402
     pressure,
 )
 
-from sbk_config import DATA_ROOT  # noqa: E402
+from sbk_config import CASCADES_OFF_FLAG, DATA_ROOT, automatic_cascades_on  # noqa: E402
 
-AUTOPILOT_OFF_FLAG = DATA_ROOT / "AUTOPILOT_OFF"
 PROJECT_ROOT = _TOOLS_DIR.parent
 
 
@@ -137,9 +136,10 @@ def cmd_status() -> int:
     p = pressure()
     b = budget()
     print("── SBK · pipeline status ────────────────────────────────────")
-    auto = not AUTOPILOT_OFF_FLAG.exists()
+    auto = automatic_cascades_on()
     print(
-        f"  AUTOPILOT    : {'ON (cascades start on their own)' if auto else 'OFF (manual pipeline)'}"
+        "  automatic cascades: "
+        + ("on (the next step starts on its own)" if auto else "off (you run the pipeline by hand)")
     )
     print(f"  memory       : {p}")
     print(
@@ -176,14 +176,14 @@ def cmd_status() -> int:
 
 
 def cmd_off() -> int:
-    AUTOPILOT_OFF_FLAG.parent.mkdir(parents=True, exist_ok=True)
-    AUTOPILOT_OFF_FLAG.write_text(
-        "Autopilot disabled: no automatic cascade.\n"
+    CASCADES_OFF_FLAG.parent.mkdir(parents=True, exist_ok=True)
+    CASCADES_OFF_FLAG.write_text(
+        "Automatic cascades: off. No step starts on its own.\n"
         "Events stay queued and are processed by the manual run:\n"
         "  uv run python tools/cross-source/xs-pipeline-run.py --propagate\n"
-        "To re-enable:  uv run python tools/util/sb-pipeline-ctl.py on\n"
+        "To switch them on:  uv run python tools/util/sb-pipeline-ctl.py on\n"
     )
-    print("AUTOPILOT OFF.")
+    print("Automatic cascades: off.")
     print("  · no cascade starts on its own anymore")
     print("  · events keep being RECORDED (no data lost)")
     print("  · to process them: uv run python tools/cross-source/xs-pipeline-run.py --propagate")
@@ -191,9 +191,8 @@ def cmd_off() -> int:
 
 
 def cmd_on() -> int:
-    if AUTOPILOT_OFF_FLAG.exists():
-        AUTOPILOT_OFF_FLAG.unlink()
-    print("AUTOPILOT ON: cascades restart automatically.")
+    CASCADES_OFF_FLAG.unlink(missing_ok=True)
+    print("Automatic cascades: on. The next step starts on its own again.")
     return 0
 
 
@@ -299,7 +298,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("comando", choices=["status", "on", "off", "check", "cleanup"])
+    ap.add_argument(
+        "comando",
+        choices=["status", "on", "off", "check", "cleanup"],
+        help="status; on / off = automatic cascades on or off; check; cleanup",
+    )
     ap.add_argument(
         "--force",
         action="store_true",

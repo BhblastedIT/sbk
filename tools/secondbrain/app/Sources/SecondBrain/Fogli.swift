@@ -339,13 +339,10 @@ struct FoglioCompleta: View {
     }
 
     private func rigaChiavi(_ chiavi: [Chiave]) -> String {
-        let usabili = chiavi.filter { $0.presente != false && $0.errore == nil }
-        guard let turno = usabili.first(where: { $0.paga == true }) ?? usabili.first else {
+        guard let chiave = chiavi.first(where: { $0.presente != false && $0.errore == nil }) else {
             return t("chiave_nessuna")
         }
-        let riserve = usabili.filter { $0.nome != turno.nome }.map { "«\($0.nome)»" }
-        let coda = riserve.isEmpty ? t("chiave_senza_riserva") : t("chiave_riserva", ["riserve": riserve.joined(separator: ", ")])
-        return t("chiave_paga", ["nome": turno.nome]) + " " + coda
+        return t("chiave_paga", ["nome": chiave.nome])
     }
 
     private var notaStima: String {
@@ -452,7 +449,7 @@ struct FoglioRiprendi: View {
         }
         .secondaConferma($conferma, titolo: "Resume and spend?",
                          messaggio: "This is the second confirmation. The Full run complete you stopped restarts, with the same paid steps."
-                             + (store.chiavePaga.map { " It pays the key «\($0)»." } ?? "") + " After this click the spending begins.",
+                             + (store.chiavePaga.map { " It is charged to the key in \($0)." } ?? "") + " After this click the spending begins.",
                          pulsante: "Yes, resume and spend") {
             chiudi()
             Task { await store.riprendi(ripresa) }
@@ -514,7 +511,7 @@ struct FoglioStadio: View {
         }
         .secondaConferma($conferma, titolo: dollari.map { "Really spend about \($0) $?" } ?? "Really spend, without an estimate?",
                          messaggio: "This is the second confirmation. Only «\(stadio.nome)» restarts, paid."
-                             + (store.chiavePaga.map { " It pays the key «\($0)»." } ?? "") + " After this click the spending begins.",
+                             + (store.chiavePaga.map { " It is charged to the key in \($0)." } ?? "") + " After this click the spending begins.",
                          pulsante: dollari.map { "Yes, spend about \($0) $" } ?? "Yes, redo and spend") {
             chiudi()
             Task { await store.rifaiStadio(stadio) }
@@ -604,7 +601,7 @@ struct FoglioGuida: View {
             .background(Superficie.incasso, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             VStack(alignment: .leading, spacing: 6) {
                 Text("The sections").font(Testo.nome)
-                Text(g?.sezioni ?? "Overview tells you whether you can trust the data and what to fix. Sources shows where the data comes from and how fresh it is. Pipeline shows all the steps, phase by phase, with the last time of each. Run follows what is running, with the lanes and the log. Spend and keys holds the estimate of the paid steps and the queue of API keys. Rules tells how each source is downloaded and what each step does. Tools holds the alerts, the settings, the Mac's memory and the disk.")
+                Text(g?.sezioni ?? "Overview tells you whether you can trust the data and what to fix. Sources shows where the data comes from and how fresh it is. Pipeline shows all the steps, phase by phase, with the last time of each. Run follows what is running, with the lanes and the log. Spending and API key holds the estimate of the paid steps and whether your ANTHROPIC_API_KEY is set. Rules tells how each source is downloaded and what each step does. Tools holds the alerts, the settings, the Mac's memory and the disk.")
                     .fixedSize(horizontal: false, vertical: true)
             }
             VStack(alignment: .leading, spacing: 6) {

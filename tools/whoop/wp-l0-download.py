@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
+"""WHOOP download: recovery, sleep, cycles and workouts through the WHOOP API, the last days or the full history,
+within the rate limit.
+"""
 
 import argparse
 import json

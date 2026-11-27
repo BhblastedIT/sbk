@@ -1,20 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Contact matcher (strict mode): matches the contacts of a CSV file against the merged contacts, the entity map,
+Attio, LinkedIn and phone contacts, and writes a Markdown report.
+"""
 
 import json
 import re
@@ -36,8 +22,9 @@ from sbk_config import DATA_ROOT
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
-CSV_PATH = PROJECT_ROOT / "sbk" / "raw" / "contatti-vari-import.csv"
-OUTPUT_PATH = PROJECT_ROOT / "sbk" / "raw" / "contatti-match-report.md"
+# The CSV is yours and always passed with --csv; the report goes to your data root.
+CSV_PATH: Path | None = None
+OUTPUT_PATH = DATA_ROOT / "contacts" / "contacts-match-report.md"
 
 CONTACTS_MERGED = DATA_ROOT / "enriched" / "contacts-merged.parquet"
 CONTACTS_PARQUET = DATA_ROOT / "enriched" / "contacts.parquet"
@@ -952,7 +939,7 @@ def _parse_args(argv=None):
             "contacts, the entity map, Attio, LinkedIn and phone contacts, and writes a Markdown report"
         )
     )
-    p.add_argument("--csv", type=Path, default=CSV_PATH, help=f"contacts CSV to match (default {CSV_PATH})")
+    p.add_argument("--csv", type=Path, required=True, help="the contacts CSV to match (required)")
     p.add_argument(
         "--report", type=Path, default=OUTPUT_PATH, help=f"where the report goes (default {OUTPUT_PATH})"
     )

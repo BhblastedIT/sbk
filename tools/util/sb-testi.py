@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-""
+"""Flags interface text that sounds machine-written or generic: stock phrases, filler, brochure adjectives,
+assistant openings and closings, essay connectives, generic names for sections and buttons. The phrase lists are
+for Italian text; optional style checks are listed in STILE_OPZIONALE.
 
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/util/sb-testi.py [FILE ...]            (HTML or text; '-' or nothing reads stdin)
+       uv run python tools/util/sb-testi.py --module path.py:NAME  (a dict of interface strings in a module)
+Exit 1 when something is found.
+"""
 
 from __future__ import annotations
 
+import argparse
 import ast
 import re
 import sys
@@ -99,7 +95,7 @@ def _da_modulo(spec: str) -> dict[str, str]:
             nodo.value, ast.Dict
         ):
             out = {}
-            for k, v in zip(nodo.value.keys, nodo.value.values):  # noqa: B905 gira anche col python3 di sistema
+            for k, v in zip(nodo.value.keys, nodo.value.values):  # noqa: B905 also runs with the system python3
                 try:
                     out[str(ast.literal_eval(k))] = str(ast.literal_eval(v))
                 except (ValueError, TypeError):
@@ -109,16 +105,22 @@ def _da_modulo(spec: str) -> dict[str, str]:
 
 
 def main(argv: list[str]) -> int:
-    solo_nomi = "--nomi" in argv
-    argv = [a for a in argv if a != "--nomi"]
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("files", nargs="*", metavar="FILE", help="files to check ('-' = stdin, the default)")
+    ap.add_argument("--module", metavar="PATH:NAME", help="check the strings of dict NAME in the Python file PATH")
+    ap.add_argument("--modulo", dest="module", help=argparse.SUPPRESS)
+    ap.add_argument("--names-only", action="store_true", help="report only generic names")
+    ap.add_argument("--nomi", action="store_true", dest="names_only", help=argparse.SUPPRESS)
+    args = ap.parse_args(argv)
+    solo_nomi = args.names_only
     pezzi: list[tuple[str, str, str]] = []
-    if "--modulo" in argv:
-        spec = argv[argv.index("--modulo") + 1]
+    if args.module:
+        spec = args.module
         pezzi += [
             (spec, k, v) for k, v in _da_modulo(spec).items() if not k.startswith("commento_")
         ]
     else:
-        for nome in argv or ["-"]:
+        for nome in args.files or ["-"]:
             grezzo = (
                 sys.stdin.read()
                 if nome == "-"

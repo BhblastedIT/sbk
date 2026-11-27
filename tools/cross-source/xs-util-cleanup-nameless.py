@@ -1,24 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Cleans up the knowledge-base profiles whose name is just their id: gives them the best name found in their facts;
+without one, profiles with useful facts are moved to an archive folder and empty ones are deleted (profiles in a
+merge cluster are left alone). Dry run by default; --apply writes.
+"""
 
 from __future__ import annotations
 

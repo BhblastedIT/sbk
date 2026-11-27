@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 log = logging.getLogger("rq.blocklist")
@@ -18,16 +19,11 @@ log = logging.getLogger("rq.blocklist")
 def load_blocklist() -> dict:
     ""
 
-
-
-
-
-
-
-
-
-
-    blocklist_path = Path("~/.sbk-data/rq/non-person-blocklist.json").expanduser()
+    blocklist_path = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "rq"
+        / "non-person-blocklist.json"
+    )
     if not blocklist_path.exists():
         return {
             "email_prefixes": [],
@@ -62,7 +58,7 @@ def _rumore():
 def _tipi_mittenti() -> dict[str, str]:
     try:
         return _rumore().tipi_mittenti()
-    except Exception:  # noqa: BLE001 - senza la tabella vale la lista, com'era
+    except Exception:  # noqa: BLE001 - without the table the list applies, as before
         return {}
 
 

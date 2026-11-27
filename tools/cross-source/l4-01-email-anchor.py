@@ -1,31 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""L4-01: merges the person entities that share an email address (generic mailboxes excluded) into one canonical
+entity, archiving the merged ones. Dry run by default; --apply executes.
+"""
 
 from __future__ import annotations
 
@@ -377,7 +353,7 @@ def main():
                 merged_count += len(result["merged_ids"])
                 facts_gained += result["facts_gained"]
         if journal.percorso:
-            log.info("registro delle fusioni: %s", journal.percorso)
+            log.info("merge journal: %s", journal.percorso)
             log.info(
                 "per tornare indietro: xs-l4-disfa-fusione.py --journal %s --apply",
                 journal.percorso.name,

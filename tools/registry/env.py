@@ -72,8 +72,8 @@ def assert_no_secrets_in_argv(args: list[str]) -> None:
         for pat in _SECRET_PATTERNS:
             if pat.search(a):
                 raise SecretInArgvError(
-                    f"argomento #{i} sembra contenere un segreto in chiaro "
-                    f"(pattern {pat.pattern!r}); passare i segreti via env/Keychain, mai in argv"
+                    f"argument #{i} looks like a plaintext secret "
+                    f"(pattern {pat.pattern!r}); pass secrets through env/Keychain, never in argv"
                 )
 
 

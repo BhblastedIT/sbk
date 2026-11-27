@@ -1,26 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Rule-based email pre-filter: drops noise in layers (the noise table, noise domains, noreply senders, automated
+subjects, bodies too short, no relevant keyword) and prints how many emails each layer removed.
+"""
 
 from __future__ import annotations
 

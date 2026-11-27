@@ -1,31 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Personio L1: employees, employments (with the termination type), the org chart and the contacts from the
+Personio download, as parquet files with a summary.
+"""
 
 from __future__ import annotations
 

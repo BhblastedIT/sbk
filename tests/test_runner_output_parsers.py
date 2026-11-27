@@ -113,10 +113,10 @@ def test_runner_english_words_are_the_expected_ones(moduli):
     """If the runner's wording changes, this fails first and points at the readers to update."""
     en = _righe_en(moduli)
     assert "sources not closed: calendar, slack" in en["skipped"][0]
-    assert "skipped: l3_x (non_scelto)" in en["skipped"][0]
+    assert "skipped: l3_x (not chosen)" in en["skipped"][0]
     assert "warnings: 1" in en["skipped"][0]
     assert en["dead"][0].startswith("Pipeline FAILED — dead: L2 merge")
-    assert "(precondizione)" in en["precondition"][0]
+    assert "(precondition) — model API key" in en["precondition"][0]
 
 
 @pytest.mark.parametrize("lingua", ["en", "it"])

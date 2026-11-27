@@ -1,42 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""People named in your Plaud transcripts at least a few times who are not in the knowledge base, with the number of
+mentions and an example.
+"""
 
 from __future__ import annotations
 

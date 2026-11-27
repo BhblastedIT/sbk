@@ -91,21 +91,15 @@ def aspetta_se_in_pausa(
 
 
 
-COPIE = Path.home() / ".sbk-backups"
-
-
 SUFFISSO_INTERROTTA = ".interrotta"
 
 
 def copia_del_cervello(L0R, cartella: Path, copie: Path | None = None) -> bool:
-    ""
+    """Run L0R.backup_kb; if it is interrupted, mark what it left in the copies folder.
 
-
-
-
-
-
-    copie = copie or COPIE
+    The copies folder is L0R.COPIE_KB (<data root>/backups-knowledge) unless `copie` is given.
+    """
+    copie = copie or L0R.COPIE_KB
     t0 = time.time()
     try:
         return L0R.backup_kb(cartella)
@@ -126,13 +120,13 @@ def copia_del_cervello(L0R, cartella: Path, copie: Path | None = None) -> bool:
             if f.name.endswith(".parziale"):
 
 
-                L0R._esito(esiti, "backup-kb", "INTERROTTO", f"half copy left in {f.name}")
+                L0R._esito(esiti, "backup-kb", L0R.DIARIO_INTERROTTO, f"half copy left in {f.name}")
             elif _copia_intera(f):
 
                 L0R._esito(esiti, "backup-kb", "stopped after the copy", f"{f.name} whole")
             else:
                 f.rename(f.with_name(f.name + SUFFISSO_INTERROTTA))
-                L0R._esito(esiti, "backup-kb", "INTERROTTO", f.name + SUFFISSO_INTERROTTA)
+                L0R._esito(esiti, "backup-kb", L0R.DIARIO_INTERROTTO, f.name + SUFFISSO_INTERROTTA)
         raise
 
 
@@ -149,6 +143,17 @@ def _copia_intera(f: Path) -> bool:
 
 
 
+# Diary markers: the English words, and the Italian ones of diaries written before them.
+SEGNI_INIZIO = ("START", "INIZIO")
+SEGNI_FINE = ("END", "FINE")
+SEGNI_TENTATIVO = ("attempt.", "tent.")
+SEGNI_SOLO_L0 = ("L0 only", "solo L0")
+SEGNI_POI_TUTTO = ("then-all", "poi-tutto")
+SEGNI_FERMATO = ("STOPPED", "FERMATO")
+SEGNI_INTERROTTO = ("INTERRUPTED", "INTERROTTO")
+SEGNI_RIPRESO = ("resumed", "ripreso")
+
+
 def _blocco(diario: Path) -> list[list[str]]:
     ""
 
@@ -157,7 +162,7 @@ def _blocco(diario: Path) -> list[list[str]]:
     except OSError:
         return []
     campi = [r.split("\t") for r in righe if r.strip()]
-    inizi = [i for i, c in enumerate(campi) if len(c) > 1 and c[1].startswith("INIZIO")]
+    inizi = [i for i, c in enumerate(campi) if len(c) > 1 and c[1].startswith(SEGNI_INIZIO)]
     return campi[inizi[-1] :] if inizi else campi
 
 
@@ -165,15 +170,15 @@ def _passo_chiuso(c: list[str], nome: str) -> bool:
     ""
     if len(c) < 3 or c[1] != nome:
         return False
-    if c[2] == "ripreso":
+    if c[2] in SEGNI_RIPRESO:
         return True
-    return c[2].startswith("tent.") and len(c) > 3 and c[3] == "rc=0"
+    return c[2].startswith(SEGNI_TENTATIVO) and len(c) > 3 and c[3] == "rc=0"
 
 
 def _finale_chiuso(c: list[str], finale: str) -> bool:
     ""
 
-    if len(c) < 4 or c[1] != finale or not c[2].startswith("tent."):
+    if len(c) < 4 or c[1] != finale or not c[2].startswith(SEGNI_TENTATIVO):
         return False
     rc = c[3].removeprefix("rc=")
     return rc == "0" or (rc == "2" and not (len(c) > 5 and c[5]))
@@ -198,7 +203,7 @@ class Giro:
 
     @property
     def fermato(self) -> bool:
-        return bool(self.fine) and len(self.fine) > 2 and self.fine[2] == "FERMATO"
+        return bool(self.fine) and len(self.fine) > 2 and self.fine[2] in SEGNI_FERMATO
 
     @property
     def senza_fine(self) -> bool:
@@ -234,9 +239,9 @@ def leggi_giro(cartella: Path, nomi: Iterable[str], finale: str | None = None) -
     g.trovato = True
     g.testa = blocco[0]
     testa = "\t".join(blocco[0])
-    if "solo L0" in testa:
+    if any(s in testa for s in SEGNI_SOLO_L0):
         g.modo = None
-    elif "poi-tutto" in testa:
+    elif any(s in testa for s in SEGNI_POI_TUTTO):
         g.modo = "tutto"
     else:
         g.modo = "ingest"
@@ -255,7 +260,7 @@ def leggi_giro(cartella: Path, nomi: Iterable[str], finale: str | None = None) -
             g.backup_chiuso = True
         if finale and _finale_chiuso(c, finale):
             g.finale_chiuso = True
-        if c[1] == "FINE" or c[1].startswith("FULL RUN CONCLUSO"):
+        if c[1] in SEGNI_FINE or c[1].startswith("FULL RUN CONCLUSO"):
             g.fine = c
     segni = [diario, *sorted((cartella / "log").glob("*.log"))]
     tempi = [p.stat().st_mtime for p in segni if p.exists()]
@@ -288,7 +293,16 @@ _RE_SALTATO = re.compile(
     r"– (?P<nome>.+?)(?: \[PAID\].*?)? — (?:SKIPPED|SALTATO) \((?P<motivo>[^)]+)\)"
 )
 # Skip reasons that still count as closed: the English labels and the internal codes.
-_SALTI_CHIUSI = ("not chosen", "resumed", "non_scelto", "ripreso")
+_SALTI_CHIUSI = (
+    "not chosen",
+    "resumed",
+    "not in enabled_sources",
+    "non_scelto",
+    "ripreso",
+    "non_elencata",
+    "nothing to read yet",
+    "niente_da_leggere",
+)
 
 
 def orchestratore_sa_riprendere(orchestratore: Path) -> bool:

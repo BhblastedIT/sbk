@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plaud check batch: pick voices for you to confirm (--nuovo) and record your answer to one of them (--risposta N TEXT)."""
+"""Plaud check batch: pick voices for you to confirm (--new) and record your answer to one of them (--answer N TEXT)."""
 
 
 
@@ -43,7 +43,9 @@ if str(_REPO) not in sys.path:
 
 from tools.plaud.regole.nomi import OWNER_CANONICO  # noqa: E402
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 RAW = DATA / "plaud" / "raw"
 QUADRO = DATA / "plaud" / "quadro"
 LOTTO = QUADRO / "lotto-verifiche.json"
@@ -364,9 +366,28 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=((__doc__ or "").strip().splitlines() or ["Plaud check batch"])[0]
     )
-    ap.add_argument("--nuovo", action="store_true")
-    ap.add_argument("--quante", type=int, default=50)
-    ap.add_argument("--risposta", nargs=2, metavar=("N", "TESTO"))
+    ap.add_argument(
+        "--new", dest="nuovo", action="store_true", help="pick a new batch of voices to confirm"
+    )
+    ap.add_argument(
+        "--count",
+        dest="quante",
+        metavar="N",
+        type=int,
+        default=50,
+        help="how many voices in the batch (default 50)",
+    )
+    ap.add_argument(
+        "--answer",
+        dest="risposta",
+        nargs=2,
+        metavar=("N", "TEXT"),
+        help="record your answer to voice N of the batch",
+    )
+    # Older Italian names, kept as hidden aliases.
+    ap.add_argument("--nuovo", dest="nuovo", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--quante", dest="quante", type=int, help=argparse.SUPPRESS)
+    ap.add_argument("--risposta", dest="risposta", nargs=2, help=argparse.SUPPRESS)
     a = ap.parse_args()
     if a.nuovo:
         nuovo(a.quante)

@@ -34,9 +34,8 @@ from datetime import datetime
 from pathlib import Path
 
 DIR = Path(
-    os.environ.get(
-        "SBK_INBOX_ZERO_DIR", Path.home() / ".sbk-data/work/sbk/inbox-zero/rules"
-    )
+    os.environ.get("SBK_INBOX_ZERO_DIR")
+    or Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data") / "work/sbk/inbox-zero/rules"
 )
 LIMITE_QUERY = 1300
 LIMITE_GMAIL = 1500
@@ -637,35 +636,77 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    ap.add_argument("--json", action="store_true")
-    sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("stato")
-    el = sub.add_parser("elenco")
-    el.add_argument("--casella")
-    sp = sub.add_parser("sposta")
-    sp.add_argument("casella")
-    sp.add_argument("mittente")
-    sp.add_argument("categoria")
-    sp.add_argument("--perche", required=True)
-    sp.add_argument("--principale", action="store_true")
-    a = sub.add_parser("applica")
-    a.add_argument("--esegui", action="store_true")
-    pu = sub.add_parser("pulizia")
-    pu.add_argument("--casella")
-    pu.add_argument("--esegui", action="store_true")
-    an = sub.add_parser("annulla")
-    an.add_argument("registro", type=Path)
-    an.add_argument("--esegui", action="store_true")
+    ap.add_argument("--json", action="store_true", help="compact JSON output")
+    # English subcommands; the older Italian names stay as hidden aliases (not in the help).
+    canonical = {
+        "stato": "status",
+        "elenco": "list",
+        "sposta": "move",
+        "applica": "apply",
+        "pulizia": "cleanup",
+        "annulla": "undo",
+    }
+    italian = {v: k for k, v in canonical.items()}
+    sub = ap.add_subparsers(
+        dest="cmd", required=True, metavar="{status,list,move,apply,cleanup,undo}"
+    )
+
+    def command(name: str, text: str) -> argparse.ArgumentParser:
+        return sub.add_parser(name, aliases=[italian[name]], description=text)
+
+    def execute_flag(p: argparse.ArgumentParser) -> None:
+        p.add_argument(
+            "--execute", dest="esegui", action="store_true", help="do it (default: plan only)"
+        )
+        p.add_argument("--esegui", dest="esegui", action="store_true", help=argparse.SUPPRESS)
+
+    def mailbox_flag(p: argparse.ArgumentParser) -> None:
+        p.add_argument("--mailbox", dest="casella", metavar="LABEL", help="only this mailbox label")
+        p.add_argument("--casella", dest="casella", help=argparse.SUPPRESS)
+
+    command(
+        "status",
+        "Read-only: for each mailbox, senders per category and the plan against the live Gmail filters.",
+    )
+    el = command("list", "List the sender rules and the special rules.")
+    mailbox_flag(el)
+    sp = command("move", "Move a sender to a category (label) in one mailbox.")
+    sp.add_argument("casella", metavar="mailbox")
+    sp.add_argument("mittente", metavar="sender")
+    sp.add_argument("categoria", metavar="category")
+    sp.add_argument("--reason", dest="perche", metavar="TEXT", help="why (kept in the history)")
+    sp.add_argument("--perche", dest="perche", help=argparse.SUPPRESS)
+    sp.add_argument(
+        "--main",
+        dest="principale",
+        action="store_true",
+        help="with the PRINCIPALE category, keep it in the inbox",
+    )
+    sp.add_argument("--principale", dest="principale", action="store_true", help=argparse.SUPPRESS)
+    a = command("apply", "Compile the rules into Gmail filters and apply them.")
+    execute_flag(a)
+    pu = command(
+        "cleanup",
+        "Apply the rules to the mail already in the inbox, logging every change for undo.",
+    )
+    mailbox_flag(pu)
+    execute_flag(pu)
+    an = command("undo", "Undo a cleanup from the log file it wrote.")
+    an.add_argument("registro", type=Path, metavar="log")
+    execute_flag(an)
     args = ap.parse_args()
-    if args.cmd == "sposta":
+    args.cmd = canonical.get(args.cmd, args.cmd)
+    if args.cmd == "move" and not args.perche:
+        ap.error("move: --reason is required")
+    if args.cmd == "move":
         out = sposta(args.casella, args.mittente, args.categoria, args.perche, args.principale)
-    elif args.cmd == "annulla":
+    elif args.cmd == "undo":
         out = cmd_annulla(args.registro, args.esegui)
     else:
         dato = carica()
-        if args.cmd == "stato":
+        if args.cmd == "status":
             out = cmd_stato(dato)
-        elif args.cmd == "elenco":
+        elif args.cmd == "list":
             out = {
                 "mittenti": [
                     e for e in dato["mittenti"] if not args.casella or e["casella"] == args.casella
@@ -674,7 +715,7 @@ def main() -> int:
                     s for s in dato["speciali"] if not args.casella or s["casella"] == args.casella
                 ],
             }
-        elif args.cmd == "applica":
+        elif args.cmd == "apply":
             out = cmd_applica(dato, args.esegui)
         else:
             out = cmd_pulizia(dato, args.casella, args.esegui)

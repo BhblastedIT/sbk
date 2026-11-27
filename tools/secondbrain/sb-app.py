@@ -94,6 +94,19 @@ MODI = ("tutto", "ingest", "propaga", "ricostruisci")
 AMBIENTE_RUN = {"PYTHONUNBUFFERED": "1", "SBK_L1_SEQUENZIALE": "1", "LANG": "en_US.UTF-8"}
 
 
+# Run diary markers (esiti.tsv): the English words, and the Italian ones of diaries written
+# before them (INIZIO, FINE, tent.N, solo L0, poi-tutto).
+_INIZIO = ("START", "INIZIO")
+_FINE = ("END", "FINE")
+_TENTATIVO = ("attempt.", "tent.")
+_SOLO_L0 = ("L0 only", "solo L0")
+_POI_TUTTO = ("then-all", "poi-tutto")
+_FERMATO = ("STOPPED", "FERMATO")
+_INTERROTTO = ("INTERRUPTED", "INTERROTTO")
+_NON_PARTITA = ("not started", "non partita")
+_RIPRESO = ("resumed", "ripreso")
+
+
 def _carica(nome: str, percorso: Path):
     spec = importlib.util.spec_from_file_location(nome, percorso)
     mod = importlib.util.module_from_spec(spec)
@@ -551,7 +564,11 @@ def _diari_l0() -> list[dict]:
             continue
         for r in testo:
             campi = r.split("\t")
-            if len(campi) < 4 or not campi[2].startswith("tent.") or campi[1] not in nome_a_fonte:
+            if (
+                len(campi) < 4
+                or not campi[2].startswith(_TENTATIVO)
+                or campi[1] not in nome_a_fonte
+            ):
                 continue
             try:
                 ts = datetime.strptime(f"{anno}/{campi[0]}", "%Y/%d/%m %H:%M:%S")
@@ -1096,10 +1113,10 @@ def _ultimo_giro_l0() -> dict | None:
     def campo(r: str, i: int) -> str:
         return (r.split("\t") + ["", "", ""])[i]
 
-    inizi = [i for i, r in enumerate(righe) if campo(r, 1).startswith("INIZIO")]
+    inizi = [i for i, r in enumerate(righe) if campo(r, 1).startswith(_INIZIO)]
     blocco = righe[inizi[-1] :] if inizi else righe
     fine = next(
-        (r for r in reversed(blocco) if campo(r, 1).startswith(("FINE", "FULL RUN CONCLUSO"))), None
+        (r for r in reversed(blocco) if campo(r, 1).startswith((*_FINE, "FULL RUN CONCLUSO"))), None
     )
     log_vivo = max(
         (diario.parent / "log").glob("*.log"), key=lambda p: p.stat().st_mtime, default=None
@@ -1133,10 +1150,10 @@ def _ultimo_giro_l0() -> dict | None:
         )
         if fine
         else None,
-        "fermato": bool(fine) and campo(fine, 2) == "FERMATO",
-        "poi_ingest": "solo L0" not in testa,
+        "fermato": bool(fine) and campo(fine, 2) in _FERMATO,
+        "poi_ingest": not any(s in testa for s in _SOLO_L0),
 
-        "finale": "tutto" if "poi-tutto" in testa else "ingest",
+        "finale": "tutto" if any(s in testa for s in _POI_TUTTO) else "ingest",
         "passo_in_corso": log_vivo.stem if (fine is None and log_vivo) else None,
         "ultimo_segno_s": round(time.time() - log_vivo.stat().st_mtime) if log_vivo else None,
         "aggiornato": _iso(diario.stat().st_mtime),
@@ -1800,7 +1817,7 @@ def _ultimo_stadio(
             "quando": fine_run,
             "esito": "ok",
             "durata_s": None,
-            "fonte": "dalla fine dell'ultimo run della pipeline",
+            "fonte": "from the end of the last pipeline run",
         }
     if d is None and _output_di(p.id):
         return _da_file(*_output_di(p.id))
@@ -2468,7 +2485,7 @@ def _fine_giro(cartella: Path) -> str | None:
     diario = cartella / "esiti.tsv"
     for riga in reversed(_coda(diario, 16384)):
         campi = riga.split("\t")
-        if len(campi) >= 3 and campi[1] == "FINE":
+        if len(campi) >= 3 and campi[1] in _FINE:
 
             return campi[-1].removeprefix("not closed: ").removeprefix("non chiusi: ")
     return None
@@ -2573,7 +2590,7 @@ def _esito_terminale(tipo: str, rc, cartella: str | None) -> tuple[str, str]:
             (
                 r.split("\t")[-1]
                 for r in reversed(_coda(Path(cartella or "") / "esiti.tsv", 8192))
-                if r.split("\t")[1:2] == ["FINE"]
+                if r.split("\t")[1:2] in [[s] for s in _FINE]
             ),
             "",
         )
@@ -2899,6 +2916,21 @@ def verdetto(
             f"{len(rotte)} sources aren't downloading.",
             ", ".join(f["nome"] for f in rotte) + ".",
         )
+    # A stage whose last attempt failed (also in a run started from the terminal, which is not in `runs`):
+    # the data is not in step, whatever the clocks say.
+    falliti = [s for s in stadi_out if s.get("salute") == "errore"]
+    if falliti:
+        s = falliti[0]
+        frase = f"Last attempt {quando((s.get('ultimo') or {}).get('quando'))}."
+        if len(falliti) > 1:
+            frase += f" Also failed: {', '.join(x['nome'] for x in falliti[1:])}."
+        return v(
+            "errore",
+            f"{s['nome']} failed in the last run.",
+            frase,
+            (s.get("da_solo") or {}).get("azione"),
+            {"tipo": "stadio", "id": s["id"]},
+        )
     giorni_ke = _giorni_da(ke_q)
     soglia_ke = getattr(sbk_config, "KB_SILENZIO_GIORNI", 7)
     if giorni_ke is not None and giorni_ke > soglia_ke:
@@ -2947,6 +2979,23 @@ def verdetto(
             "neutra",
             "There is read data not yet in the brain.",
             "Re-read and update brings it in, at no cost.",
+            rileggi,
+            {"tipo": "fase", "id": "conoscenza"},
+        )
+    if not ke_q:
+        # A fresh install: never read into the brain, so nothing can be "in step" yet. A source counts as
+        # connected when it has any data: downloaded, imported by hand (WhatsApp, Telegram...) or already read.
+        if not any(f.get(k) for f in fonti_out for k in ("scaricata", "dato_del", "lettura")):
+            return v(
+                "neutra",
+                "Nothing is connected yet.",
+                "Connect a source and download or import it (docs/CONNECTING.md), "
+                "then Re-read and update builds the knowledge.",
+            )
+        return v(
+            "neutra",
+            "The knowledge is not built yet.",
+            "Re-read and update builds it from what you downloaded, at no cost.",
             rileggi,
             {"tipo": "fase", "id": "conoscenza"},
         )
@@ -3510,7 +3559,7 @@ def _voce_lavoro(riga: dict, copie: dict | None) -> dict:
         elif perche.startswith("its log moved"):
             titolo = f"{nome} ran without saying how it went"
         else:
-            titolo = f"{nome} needs a look in the Jobs tab of AccountPool"
+            titolo = f"{nome} needs a look"
         causa = None
         salute = "attenzione"
     dettaglio = []
@@ -3913,7 +3962,7 @@ def cmd_stato(fresco: bool = False) -> dict:
     wa = whatsapp_import(XPR._l0_dir("whatsapp"), cache=cache)
     eta = {**eta, "whatsapp": wa["eta"]}
     impronta = _impronta(cache, fresco)
-    chiavi = _chiavi(cache, fresco)
+    chiavi = _chiavi()
 
     registro = _righe_registro(cache)
     _salva_cache(cache, prima)
@@ -4064,7 +4113,7 @@ def cmd_stato(fresco: bool = False) -> dict:
         "sonno": sonno_e_corrente(),
         "memoria": memoria,
         "durate_tipiche": {k: v for k, v in durate_tipiche.items() if not k.startswith("l0:")},
-        "autopilota_spento": CTL.AUTOPILOT_OFF_FLAG.exists(),
+        "autopilota_spento": not CTL.automatic_cascades_on(),
         "chiavi": chiavi,
 
         "scarichi_soli": scarichi,
@@ -4091,59 +4140,44 @@ def cmd_stato(fresco: bool = False) -> dict:
 
 
 
-CHIAVI_SCADENZA_S = 600
+CHIAVE_API = "ANTHROPIC_API_KEY"
+_RIGA_CHIAVE_API = re.compile(r"\s*(?:export\s+)?ANTHROPIC_API_KEY\s*=\s*(.*?)\s*$")
 
 
-def _elenco_chiavi(xs_chiavi, cache: dict | None, fresco: bool) -> list[dict]:
-    ""
+def _dove_chiave_api(env_file: Path | None = None) -> str | None:
+    """Where ANTHROPIC_API_KEY is set: "the environment", ".env", or None. Never returns the value."""
+    if os.environ.get(CHIAVE_API):
+        return "the environment"
+    f = env_file or ROOT / ".env"
+    try:
+        righe = f.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        return None
+    for r in righe:
+        m = _RIGA_CHIAVE_API.match(r)
+        if m and m.group(1).strip("\"'"):
+            return ".env"
+    return None
 
 
-    leggi = getattr(xs_chiavi, "_leggi_segreto", None)
-    if cache is None or leggi is None:
-        return xs_chiavi.elenco()
-    c = cache.get("chiavi_presenti") or {}
-    nomi = c.get("nomi")
-    if fresco or not isinstance(nomi, dict) or time.time() - c.get("quando", 0) > CHIAVI_SCADENZA_S:
-        coda = xs_chiavi.elenco()
-        cache["chiavi_presenti"] = {
-            "quando": time.time(),
-            "nomi": {k["nome"]: bool(k.get("presente")) for k in coda},
+def _chiavi(env_file: Path | None = None) -> list[dict]:
+    """The one key the paid steps use, for the app: its name, where it is set, whether it is there.
+
+    One entry, never a queue: the paid steps use ANTHROPIC_API_KEY from the environment or .env.
+    """
+    dove = _dove_chiave_api(env_file)
+    return [
+        {
+            "nome": CHIAVE_API,
+            "origine": dove,
+            "presente": dove is not None,
+            "di_turno": True,
+            "paga": dove is not None,
+            "ultimo_uso": None,
+            "errore": None,
+            "errore_quando": None,
         }
-        return coda
-
-    def presenza(nome: str) -> str | None:
-
-        if nome not in nomi:
-            return leggi(nome)
-        return "" if nomi[nome] else None
-
-    xs_chiavi._leggi_segreto = presenza
-    try:
-        return xs_chiavi.elenco()
-    finally:
-        xs_chiavi._leggi_segreto = leggi
-
-
-def _chiavi(cache: dict | None = None, fresco: bool = False) -> list[dict]:
-    ""
-
-
-
-
-    try:
-        import xs_chiavi
-
-        coda = _elenco_chiavi(xs_chiavi, cache, fresco)
-    except Exception:  # noqa: BLE001
-        return []
-    turno = next((i for i, c in enumerate(coda) if c.get("di_turno")), 0)
-    ordine = coda[turno:] + coda[:turno]
-    paga = next(
-        (c["nome"] for c in ordine if c.get("presente") is not False and not c.get("errore")), None
-    )
-    for c in coda:
-        c["paga"] = c["nome"] == paga
-    return coda
+    ]
 
 
 def _secondi_etime(etime: str) -> int:
@@ -4201,7 +4235,7 @@ def _comando(
         cmd = [*PY, "tools/secondbrain/sb-full.py", "--modo", vecchio.modo]
         if vecchio.modo == "tutto":
             if not consenti_spesa:
-                raise ValueError("Il run da riprendere spende: serve la tua conferma.")
+                raise ValueError("The run to resume spends money: it needs your confirmation.")
             cmd.append("--consenti-spesa")
         return [*cmd, "--riprendi", str(arg), *dove], "full-run-ripreso"
     if tipo == "stadio":
@@ -4222,7 +4256,7 @@ def _comando(
                 raise ValueError("This step is paid: your confirmation of the spend is required.")
             cmd += ["--tutto", "--consenti-spesa"]
         else:
-            cmd.append("--propaga")
+            cmd.append("--propagate")
         return [*cmd, "--solo-stadio", passo.id], f"stadio-{passo.id}"
     raise ValueError(f"unknown type: {tipo}")
 
@@ -4230,18 +4264,6 @@ def _comando(
 def _cartella_run(etichetta: str) -> Path:
     # The caller creates it (mkdir parents=True).
     return FULLRUN / f"{datetime.now():%Y-%m-%d}-app-{etichetta}"
-
-
-def _chiave_del_run() -> str | None:
-    ""
-
-    try:
-        import xs_chiavi
-
-        scelta = xs_chiavi.scegli()
-    except Exception:  # noqa: BLE001, without a queue the run uses ANTHROPIC_API_KEY as before
-        return None
-    return scelta[0] if scelta else None
 
 
 def cmd_lancia(tipo: str, arg: str, consenti_spesa: bool, spesa: list[str] | None = None) -> dict:
@@ -4318,11 +4340,6 @@ def cmd_lancia(tipo: str, arg: str, consenti_spesa: bool, spesa: list[str] | Non
             "fine": None,
         }
         if spende:
-
-            chiave = _chiave_del_run()
-            if chiave:
-                extra["SBK_CHIAVE_ANTHROPIC"] = chiave
-                voce["chiave"] = chiave
             voce["spesa"] = extra.get("SBK_SPESA_STADI", ",".join(pagati)).split(",")
 
 
@@ -4876,7 +4893,7 @@ _RE_GUARDIA = re.compile(
 )
 _RE_RIPROVA = re.compile(
     _R_ORA
-    + r"🔁 (?:line stop|fermata di linea): '(?P<nome>.+?)' (?:died|morto) \((?P<classe>\w+)\) — "
+    + r"🔁 (?:retry|line stop|fermata di linea): '(?P<nome>.+?)' (?:died|morto) \((?P<classe>[^)]+)\) — "
     r"(?:attempt|tentativo) (?P<t>\d+)/(?P<n>\d+)"
 )
 _RE_MORTO = re.compile(_R_ORA + r"⛔ '(?P<nome>.+?)' (?:did not close after|non ha chiuso dopo)")
@@ -5126,12 +5143,12 @@ def _leggi_giro(cartella: Path, solo: str | None, poi_ingest: bool, finale: str 
         nome = campi[1]
         if nome.startswith("corsia:"):
             corsia = nome.split(":", 1)[1]
-            if campi[2] == "non partita":
+            if campi[2] in _NON_PARTITA:
                 non_partite.append(corsia)
             else:
                 corsie[corsia] = [s.strip() for s in campi[2].split(",") if s.strip()]
             continue
-        if nome == "FINE":
+        if nome in _FINE:
             fine = campi[2]
         elif nome == "PAUSA":
             prima = (
@@ -5141,15 +5158,15 @@ def _leggi_giro(cartella: Path, solo: str | None, poi_ingest: bool, finale: str 
                 pause[prima] = campi[0]
             else:
                 pause.pop(prima, None)
-        elif nome in passi and campi[2] == "ripreso":
+        elif nome in passi and campi[2] in _RIPRESO:
 
             passi[nome].update(stato="fatto", ripreso=True, nota=campi[3] if len(campi) > 3 else "")
-        elif nome in passi and campi[2].startswith("tent."):
+        elif nome in passi and campi[2].startswith(_TENTATIVO):
             rc = campi[3].removeprefix("rc=") if len(campi) > 3 else ""
             p = passi[nome]
-            p["tentativi"] = int(campi[2].removeprefix("tent."))
+            p["tentativi"] = int(campi[2].split(".", 1)[1])
             durata = campi[4].rstrip("s") if len(campi) > 4 else ""
-            if rc == "INTERROTTO":
+            if rc in _INTERROTTO:
                 p.update(stato="interrotto", durata_s=float(durata or 0))
                 continue
             ok = rc == "0" or (nome == finale and rc == "2" and not (len(campi) > 5 and campi[5]))
@@ -5158,9 +5175,11 @@ def _leggi_giro(cartella: Path, solo: str | None, poi_ingest: bool, finale: str 
             passi[nome]["stato"] = "fallito"
         elif nome == "backup-kb" and "backup-kb" in passi:
 
-            passi[nome]["stato"] = {"rc=0": "fatto", "INTERROTTO": "interrotto"}.get(
-                campi[2], "fallito"
-            )
+            passi[nome]["stato"] = {
+                "rc=0": "fatto",
+                "INTERRUPTED": "interrotto",
+                "INTERROTTO": "interrotto",
+            }.get(campi[2], "fallito")
         elif nome == finale and finale in passi and campi[2].startswith(("NOT LAUNCHED", "NON LANCIATO")):
             passi[nome].update(stato="saltato", nota=campi[2])
     lista = list(passi.values())
@@ -6156,7 +6175,7 @@ def cmd_aggiorna() -> dict:
     log = cartella / f"secondbrain-aggiornamento-{datetime.now():%Y%m%d-%H%M%S}.log"
     with log.open("w", encoding="utf-8") as f:
         subprocess.Popen(
-            [*PY, "tools/secondbrain/installa.py", "--aggiorna"],
+            [*PY, "tools/secondbrain/installa.py", "--update"],
             cwd=ROOT,
             stdin=subprocess.DEVNULL,
             stdout=f,
@@ -6174,7 +6193,7 @@ def cmd_rollback(versione: str) -> dict:
     log = cartella / f"secondbrain-aggiornamento-{datetime.now():%Y%m%d-%H%M%S}.log"
     with log.open("w", encoding="utf-8") as f:
         subprocess.Popen(
-            [*PY, "tools/secondbrain/installa.py", "--torna-a", versione],
+            [*PY, "tools/secondbrain/installa.py", "--roll-back-to", versione],
             cwd=ROOT,
             stdin=subprocess.DEVNULL,
             stdout=f,
@@ -6983,7 +7002,8 @@ _RE_GUARDIANO = {
     "ponte_s": re.compile(r"^_PONTE_S = (\d+)", re.M),
     "rientro_frazione": re.compile(r"if seg < SEG_CRITICAL \* ([\d.]+):"),
     "pericolo_ponte": re.compile(
-        r"elif waited > _PONTE_S:\n\s+log\.error\(\n\s+\"  \[risorse\] pressione non rientra"
+        r"elif waited > _PONTE_S:\n\s+log\.error\(\n\s+\"  \[(?:resources|risorse)\] "
+        r"(?:pressure not back|pressione non rientra)"
     ),
     "passo_s": re.compile(r"^_GUARDIA_OGNI_S = (\d+)", re.M),
 }

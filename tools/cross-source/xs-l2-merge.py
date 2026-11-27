@@ -1,38 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Cross-source merge: builds the single contact book (enriched/contacts-merged.parquet) from every source (email,
+calendar, Plaud, Tactiq, Attio, the HR directory, LinkedIn, Slack, WhatsApp, iPhone and the generic plugin intake),
+leaving out automated senders and noise, with the top contacts for the graph. Incremental with --incremental.
+"""
 
 import argparse
 import hashlib
@@ -59,6 +29,7 @@ from text_utils import (  # noqa: E402
     normalize_name_case,
     normalize_name_for_match,
     normalize_phone,
+    phone_country_code,
 )
 
 from sbk_config import (
@@ -1919,15 +1890,283 @@ def _riga_vuota(merged: pd.DataFrame) -> dict:
     return riga
 
 
-def merge_plugin_contacts(merged, plugin_df, per_email, per_nome, match_stats):
+# --- People who come without an email (WhatsApp, Telegram, the address book, plugins) -----------
+# They become contacts keyed by their normalised phone ("tel:+12025550123" in contact_key), after
+# every source is in, so the same phone found on an email-keyed person enriches that person
+# instead. A WhatsApp one-to-one chat partner saved by name only (the phone's export writes the
+# saved name, not the number) becomes a contact keyed by that name ("name:<name>"), unless a
+# contact with exactly that name already exists. started_by says which source started the row.
+NEW_CONTACT_COLUMNS: dict[str, object] = {"contact_key": "", "started_by": ""}
+
+
+def _pendente(fonte, tel, telefono, nome, email, applica, solo_nome: bool = False) -> dict:
+    """One person no source matched yet, kept for merge_phone_contacts()."""
+    return {
+        "fonte": fonte,
+        "tel": tel or "",
+        "telefono": str(telefono or "").strip(),
+        "nome": str(nome or "").strip(),
+        "email": email or "",
+        "applica": applica,
+        "solo_nome": solo_nome,
+    }
+
+
+def _applica_whatsapp(row):
+    """Folds one WhatsApp contact into a row (get/put read and write that row)."""
+
+    def applica(get, put):
+        put("has_whatsapp", True)
+        put(
+            "whatsapp_messages",
+            max(int(get("whatsapp_messages") or 0), int(row.get("message_count", 0) or 0)),
+        )
+        tel = str(row.get("phone", "") or "").strip()
+        if tel and _vuoto(get("phone_primary")):
+            put("phone_primary", tel)
+        put("wa_last_message", _data_tenuta(get("wa_last_message"), row.get("last_message"), "max"))
+        put(
+            "wa_first_message", _data_tenuta(get("wa_first_message"), row.get("first_message"), "min")
+        )
+
+    return applica
+
+
+def _applica_iphone(row):
+    """Folds one address-book card into a row (get/put read and write that row)."""
+
+    def applica(get, put):
+        put("has_iphone", True)
+        tel = str(row.get("phone_primary", "") or "").strip()
+        if tel and _vuoto(get("phone_primary")):
+            put("phone_primary", tel)
+        org = str(row.get("organization", "") or "").strip()
+        if org and _vuoto(get("organization")):
+            put("organization", org)
+
+    return applica
+
+
+# The order merge_phone_contacts() takes the leftovers in, so the book is the same whatever
+# order the sources came in: people with an email first (an email identity always wins over a
+# phone one), then people with a phone, then WhatsApp names; within each, the address book first
+# (the names you saved), then WhatsApp, then the plugins (Telegram, databases...). A row named
+# only by a WhatsApp number takes the first real name that joins it, so the order changes who
+# is in started_by, never who the person is; WhatsApp before the plugins keeps its message
+# counts on the rows the Knowledge Extract reads (started_by whatsapp or iphone).
+_ORDINE_FONTE = {"iphone": 0, "whatsapp": 1}
+
+
+def _ordine_pendente(p: dict) -> tuple[int, int]:
+    gruppo = 0 if p["email"] else (1 if p["tel"] else 2)
+    return gruppo, _ORDINE_FONTE.get(p["fonte"], 2)
+
+
+def _scheda_non_persona(row) -> bool:
+    """True for an address-book card that is not a person (kind "org", "group", "location")."""
+    return str(row.get("kind", "") or "").strip().lower() in ("org", "group", "location")
+
+
+def _nome_e_un_numero(nome) -> bool:
+    """True for an empty name or a name that is only a phone number (an unsaved WhatsApp chat)."""
+    n = str(nome or "").strip()
+    if not n or n.lower() == "nan":
+        return True
+    return not re.search(r"[^\W\d_]", n) and bool(normalize_phone(n))
+
+
+def _diventa_email(get, put, email: str, nome: str) -> None:
+    """A phone- or name-keyed row (get/put) becomes the email-keyed row of `email`.
+
+    It keeps its phone, its sources and everything already folded in; the name becomes
+    `nome` (the name that comes with the email, e.g. the address-book card) when there is one.
+    """
+    dominio = email.split("@", 1)[1] if "@" in email else ""
+    put("email", email)
+    put("domain", dominio)
+    put("is_internal", dominio in INTERNAL_DOMAINS)
+    put("is_automated", is_automated_email(email))
+    put("contact_key", "")
+    if nome and not _nome_e_un_numero(nome):
+        put("name", nome)
+
+
+def merge_phone_contacts(
+    merged, pendenti, match_stats, email_gia_viste=frozenset(), telefoni_aziende=frozenset()
+):
+    """Adds the people no source matched by email or name: keyed by email, or by phone.
+
+    `pendenti` holds what the WhatsApp, address-book and plugin steps left over (see
+    _pendente). They are taken in a fixed order (_ordine_pendente: email first, then phone,
+    then WhatsApp names; the address book before WhatsApp before the plugins), so the result
+    does not depend on the order the sources arrived in. Each one enriches: the row with its
+    email; the email-keyed row with the same normalised phone (the complete book, plugin
+    rows included); a row already added here with the same phone or email; the only row
+    with exactly the same name among the rows the name matching could not see yet (born in
+    the plugin intake, whose emails are not in `email_gia_viste`, or added here) when that
+    row has no other phone. A person with an email that lands on a row added here without
+    one (phone- or name-keyed) turns it into the email-keyed row of that email, keeping the
+    phone and the sources, with the name that came with the email. A row named only by a
+    number (an unsaved WhatsApp chat) takes the first real name another source gives it.
+    Otherwise it becomes a new row: email-keyed when it has an email, phone-keyed
+    (contact_key "tel:...") when it has a phone, name-keyed ("name:...") for a WhatsApp chat
+    partner saved by name only. A number nobody names except an address-book company card
+    (`telefoni_aziende`) is that company and is not added as a person. Same inputs, same rows:
+    every run rebuilds the same book.
+    """
+    for col, default in NEW_CONTACT_COLUMNS.items():
+        if col not in merged.columns:
+            merged[col] = default
+    if not pendenti:
+        return merged
+
+    phone_map = build_phone_map(merged)
+    email_index = {e.lower(): idx for idx, e in merged["email"].items() if isinstance(e, str) and e}
+    nomi_non_visti: dict[str, list] = defaultdict(list)
+    for idx, row in merged.iterrows():
+        e = str(row.get("email") or "").strip().lower()
+        if e and e not in email_gia_viste:
+            k = normalize_name_for_match(str(row.get("name") or ""))
+            if k:
+                nomi_non_visti[k].append(idx)
+
+    nuovi: list[dict] = []
+    per_tel: dict[str, int] = {}
+    per_email: dict[str, int] = {}
+    per_nome: dict[str, list[int]] = defaultdict(list)
+    conta = defaultdict(int)
+
+    def _tel_di(get) -> str:
+        return normalize_phone(str(get("phone_primary") or ""))
+
+    for p in sorted(pendenti, key=_ordine_pendente):
+        fonte, tel, email = p["fonte"], p["tel"], p["email"]
+        chiave = normalize_name_for_match(p["nome"]) if p["nome"] else ""
+        idx = pos = None
+        if email and email in email_index:
+            idx = email_index[email]
+            conta["email"] += 1
+        elif email and email in per_email:
+            pos = per_email[email]
+            conta["email"] += 1
+        elif tel and tel in phone_map and phone_map[tel] in email_index:
+            idx = email_index[phone_map[tel]]
+            conta["phone"] += 1
+        elif tel and tel in per_tel:
+            pos = per_tel[tel]
+            conta["phone"] += 1
+        elif chiave:
+            vecchi = [
+                i
+                for i in nomi_non_visti.get(chiave, [])
+                if not tel or _tel_di(lambda c, _i=i: merged.at[_i, c]) in ("", tel)
+            ]
+            recenti = [
+                j for j in per_nome.get(chiave, []) if not tel or _tel_di(nuovi[j].get) in ("", tel)
+            ]
+            if len(vecchi) + len(recenti) == 1:
+                idx = vecchi[0] if vecchi else None
+                pos = recenti[0] if recenti else None
+                conta["name"] += 1
+
+        if idx is not None:
+            get = lambda c, _i=idx: merged.at[_i, c]  # noqa: E731
+            put = lambda c, v, _i=idx: merged.at.__setitem__((_i, c), v)  # noqa: E731
+        elif pos is not None:
+            get, put = nuovi[pos].get, nuovi[pos].__setitem__
+            if email and _vuoto(get("email")):
+                # a person with an email met a row added without one: one email-keyed row
+                _diventa_email(get, put, email, p["nome"])
+                per_email.setdefault(email, pos)
+                conta["upgraded"] += 1
+        if idx is not None or pos is not None:
+            p["applica"](get, put)
+            if p["nome"] and not _nome_e_un_numero(p["nome"]) and _nome_e_un_numero(get("name")):
+                put("name", p["nome"])
+                if pos is not None and chiave and pos not in per_nome[chiave]:
+                    per_nome[chiave].append(pos)
+            if pos is not None and tel:
+                per_tel.setdefault(tel, pos)
+            match_stats[fonte]["matched"] += 1
+            continue
+
+        if (
+            not email
+            and tel in telefoni_aziende
+            and (fonte == "whatsapp" or _nome_e_un_numero(p["nome"]))
+        ):
+            # a WhatsApp number (or an unnamed one) your address book has as a company card:
+            # that company, not a person
+            conta["company"] += 1
+            match_stats[fonte]["unmatched"] += 1
+            continue
+        riga = _riga_vuota(merged)
+        riga["name"] = p["nome"] or p["telefono"] or tel
+        riga["phone_primary"] = p["telefono"] or tel
+        riga["started_by"] = fonte
+        if email:
+            dominio = email.split("@", 1)[1] if "@" in email else ""
+            riga.update(
+                {
+                    "email": email,
+                    "domain": dominio,
+                    "is_internal": dominio in INTERNAL_DOMAINS,
+                    "is_automated": is_automated_email(email),
+                }
+            )
+            conta["new_email"] += 1
+        elif tel:
+            riga["contact_key"] = f"tel:{tel}"
+            conta["new_phone"] += 1
+        else:
+            riga["contact_key"] = f"name:{chiave}"
+            conta["new_name"] += 1
+        p["applica"](riga.get, riga.__setitem__)
+        pos = len(nuovi)
+        nuovi.append(riga)
+        if tel:
+            per_tel.setdefault(tel, pos)
+        if email:
+            per_email.setdefault(email, pos)
+        if chiave:
+            per_nome[chiave].append(pos)
+        match_stats[fonte]["added"] = match_stats[fonte].get("added", 0) + 1
+
+    if nuovi:
+        nuove = pd.DataFrame(nuovi, columns=list(merged.columns))
+        for col, dtype in merged.dtypes.items():
+            if pd.api.types.is_datetime64_any_dtype(dtype):
+                nuove[col] = pd.to_datetime(nuove[col], errors="coerce", utc=True)
+            elif pd.api.types.is_bool_dtype(dtype):
+                nuove[col] = nuove[col].fillna(False).astype(bool)
+        merged = pd.concat([merged, nuove], ignore_index=True) if len(merged) else nuove
+        # with no email-keyed contact at all the flag columns were born as objects: booleans again
+        for col in merged.columns:
+            if col.startswith("has_") or col in ("is_internal", "is_automated"):
+                merged[col] = merged[col].map(lambda v: False if _vuoto(v) else bool(v)).astype(bool)
+    log.info(
+        f"  Without an email: {conta['email']} matched by email, {conta['phone']} by phone, "
+        f"{conta['name']} by the same name ({conta['upgraded']} phone- or name-keyed rows became "
+        f"email-keyed); new contacts: {conta['new_phone']} keyed by phone, "
+        f"{conta['new_email']} by email, {conta['new_name']} by WhatsApp name, "
+        f"{conta['company']} left out as company numbers (of {len(pendenti)})"
+    )
+    return merged
+
+
+def merge_plugin_contacts(merged, plugin_df, per_email, per_nome, match_stats, pendenti=None):
     """Generic intake: match plugin contacts by email, then phone, then name.
 
     A match enriches the existing contact (has_plugin, plugin_* columns, and the
     name / organization / phone when they are empty). A contact that matches
     nothing becomes a new email-keyed row when it has an email (like the email-keyed
-    sources of phase 1); without an email it is counted as unmatched and not added
-    (like the name-keyed sources of phase 2). Name matches go through the same rule
-    and the same verification queue as the other sources (`per_nome`).
+    sources of phase 1). Rows with an email go first, so a phone-only row of another
+    plugin (Telegram, a vCard) finds the email-keyed person with the same phone.
+    Without an email and with a phone, an unmatched contact is handed to `pendenti`
+    (a list, when given): merge_phone_contacts() keys it by its normalised phone after
+    every source is in. Without email and phone it is counted as unmatched and not
+    added. Name matches go through the same rule and the same verification queue as
+    the other sources (`per_nome`); a contact set aside for verification is not added.
     """
     for col, default in PLUGIN_COLUMNS_DEFAULTS.items():
         if col not in merged.columns:
@@ -1945,7 +2184,9 @@ def merge_plugin_contacts(merged, plugin_df, per_email, per_nome, match_stats):
     nuovi_per_tel: dict[str, str] = {}
     via = defaultdict(int)
 
-    for row in plugin_df.itertuples(index=False):
+    righe = list(plugin_df.itertuples(index=False))
+    righe.sort(key=lambda r: not str(r.email or "").strip())  # stable: rows with an email first
+    for row in righe:
         fonte = row.source or row.plugin
         email = (row.email or "").strip().lower()
         if email and (email in OWN_EMAILS or is_noise(email)):
@@ -1976,6 +2217,7 @@ def merge_plugin_contacts(merged, plugin_df, per_email, per_nome, match_stats):
                 nuovo = nuovi[nuovi_per_tel[tel]]
             if idx is not None or nuovo is not None:
                 via["phone"] += 1
+        in_coda_prima = match_stats[fonte]["da_verificare"]
         if idx is None and nuovo is None and nome:
             chiave = email or (tel and f"tel:{tel}") or _chiave_nome(nome)
             res = per_nome(
@@ -2025,6 +2267,19 @@ def merge_plugin_contacts(merged, plugin_df, per_email, per_nome, match_stats):
                 nuovi_per_tel.setdefault(tel, email)
             via["new"] += 1
             match_stats[fonte]["added"] = match_stats[fonte].get("added", 0) + 1
+        elif tel and pendenti is not None and match_stats[fonte]["da_verificare"] == in_coda_prima:
+            # phone only, nobody matched: keyed by the phone once every source is in
+            pendenti.append(
+                _pendente(
+                    fonte,
+                    tel,
+                    row.phone,
+                    nome,
+                    "",
+                    lambda get, put, _r=row: _riempi_da_plugin(get, put, _r),
+                )
+            )
+            via["phone_only"] += 1
         else:
             match_stats[fonte]["unmatched"] += 1
 
@@ -2045,7 +2300,8 @@ def merge_plugin_contacts(merged, plugin_df, per_email, per_nome, match_stats):
         )
     log.info(
         f"  Plugins: {via['email']} via email, {via['phone']} via phone, "
-        f"{via['name']} via name, {via['new']} new (of {len(plugin_df)})"
+        f"{via['name']} via name, {via['new']} new, {via['phone_only']} phone only "
+        f"(of {len(plugin_df)})"
     )
     return merged
 
@@ -2089,6 +2345,11 @@ def merge_contacts_phase2(
 
 
     email_index = {e.lower(): idx for idx, e in merged["email"].items() if isinstance(e, str) and e}
+    # People no source matched: keyed by phone (or email) at the end, see merge_phone_contacts().
+    pendenti: list[dict] = []
+    # phones of the address-book company cards (filled by the iPhone lane below)
+    telefoni_aziende: set[str] = set()
+    email_gia_viste = frozenset(email_index)
 
 
     phone_map = build_phone_map(merged)
@@ -2257,6 +2518,8 @@ def merge_contacts_phase2(
 
     whatsapp_phone_matched = 0
     if whatsapp_df is not None and len(whatsapp_df) > 0:
+        # rebuilt here: the map of the start of phase 2 is empty (phase 1 has no phones)
+        phone_map = build_phone_map(merged)
         for _, row in whatsapp_df.iterrows():
             matched = False
 
@@ -2288,6 +2551,7 @@ def merge_contacts_phase2(
 
 
             if not matched:
+                in_coda_prima = match_stats["whatsapp"]["da_verificare"]
                 result = _per_nome(
                     "whatsapp",
                     _chiave_telefono(row.get("phone")) or _chiave_nome(row["name"]),
@@ -2313,6 +2577,22 @@ def merge_contacts_phase2(
                         merged, idx, "wa_first_message", row.get("first_message"), "min"
                     )
                     match_stats["whatsapp"]["matched"] += 1
+                elif match_stats["whatsapp"]["da_verificare"] == in_coda_prima and (
+                    _chiave_telefono(row.get("phone")) or bool(row.get("is_1to1_participant"))
+                ):
+                    # with a phone, or your one-to-one chat partner: a contact of its own
+                    tel = _chiave_telefono(row.get("phone"))
+                    pendenti.append(
+                        _pendente(
+                            "whatsapp",
+                            tel,
+                            row.get("phone"),
+                            row["name"],
+                            "",
+                            _applica_whatsapp(row),
+                            solo_nome=not tel,
+                        )
+                    )
                 else:
                     match_stats["whatsapp"]["unmatched"] += 1
         log.info(
@@ -2413,10 +2693,20 @@ def merge_contacts_phase2(
 
     iphone_phone_matched = 0
     iphone_email_matched = 0
+    iphone_aziende = 0
     if iphone_df is not None and len(iphone_df) > 0:
+        # rebuilt here: WhatsApp may have filled phone_primary in this phase
+        phone_map = build_phone_map(merged)
         for _, row in iphone_df.iterrows():
             matched = False
-
+            if _scheda_non_persona(row):
+                # a company card (or group / location): never a person, and an unsaved
+                # number it names is that company, not someone to add (merge_phone_contacts)
+                tel_azienda = _chiave_telefono(row.get("phone_primary"))
+                if tel_azienda:
+                    telefoni_aziende.add(tel_azienda)
+                iphone_aziende += 1
+                continue
 
             if phone_map:
                 phone = str(row.get("phone_primary", "") or "").strip()
@@ -2438,6 +2728,7 @@ def merge_contacts_phase2(
 
 
             if not matched:
+                in_coda_prima = match_stats["iphone"]["da_verificare"]
                 idx = _per_email(row.get("email"))
                 if idx is not None:
                     iphone_email_matched += 1
@@ -2464,13 +2755,34 @@ def merge_contacts_phase2(
                         merged.at[idx, "organization"] = org
                     match_stats["iphone"]["matched"] += 1
                 else:
-                    match_stats["iphone"]["unmatched"] += 1
+                    tel = _chiave_telefono(row.get("phone_primary"))
+                    email = str(row.get("email", "") or "").strip().lower()
+                    if email and ("@" not in email or is_noise(email)):
+                        email = ""
+                    if (
+                        (tel or email)
+                        and match_stats["iphone"]["da_verificare"] == in_coda_prima
+                        and not bool(row.get("is_business"))
+                    ):
+                        pendenti.append(
+                            _pendente(
+                                "iphone",
+                                tel,
+                                row.get("phone_primary"),
+                                row["name"],
+                                email,
+                                _applica_iphone(row),
+                            )
+                        )
+                    else:
+                        match_stats["iphone"]["unmatched"] += 1
         log.info(
             f"  iPhone: {match_stats['iphone']['matched']} matched "
             f"({iphone_phone_matched} via phone, {iphone_email_matched} via email, "
             f"{match_stats['iphone']['matched'] - iphone_phone_matched - iphone_email_matched} via name), "
             f"{match_stats['iphone']['da_verificare']} to verify, "
-            f"{match_stats['iphone']['unmatched']} unmatched "
+            f"{match_stats['iphone']['unmatched']} unmatched, "
+            f"{iphone_aziende} company cards left out (not people) "
             f"(of {len(iphone_df)})"
         )
 
@@ -2551,7 +2863,14 @@ def merge_contacts_phase2(
         )
 
     # Generic plugin intake: email, then phone, then name (same rule and queue as above).
-    merged = merge_plugin_contacts(merged, plugin_df, _per_email, _per_nome, match_stats)
+    merged = merge_plugin_contacts(
+        merged, plugin_df, _per_email, _per_nome, match_stats, pendenti=pendenti
+    )
+    # People without an email that nobody matched: keyed by their phone (or email, or
+    # WhatsApp name) now that every source is in, see merge_phone_contacts().
+    merged = merge_phone_contacts(
+        merged, pendenti, match_stats, email_gia_viste, telefoni_aziende=telefoni_aziende
+    )
 
 
     try:
@@ -2724,6 +3043,34 @@ def merge_contacts_phase2(
 
 
 
+def _person_id_di_ripiego(df) -> int:
+    """A deterministic person_id for every row the entity map left without one (in place).
+
+    "p_" + hash of the email, or of contact_key for a contact without an email (keyed by
+    phone or WhatsApp name). Runs whether or not the entity map resolved anything, so an
+    install with no email at all (Telegram or WhatsApp only) still gets stable ids.
+    Returns how many rows got one.
+    """
+    n = 0
+    for idx in df.index:
+        if str(df.at[idx, "person_id"] or "").strip():
+            continue
+        email_val = str(df.at[idx, "email"] or "").strip()
+        chiave = str(df.at[idx, "contact_key"] or "").strip() if "contact_key" in df.columns else ""
+        if email_val and "@" in email_val:
+            df.at[idx, "person_id"] = "p_" + hashlib.sha256(email_val.encode()).hexdigest()[:8]
+            n += 1
+        elif chiave:
+            df.at[idx, "person_id"] = "p_" + hashlib.sha256(chiave.encode()).hexdigest()[:8]
+            n += 1
+    if n:
+        log.info(
+            f"Fallback person_id: {n} unresolved contacts got a deterministic person_id "
+            "(hash of the email, or of contact_key when there is no email)"
+        )
+    return n
+
+
 def apply_entity_resolution(merged):
     ""
     entity_map_path = ENRICHED_DIR / "entity-map.json"
@@ -2733,7 +3080,8 @@ def apply_entity_resolution(merged):
             "No entity-map.json found — skipping entity resolution (run entity-resolve.py first)"
         )
         merged["person_id"] = ""
-        merged["all_emails"] = merged["email"].apply(lambda x: json.dumps([x]))
+        merged["all_emails"] = merged["email"].apply(lambda x: json.dumps([x] if x else []))
+        _person_id_di_ripiego(merged)
         return merged
 
     with open(entity_map_path) as f:
@@ -2743,10 +3091,10 @@ def apply_entity_resolution(merged):
 
 
     merged["person_id"] = merged["email"].apply(
-        lambda e: entity_map.get(e, {}).get("person_id", "")
+        lambda e: entity_map.get(e, {}).get("person_id", "") if e else ""
     )
     merged["all_emails"] = merged["email"].apply(
-        lambda e: json.dumps(entity_map.get(e, {}).get("all_emails", [e]))
+        lambda e: json.dumps(entity_map.get(e, {}).get("all_emails", [e]) if e else [])
     )
 
 
@@ -2755,6 +3103,7 @@ def apply_entity_resolution(merged):
 
     if len(resolved) == 0:
         log.info("No resolved entities to aggregate")
+        _person_id_di_ripiego(merged)
         return merged
 
     log.info(f"Aggregating {len(resolved)} resolved emails...")
@@ -2883,6 +3232,8 @@ def apply_entity_resolution(merged):
         "slack_user_id": "first",
         "phone_primary": "first",
         "last_contact_source": "first",
+        "contact_key": lambda s: next((v for v in s if isinstance(v, str) and v), ""),
+        "started_by": lambda s: next((v for v in s if isinstance(v, str) and v), ""),
 
 
 
@@ -3037,19 +3388,7 @@ def apply_entity_resolution(merged):
 
 
 
-    blank_pid_count = 0
-    for idx in unresolved.index:
-        email_val = str(unresolved.at[idx, "email"]).strip()
-        if email_val and "@" in email_val:
-            pid = "p_" + hashlib.sha256(email_val.encode()).hexdigest()[:8]
-            unresolved.at[idx, "person_id"] = pid
-            blank_pid_count += 1
-    if blank_pid_count > 0:
-        log.info(
-            f"Fallback person_id: {blank_pid_count} unresolved contacts "
-            "got deterministic person_id from email hash"
-        )
-
+    _person_id_di_ripiego(unresolved)
 
     result = pd.concat([aggregated, unresolved], ignore_index=True)
 
@@ -3586,13 +3925,6 @@ def export_results(merged: pd.DataFrame, top_n: int = 100):
 def main():
     from sbk_config import acquire_pid_lock
 
-    if not acquire_pid_lock("xs-l2-merge", logger=log):
-
-
-
-        log.warning("Another merge instance running: lock held, exit 75")
-        sys.exit(75)
-
     parser = argparse.ArgumentParser(description="Cross-source merge V5 — SBK")
     parser.add_argument(
         "--top", type=int, default=200, help="Top N contacts in graph (default: 200)"
@@ -3604,6 +3936,10 @@ def main():
         help="Skip merge if no source files changed since last run",
     )
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    if not acquire_pid_lock("xs-l2-merge", logger=log):
+        log.warning("Another merge instance running: lock held, exit 75")
+        sys.exit(75)
 
     logging.basicConfig(
         level=logging.INFO,
@@ -3613,6 +3949,14 @@ def main():
 
     ENRICHED_DIR.mkdir(parents=True, exist_ok=True)
     EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    # Phones written without a country code get yours (SBK_PHONE_CC, else "phone_country_code"
+    # in sbk.config.json): normalize_phone() reads it, here and in every other step.
+    cc = phone_country_code()
+    log.info(
+        f"Phone country code: +{cc}"
+        if cc
+        else "Phone country code: none set (numbers compared as written)"
+    )
 
 
     if args.incremental:
@@ -3630,8 +3974,27 @@ def main():
     attio_df = load_attio_data()
     personio_df = load_personio_data()
     plugin_df = load_plugin_data()
+    # WhatsApp and the address book start contacts too (keyed by phone when no email matches)
+    whatsapp_df = load_whatsapp_data()
+    iphone_df = load_iphone_data()
+    nessuno = (
+        email_contacts is None
+        and cal_contacts is None
+        and plugin_df is None
+        and (whatsapp_df is None or len(whatsapp_df) == 0)
+        and (iphone_df is None or len(iphone_df) == 0)
+    )
 
-    if email_contacts is None and cal_contacts is None and plugin_df is None:
+    if nessuno and not (ENRICHED_DIR / "contacts-merged.parquet").exists():
+        # A first install whose sources only enrich people (LinkedIn, Slack...): nobody
+        # starts a contact yet, and there is no earlier book to protect.
+        log.info(
+            "Nothing to merge yet: no source that starts a contact has data (mail, calendar, "
+            "WhatsApp, Telegram, the address book, or a plugin with people). LinkedIn, Slack "
+            "and the other sources only enrich the people found there."
+        )
+        return
+    if nessuno:
         log.error(
             "No data sources available. Run the email and/or calendar L1 first, "
             "or a plugin that writes processed/plugin-contacts.parquet."
@@ -3651,10 +4014,8 @@ def main():
 
     linkedin_df = load_linkedin_data()
     slack_df = load_slack_data()
-    whatsapp_df = load_whatsapp_data()
     docusign_df = load_docusign_data()
     attio_sc_df = load_attio_seconda_classe_data()
-    iphone_df = load_iphone_data()
     notion_df = load_notion_data()
     chatgpt_df = load_chatgpt_data()
 
@@ -3685,6 +4046,13 @@ def main():
 
 
     merged = propagate_entity_metadata(merged)
+
+    # One number, one form: the book stores every phone the way normalize_phone() writes it
+    # ("+447700900123"), whatever source wrote it first, so a later step that compares phones
+    # as text agrees with the merge. A value that is not a number is kept as written.
+    merged["phone_primary"] = merged["phone_primary"].map(
+        lambda v: (normalize_phone(str(v)) or str(v).strip()) if not _vuoto(v) else ""
+    )
 
     if args.dry_run:
         log.info("\n=== DRY RUN — No files written ===")
@@ -3813,7 +4181,11 @@ def main():
         f"Phase 2 enriched: "
         f"{result[['has_linkedin', 'has_slack', 'has_whatsapp', 'has_docusign', 'has_iphone', 'has_notion', 'has_chatgpt_mention', 'has_plugin']].any(axis=1).sum()}"
     )
-    log.info(f"Top score: {result.iloc[0]['name']} ({result.iloc[0]['score']})")
+    if len(result):
+        log.info(f"Top score: {result.iloc[0]['name']} ({result.iloc[0]['score']})")
+    else:
+        # e.g. only people that enrich contacts so far (LinkedIn connections, Slack members)
+        log.info("No contact yet: the merged book is empty for now")
 
 
 from pipeline_decorator import pipeline_step

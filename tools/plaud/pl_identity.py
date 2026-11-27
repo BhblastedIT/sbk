@@ -201,7 +201,7 @@ def decide_identity(
             independent_sources=(),
             suspected_fused=True,
             kb_fact_grade=False,
-            reason="firma di slot fuso (SUPPORT+CONTRADICT sulla stessa identità): nessuna attribuzione singola",
+            reason="merged-slot signature (SUPPORT+CONTRADICT on the same identity): no single attribution",
         )
 
 
@@ -216,7 +216,7 @@ def decide_identity(
                 independent_sources=tuple(sorted(indep)),
                 suspected_fused=False,
                 kb_fact_grade=True,
-                reason=f"identità sostenuta da fonte indipendente: {', '.join(sorted(indep))}",
+                reason=f"identity backed by an independent source: {', '.join(sorted(indep))}",
             )
 
 
@@ -229,7 +229,7 @@ def decide_identity(
             independent_sources=(),
             suspected_fused=False,
             kb_fact_grade=False,
-            reason="nome presente solo come label Plaud, nessuna fonte indipendente: non verificato",
+            reason="name present only as a Plaud label, no independent source: not verified",
         )
 
 
@@ -241,7 +241,7 @@ def decide_identity(
         independent_sources=(),
         suspected_fused=False,
         kb_fact_grade=False,
-        reason="nessuna evidenza d'identità: speaker distinto ma anonimo (Persona-X)",
+        reason="no identity evidence: a distinct but anonymous speaker (Person X)",
     )
 
 

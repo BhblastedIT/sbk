@@ -1,14 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
+"""DuckDB view layer: one view per parquet file in the data root, in <data root>/sbk.duckdb, so every table can be
+queried with SQL (--list shows the views, --query runs a query).
+"""
 
 from __future__ import annotations
 
@@ -115,6 +107,15 @@ def build_views(con: duckdb.DuckDBPyConnection) -> list[tuple[str, str, str]]:
             continue
 
         schema, view_name = info
+        try:
+            import pyarrow.parquet as _pq
+
+            if not _pq.read_schema(pq).names:
+                # an empty frame written without columns: there is nothing to put in a view
+                print(f"  skipped (no columns): {pq}", file=sys.stderr)
+                continue
+        except Exception:  # noqa: BLE001 — unreadable: read_parquet below says why
+            pass
 
         if schema not in schemas_created:
             con.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')

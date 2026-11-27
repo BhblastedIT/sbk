@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
+"""Apple Health import: unpacks the export.zip you export from the Health app on the iPhone (the latest one found,
+or --file) and keeps the export.xml for ah-l1-process.py.
+"""
 
 import argparse
 import logging

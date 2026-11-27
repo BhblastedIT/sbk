@@ -28,7 +28,9 @@ def focus_mode_partial(request: Request, max_items: int = 3):
 
     from fastapi.templating import Jinja2Templates
 
-    templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+    templates = getattr(request.app.state, "templates", None) or Jinja2Templates(
+        directory=str(Path(__file__).resolve().parent.parent / "templates")
+    )
     bridge = request.app.state.bridge
     data = bridge.get_focus_items(max_items=max_items)
     return templates.TemplateResponse(

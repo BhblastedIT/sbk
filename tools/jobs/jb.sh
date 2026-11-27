@@ -39,7 +39,7 @@
 _JB_HERE="${BASH_SOURCE[0]:-$0}"
 _JB_SBK="${SBK:-$(cd "$(dirname "$_JB_HERE")/../.." 2>/dev/null && pwd)}"
 _JB_REC="$_JB_SBK/tools/jobs/jb-record.py"
-_JB_DIR="$HOME/.sbk-data/jobs"
+_JB_DIR="${SBK_DATA_ROOT:-$HOME/.sbk-data}/jobs"
 _JB_JOB=""
 _JB_DONE=0
 _JB_T0=0

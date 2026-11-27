@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Phase 4 of the episodes: adds the recipients of each email as participants of its episode, matched to people in
+the knowledge base by email. Dry run by default; --apply writes.
+"""
 
 from __future__ import annotations
 
@@ -109,13 +90,13 @@ def pid_name(email_idx_rev: dict[str, str], pid: str) -> str:
 
 def enrich(dry_run: bool) -> dict:
     email_idx = build_email_index()
-    log.info("Indice email->person_id: %d", len(email_idx))
+    log.info("Index email->person_id: %d", len(email_idx))
     msg_map = build_message_map()
-    log.info("Email indicizzate (message-key): %d", len(msg_map))
+    log.info("Emails indexed (message-key): %d", len(msg_map))
 
 
     pid_to_name: dict[str, str] = {}
-    for f in PERSON_DIR.iterdir():
+    for f in PERSON_DIR.iterdir() if PERSON_DIR.is_dir() else []:
         if f.name.endswith(".json") and not f.name.startswith("_"):
             try:
                 d = json.loads(f.read_text(encoding="utf-8"))
@@ -129,7 +110,7 @@ def enrich(dry_run: bool) -> dict:
     files_written = 0
     illeggibili: list[str] = []
 
-    for y in sorted(EPISODES_DIR.iterdir()):
+    for y in sorted(EPISODES_DIR.iterdir()) if EPISODES_DIR.is_dir() else []:
         if not y.is_dir():
             continue
         for f in y.glob("ep_*.json"):
@@ -139,7 +120,7 @@ def enrich(dry_run: bool) -> dict:
                 d = json.loads(f.read_text(encoding="utf-8"))
             except (OSError, ValueError) as e:
                 illeggibili.append(str(f))
-                log.error("  episodio illeggibile, saltato: %s (%s)", f, type(e).__name__)
+                log.error("  unreadable episode, skipped: %s (%s)", f, type(e).__name__)
                 continue
             if d.get("source_type") != "email":
                 continue
@@ -198,7 +179,7 @@ def enrich(dry_run: bool) -> dict:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Fase 4: destinatari email come participants")
+    ap = argparse.ArgumentParser(description="Phase 4: email recipients as participants")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -214,17 +195,17 @@ def main() -> None:
     res = enrich(dry_run)
     log.info("")
     log.info("Summary (%s):", "DRY RUN" if dry_run else "APPLIED")
-    log.info("  Episodi email arricchiti:      %d", res["eps_touched"])
-    log.info("  Participant 'spoke' aggiunti:  %d", res["added_spoke"])
-    log.info("  Participant 'received' aggiunti:%d", res["added_received"])
-    log.info("  File scritti:                  %d", res["files_written"])
+    log.info("  Email episodes enriched:       %d", res["eps_touched"])
+    log.info("  Participant 'spoke' added:     %d", res["added_spoke"])
+    log.info("  Participant 'received' added:  %d", res["added_received"])
+    log.info("  Files written:                 %d", res["files_written"])
     if res["illeggibili"]:
         log.error(
-            "  Episodi illeggibili saltati:   %d (da riparare, elenco sopra)",
+            "  Unreadable episodes skipped:   %d (to repair, list above)",
             len(res["illeggibili"]),
         )
     if dry_run:
-        log.info("  Esegui con --apply.")
+        log.info("  Run with --apply.")
     log.info("=" * 60)
 
 

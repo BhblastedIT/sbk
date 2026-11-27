@@ -1,57 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Manual knowledge ingest: adds the facts you write in JSON files (manual-ingestion/pending/) to the knowledge base
+as manual input, then moves each file to done/; --list shows the pending files, --dry-run what would be created.
+"""
 
 from __future__ import annotations
 

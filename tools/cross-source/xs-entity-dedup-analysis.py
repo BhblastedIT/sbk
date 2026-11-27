@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-""
+"""Looks for duplicate people in the knowledge base (knowledge/entities/person).
 
+Finds exact email clusters, fuzzy name clusters, composite entities ("A, B" or "A & B") and skeletons with
+almost no facts, prints the estimated merge potential and saves knowledge/entity-dedup-report.json.
+It changes no entity.
+"""
 
-
-
-
-
-
-
-
-
-
+import argparse
 import json
 import re
 import sys
@@ -24,13 +20,13 @@ if str(_TOOLS_DIR) not in sys.path:
 
 from rapidfuzz import fuzz
 
-from sbk_config import safe_write_json
+from sbk_config import KNOWLEDGE_DIR, KNOWLEDGE_ENTITIES_DIR, safe_write_json
 
 
 
 
-ENTITY_DIR = Path.home() / ".sbk-data" / "knowledge" / "entities" / "person"
-REPORT_PATH = Path.home() / ".sbk-data" / "knowledge" / "entity-dedup-report.json"
+ENTITY_DIR = KNOWLEDGE_ENTITIES_DIR / "person"
+REPORT_PATH = KNOWLEDGE_DIR / "entity-dedup-report.json"
 
 NAME_SIM_THRESHOLD = 90
 SKELETON_FACT_LIMIT = 3
@@ -146,7 +142,7 @@ def find_name_clusters(entities: list[dict]) -> list[dict]:
                 blocks[last_key].append(ent)
 
     print(f"  Name blocking: {len(blocks)} blocks, sizes: ", end="")
-    sizes = [len(v) for v in blocks.values()]
+    sizes = [len(v) for v in blocks.values()] or [0]
     print(
         f"min={min(sizes)}, max={max(sizes)}, "
         f"avg={sum(sizes) / len(sizes):.1f}, "
@@ -263,6 +259,10 @@ def find_skeleton_entities(entities: list[dict]) -> list[dict]:
 
 
 def main():
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+    if not any(ENTITY_DIR.glob("person_*.json")):
+        print(f"No person entities yet in {ENTITY_DIR}. Run the pipeline first.", file=sys.stderr)
+        sys.exit(1)
     t0 = time.time()
     print("=" * 70)
     print("SBK Entity Deduplication Analysis")

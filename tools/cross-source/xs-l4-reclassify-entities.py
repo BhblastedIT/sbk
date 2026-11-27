@@ -1,56 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Finds the person entities that are really organizations (legal suffixes, company keywords, entities present as both)
+and builds the person-to-organization reclassification registry. Dry run by default; --apply writes.
+"""
 
 from __future__ import annotations
 
@@ -114,7 +65,7 @@ def _legal_suffixes() -> frozenset[str]:
 
         return frozenset(_cfg.sigle_societarie())
     except Exception as e:  # pragma: no cover
-        log.warning("vocabolario sigle non caricato (%s): resto sul presidio minimo", e)
+        log.warning("acronym vocabulary not loaded (%s): falling back to the minimal set", e)
         return frozenset({"srl", "llc", "gmbh", "spa", "bv", "llp", "ou", "ltd", "benefit"})
 
 

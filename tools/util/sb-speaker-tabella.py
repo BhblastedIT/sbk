@@ -1,67 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Table of the Plaud recordings with few voices to recognise: for each, the calendar event it matches and the
+candidate names with their provenance; --md writes it as Markdown.
+"""
 
 from __future__ import annotations
 

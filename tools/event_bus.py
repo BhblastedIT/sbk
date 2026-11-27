@@ -21,8 +21,9 @@ from sbk_config import (
     CASCADE_DEBOUNCE_CEILING,
     CASCADE_DEBOUNCE_FLOOR,
     CASCADE_RULES,
-    DATA_ROOT,
+    CASCADES_OFF_FLAG,
     EVENTS_DIR,
+    automatic_cascades_on,
     get_event_velocity,
     get_event_watermark,
     record_event_velocity,
@@ -341,24 +342,16 @@ def _mark_processed(event: dict, status: str) -> None:
 
 
 
-AUTOPILOT_OFF_FLAG = DATA_ROOT / "AUTOPILOT_OFF"
-
-
-def autopilot_enabled() -> bool:
-    ""
-    return not AUTOPILOT_OFF_FLAG.exists()
-
-
 def _run_cascade(target: str) -> bool:
     ""
-    if not autopilot_enabled():
+    if not automatic_cascades_on():
         log.warning(
-            "Autopilot disabled — cascade '%s' not started. "
+            "Automatic cascades: off. Cascade '%s' not started. "
             "Events stay queued; run the pipeline manually "
             "(uv run python tools/cross-source/xs-pipeline-run.py --propagate). "
-            "To re-enable: rm %s",
+            "To switch them on: uv run python tools/util/sb-pipeline-ctl.py on (removes %s)",
             target,
-            AUTOPILOT_OFF_FLAG,
+            CASCADES_OFF_FLAG,
         )
         return False
 
@@ -402,7 +395,7 @@ def _run_cascade(target: str) -> bool:
             return True
         if result.returncode == 75:
             log.info(
-                f"  Cascade non partita, lock attivo: {script_rel} — gli eventi restano in coda"
+                f"  Cascade not started, lock held: {script_rel}; the events stay queued"
             )
             return False
         log.error(f"  Cascade failed (rc={result.returncode}): {result.stderr[:300]}")

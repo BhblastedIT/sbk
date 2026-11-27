@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
+"""Pre-meeting brief: before each upcoming meeting, a brief on the attendees (who they are, your history with them,
+open points) written with a model, classified by meeting type; --watch keeps checking every 15 minutes.
+"""
 
 from __future__ import annotations
 
@@ -508,7 +498,11 @@ def generate_brief(
 
 
     system_prompt, user_prompt = build_brief_prompt(event, attendees_ctx, meeting_type)
-    log.info("  Calling Claude Sonnet for brief...")
+    log.info(
+        "  Sending the meeting and its attendees' context (%d characters) to Claude through the "
+        "Anthropic API with your ANTHROPIC_API_KEY for the brief",
+        len(system_prompt) + len(user_prompt),
+    )
     brief_content = call_claude(
         prompt=user_prompt,
         system=system_prompt,
@@ -645,10 +639,6 @@ def watch_loop(data: SBKData, hours: float, dry_run: bool = False):
 
 
 def main():
-    if not acquire_pid_lock("xs-l3-brief", logger=log):
-        log.warning("Another instance is running, exiting")
-        sys.exit(0)
-
     parser = argparse.ArgumentParser(
         description="SBK L3 — Pre-meeting brief generator",
     )
@@ -680,6 +670,10 @@ def main():
         help="Enable debug logging",
     )
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    if not acquire_pid_lock("xs-l3-brief", logger=log):
+        log.warning("Another instance is running, exiting")
+        sys.exit(0)
 
     setup_logging(verbose=args.verbose, name="sbk-l3-brief")
 

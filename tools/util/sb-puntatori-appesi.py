@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from collections import Counter
 from datetime import datetime, timezone  # noqa: UP017
@@ -56,7 +57,11 @@ sys.path.insert(0, str(REPO / "tools"))
 import knowledge_resolve as kr  # noqa: E402
 from conteggio import Conteggio  # noqa: E402
 
-BRIDGE = Path.home() / ".sbk-data" / "rq" / "entity-bridge.json"
+BRIDGE = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "rq"
+    / "entity-bridge.json"
+)
 
 
 PREFISSI_KNOWLEDGE = ("person_", "org_", "organization_", "deal_", "commitment_")

@@ -49,11 +49,13 @@ from sbk_config import (
     ATTIO_PROCESSED_DIR,
     ATTIO_TRANSCRIPTS_DIR,
     BRIEFS_DIR,
+    CALENDAR_RAW_DIR,
     CALENDARS_DIR,
     ENRICHED_DIR,
     EXPORTS_DIR,
     L3_DIR,
     LINKEDIN_DIR,
+    NETWORK_DIR,
     PERSON_ANNOTATIONS_FILE,
     RELATIONSHIP_FACTS_FILE,
     SHADOW_CONTACTS_FILE,
@@ -303,12 +305,7 @@ def call_claude(
 
 
     import anthropic
-    from xs_anthropic_client import (
-        chiave_in_uso,
-        classify_error,
-        get_client,
-        passa_alla_riserva,
-    )
+    from xs_anthropic_client import classify_error, get_client
 
     client = get_client()
 
@@ -332,10 +329,7 @@ def call_claude(
 
 
 
-    riserva_provata = False
-    for attempt in range(MAX_RETRIES + 1):
-        if attempt == MAX_RETRIES and not riserva_provata:
-            break
+    for attempt in range(MAX_RETRIES):
         try:
             response = client.messages.create(**kwargs)
 
@@ -364,21 +358,6 @@ def call_claude(
         except Exception as e:
 
             if perm := classify_error(e):
-                prima = chiave_in_uso()
-                if (
-                    not riserva_provata
-                    and not isinstance(e, anthropic.NotFoundError)
-                    and passa_alla_riserva()
-                ):
-                    riserva_provata = True
-                    log.warning(
-                        "la chiave «%s» non va (%s): riprovo con la riserva «%s»",
-                        prima,
-                        type(e).__name__,
-                        chiave_in_uso(),
-                    )
-                    client = get_client()
-                    continue
                 raise perm from e
 
             if isinstance(e, anthropic.RateLimitError):
@@ -439,6 +418,24 @@ class _MtimeParquetProperty:
 
 
 
+def _empty_threads() -> pd.DataFrame:
+    """The columns of enriched/threads.parquet (em-l1-enrich.py build_threads), with no rows."""
+    when = "datetime64[ns, UTC]"
+    return pd.DataFrame(
+        {
+            "thread_id": pd.Series(dtype=str),
+            "subject": pd.Series(dtype=str),
+            "msg_count": pd.Series(dtype="int64"),
+            "date_start": pd.Series(dtype=when),
+            "date_end": pd.Series(dtype=when),
+            "account": pd.Series(dtype=str),
+            "participants": pd.Series(dtype=str),
+            "labels": pd.Series(dtype=str),
+            "duration_h": pd.Series(dtype="float64"),
+        }
+    )
+
+
 class SBKData:
     ""
 
@@ -455,12 +452,19 @@ class SBKData:
 
     contacts = _MtimeParquetProperty(lambda: ENRICHED_DIR / "contacts-merged.parquet")
     interactions = _MtimeParquetProperty(lambda: ENRICHED_DIR / "interactions.parquet")
-    threads = _MtimeParquetProperty(lambda: ENRICHED_DIR / "threads.parquet")
+    # No email connected (yet): an empty threads table that still has the columns its readers use
+    # (sbk lookup, sbk brief, the dashboard person card), so they find nothing instead of a KeyError.
+    threads = _MtimeParquetProperty(
+        lambda: ENRICHED_DIR / "threads.parquet", empty_factory=_empty_threads
+    )
 
     @cached_property
     def entity_map(self) -> dict:
         ""
         path = ENRICHED_DIR / "entity-map.json"
+        if not path.exists():
+            # No merge has run yet (empty data root): no people to map.
+            return {}
         log.debug(f"Loading entity map from {path}")
         return json.loads(path.read_text())
 
@@ -475,6 +479,9 @@ class SBKData:
     def calendar_interactions(self) -> pd.DataFrame:
         ""
         path = ENRICHED_DIR / "interactions-calendar.parquet"
+        if not path.exists():
+            # No calendar connected (yet): no calendar interactions, like interactions.parquet.
+            return pd.DataFrame()
         log.debug(f"Loading calendar interactions from {path}")
         return pd.read_parquet(path)
 
@@ -512,7 +519,7 @@ class SBKData:
                     log.warning(f"Failed to load calendar parquet {pq}: {e}")
 
 
-        raw_dir = PROJECT_ROOT / "sbk" / "raw"
+        raw_dir = CALENDAR_RAW_DIR
         seen_ids = {ev.get("id") for ev in events if ev.get("id")}
         for f in sorted(raw_dir.glob("cal-*.json")):
             try:
@@ -593,13 +600,14 @@ class SBKData:
 
 
 
-        profiles_dir = PROJECT_ROOT / "sbk" / "network" / "people"
+        # <data root>/network: people/*.md, the <tier>/*.md files that
+        # xs-l2-network-profiles.py writes, and top-level *.md.
         profiles = {}
-        if profiles_dir.exists():
-            for f in sorted(profiles_dir.glob("*.md")):
+        for pattern in ("people/*.md", "tier_*/*.md"):
+            for f in sorted(NETWORK_DIR.glob(pattern)):
                 profiles[f.stem] = f.read_text()
 
-        net_dir = PROJECT_ROOT / "sbk" / "network"
+        net_dir = NETWORK_DIR
         for f in sorted(net_dir.glob("*.md")):
             if f.name != "_index.md":
                 profiles[f.stem] = f.read_text()
@@ -686,11 +694,11 @@ class SBKData:
             return None
         name_lower = name.strip().lower()
 
-
-        name_col = self.contacts["name"].fillna("").str.lower()
-        matches = self.contacts[name_col == name_lower]
-        if not matches.empty:
-            return matches.iloc[0].get("person_id")
+        if "name" in self.contacts.columns:
+            name_col = self.contacts["name"].fillna("").str.lower()
+            matches = self.contacts[name_col == name_lower]
+            if not matches.empty:
+                return matches.iloc[0].get("person_id")
 
 
         for key, entry in self.entity_map.items():
@@ -745,7 +753,9 @@ class SBKData:
 
 
         identifier = identifier.strip().lower()
-
+        if self.contacts.empty:
+            # No merged address book yet (empty data root, or no source has run): nobody to find.
+            return None
 
         if "@" in identifier:
             row = self.contacts[self.contacts["email"] == identifier]
@@ -1121,7 +1131,13 @@ def ensure_dirs():
 
 
 
-ensure_dirs()
+def _help_only() -> bool:
+    """True when the command line only asks for help (-h/--help): then nothing is created at import."""
+    return any(a in ("-h", "--help") for a in sys.argv[1:])
+
+
+if not _help_only():
+    ensure_dirs()
 
 
 

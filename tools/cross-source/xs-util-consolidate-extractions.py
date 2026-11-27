@@ -1,31 +1,14 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Consolidates person-fact extractions (agent outputs or JSON files) into fact files ready for the manual knowledge
+ingest, one per person, merging duplicates, into manual-ingestion/pending/.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 import unicodedata
@@ -36,12 +19,11 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO, format="%(levelname)s  %(message)s")
 log = logging.getLogger(__name__)
 
-OUTPUT_DIR = Path.home() / ".sbk-data/manual-ingestion/pending"
-
-
-
-
-
+OUTPUT_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "manual-ingestion"
+    / "pending"
+)
 
 
 def _try_parse_person_json(text: str) -> list[dict] | None:

@@ -1,27 +1,9 @@
 #!/usr/bin/env python3
-""
+"""The sbk command line: search, brief, decay, lookup, pipeline, monitor, tasks and draft, each calling the
+matching tool.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/sbk_cli.py <command> [options]   (--help lists the commands)
+"""
 
 from __future__ import annotations
 
@@ -66,7 +48,11 @@ def cmd_search(args: list[str]) -> int:
     ""
     import argparse
 
-    parser = argparse.ArgumentParser(prog="sbk search", description="Semantic search")
+    parser = argparse.ArgumentParser(
+        prog="sbk search",
+        description="Semantic search. Raw results by default, nothing is sent to a model; "
+        "--synthesize also asks Claude (your own claude login) for an answer.",
+    )
     parser.add_argument("query", help="Search query")
     parser.add_argument(
         "--source", metavar="TYPE", help="Filter by source (email, plaud, slack...)"
@@ -76,8 +62,18 @@ def cmd_search(args: list[str]) -> int:
     parser.add_argument(
         "--top", type=int, default=10, metavar="N", help="Number of results (default: 10)"
     )
-    parser.add_argument(
-        "--no-synthesis", action="store_true", help="Raw results without Claude synthesis"
+    sintesi = parser.add_mutually_exclusive_group()
+    sintesi.add_argument(
+        "--synthesize",
+        action="store_true",
+        help="Also send the question and the results to Claude with your own claude login "
+        "(claude -p) and print its answer. Off by default; search.synthesis true in "
+        "sbk.config.json turns it on for every search",
+    )
+    sintesi.add_argument(
+        "--no-synthesis",
+        action="store_true",
+        help="Raw results only (the default); overrides search.synthesis true in sbk.config.json",
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Debug logging")
     opts = parser.parse_args(args)
@@ -88,6 +84,13 @@ def cmd_search(args: list[str]) -> int:
     try:
         table = mod.open_lancedb()
     except RuntimeError as e:
+        if str(e).startswith("No LanceDB table found"):
+            # Fresh data root: nothing to search yet, not an error.
+            print(
+                "No results: nothing is indexed yet. The L3 Index stage of "
+                "`uv run python tools/cross-source/xs-pipeline-run.py --ingest` builds the search index."
+            )
+            return 0
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
@@ -106,18 +109,11 @@ def cmd_search(args: list[str]) -> int:
         print("No results found.")
         return 0
 
-    if opts.no_synthesis:
-        print(f"\n## Results ({len(results)})\n")
-        for i, r in enumerate(results, 1):
-            print(mod.format_result_for_display(r, i))
-            print()
-    else:
-        answer = mod.synthesize(opts.query, results)
-        print("\n## Answer\n")
-        print(answer)
-        print("\n---")
-        print(mod.format_sources_section(results))
-
+    mod.stampa_risultati(
+        opts.query,
+        results,
+        grezzo=not mod.synthesis_wanted(opts.synthesize, opts.no_synthesis),
+    )
     return 0
 
 
@@ -125,12 +121,9 @@ def cmd_search(args: list[str]) -> int:
 
 
 def cmd_brief(args: list[str]) -> int:
-    ""
-
-    sys.argv = ["xs-l3-digest-v2.py"] + args
+    """Today's stories. The model summary only with --synthesize or brief.synthesis true in sbk.config.json."""
     mod = _load_module("xs_l3_digest_v2", _CROSS_SOURCE_DIR / "xs-l3-digest-v2.py")
-    mod.main()
-    return 0
+    return mod.main(args, prog="sbk brief") or 0
 
 
 
@@ -192,15 +185,14 @@ def cmd_lookup(args: list[str]) -> int:
             if not matches.empty:
                 row = matches.iloc[0]
                 email = row.get("email", "")
-                if email:
-                    person = data.resolve_person(email)
+                # A contact without e-mail (WhatsApp, Telegram, an address-book card) is the row itself.
+                person = data.resolve_person(email) if email else row.to_dict()
 
     if not person:
         print(f"No contact found for: {opts.name}")
         return 1
 
-    email = person.get("email", "")
-    ctx = data.get_person_context(email) if email else {"found": False}
+    ctx = _lookup_context(data, person)
 
     if opts.json_out:
         print(json.dumps(ctx, indent=2, ensure_ascii=False, default=str))
@@ -210,22 +202,86 @@ def cmd_lookup(args: list[str]) -> int:
     return 0
 
 
-def _print_person_summary(person: dict, ctx: dict) -> None:
-    ""
+def _plain(value):
+    """A JSON-friendly value: numpy scalars as Python numbers, NaN/NaT as None, dates as text."""
+    import math
+
+    if hasattr(value, "item") and not isinstance(value, (str, bytes)):
+        try:
+            value = value.item()
+        except (ValueError, TypeError):
+            pass
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    if type(value).__name__ in ("NaTType", "NAType"):
+        return None
+    if isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {k: _plain(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_plain(v) for v in value]
+    if hasattr(value, "tolist"):
+        return _plain(value.tolist())
+    return str(value)
+
+
+def _lookup_context(data, person: dict) -> dict:
+    """What `sbk lookup` knows about the person: the text output and --json read this same dict.
+
+    A person with an e-mail gets the full context (threads, meetings, facts); a contact that came
+    without e-mail (WhatsApp, Telegram, an address-book card) gets the fields of its address-book row.
+    """
     import json as _json
 
-    name = person.get("name", "Unknown")
-    email = person.get("email", "")
-    org = person.get("organization", "") or ""
-    score = person.get("score", 0) or 0
-    pid = person.get("person_id", "")
+    email = str(person.get("email") or "")
+    ctx = data.get_person_context(email) if email else {"found": False}
+    if not ctx.get("found"):
+        ctx = {
+            "email": email,
+            "found": True,
+            "name": person.get("name", ""),
+            "person_id": person.get("person_id", ""),
+            "organization": person.get("organization") or person.get("attio_company") or "",
+            "job_title": person.get("attio_job_title") or person.get("linkedin_headline") or "",
+            "score": person.get("score", 0),
+            "source_count": person.get("source_count", 0),
+            "is_internal": person.get("is_internal", False),
+            "last_contact": str(person.get("last_contact", "") or ""),
+            "last_contact_source": str(person.get("last_contact_source", "") or ""),
+        }
+    for key in ("phone_primary", "contact_key", "started_by"):
+        if person.get(key) and key not in ctx:
+            ctx[key] = person[key]
+    all_emails = person.get("all_emails", [])
+    if isinstance(all_emails, str):
+        try:
+            all_emails = _json.loads(all_emails)
+        except (ValueError, TypeError):
+            all_emails = []
+    ctx["all_emails"] = list(all_emails) if all_emails is not None else []
+    return {k: _plain(v) for k, v in ctx.items()}
+
+
+def _print_person_summary(person: dict, ctx: dict) -> None:
+    ""
+    # Read from ctx (the same dict --json prints), the address-book row only as a fallback.
+    name = ctx.get("name") or person.get("name") or "Unknown"
+    email = ctx.get("email") or person.get("email") or ""
+    org = ctx.get("organization") or person.get("organization") or ""
+    score = ctx.get("score") or person.get("score") or 0
+    pid = ctx.get("person_id") or person.get("person_id") or ""
+    phone = ctx.get("phone_primary") or ""
 
     print(f"\n{'=' * 60}")
     print(f"  {name}")
     if org:
         print(f"  {org}")
-    print(f"  {email}")
-    print(f"  Score: {score:.1f}  |  ID: {pid}")
+    if email:
+        print(f"  {email}")
+    if phone and phone != name:
+        print(f"  {phone}")
+    print(f"  Score: {float(score):.1f}  |  ID: {pid}")
     print(f"{'=' * 60}")
 
     if ctx.get("found"):
@@ -239,15 +295,7 @@ def _print_person_summary(person: dict, ctx: dict) -> None:
             print(f"  Attio notes: {len(ctx['attio_notes'])}")
 
 
-    all_emails_raw = person.get("all_emails", "[]")
-    if isinstance(all_emails_raw, str):
-        try:
-            all_emails = _json.loads(all_emails_raw)
-        except (ValueError, TypeError):
-            all_emails = []
-    else:
-        all_emails = all_emails_raw or []
-
+    all_emails = ctx.get("all_emails") or []
     if len(all_emails) > 1:
         print(f"\n  Email aliases: {', '.join(all_emails)}")
 
@@ -359,7 +407,7 @@ def cmd_draft(args: list[str]) -> int:
 
 COMMANDS = {
     "search": (cmd_search, "Semantic search across all indexed data"),
-    "brief": (cmd_brief, "Generate morning intelligence digest (V2)"),
+    "brief": (cmd_brief, "Today's stories; a model summary only with --synthesize"),
     "decay": (cmd_decay, "Relationship decay analysis and alerts"),
     "lookup": (cmd_lookup, "Person lookup with cross-source context"),
     "pipeline": (cmd_pipeline, "Smart pipeline orchestrator"),

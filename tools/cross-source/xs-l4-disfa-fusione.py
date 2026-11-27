@@ -1,45 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Undoes an entity merge: brings an archived entity (merged, deduped, split, partially resolved, or retired as a
+company number) back to life, one entity (--entita) or every merge of a journal (--journal). Dry run by default;
+--apply executes.
+"""
 
 from __future__ import annotations
 
@@ -58,7 +21,7 @@ logging.basicConfig(level=logging.INFO, format="%(message)s")
 log = logging.getLogger("disfa")
 
 STORE = cfg.DATA_ROOT / "knowledge"
-ARCHIVI = ("merged", "deduped", "split", "partial-resolved")
+ARCHIVI = ("merged", "deduped", "split", "partial-resolved", "retired")
 
 
 def trova_archiviata(eid: str) -> tuple[Path, dict] | None:
@@ -80,7 +43,7 @@ def disfa(eid: str, *, apply: bool = False) -> dict:
     trovata = trova_archiviata(eid)
     if not trovata:
         log.error("%s is not in archive/: it was not merged, or the archive is missing", eid)
-        return {"entita": eid, "esito": "non trovata"}
+        return {"entita": eid, "esito": "not found"}
     percorso_arch, dati = trovata
     canonico = dati.get("merged_into") or ""
     tipo = dati.get("entity_type") or "person"
@@ -120,7 +83,7 @@ def disfa(eid: str, *, apply: bool = False) -> dict:
 
     if destinazione.exists():
         log.error("%s already exists in %s: not overwriting it", eid, destinazione.parent)
-        esito["esito"] = "già presente, non toccata"
+        esito["esito"] = "already present, not touched"
         return esito
 
     ripulita = {k: v for k, v in dati.items() if k not in ("status", "merged_into", "merged_date")}

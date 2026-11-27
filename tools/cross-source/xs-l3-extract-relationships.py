@@ -1,22 +1,9 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Relationship fact extraction: reads your conversations and documents from every source (meetings, calls,
+WhatsApp, Slack, CRM notes, ChatGPT, Notion, Drive, email, voice memos) and asks a model for facts about the
+people in them and their relationships, with the quote they come from. --dry-run counts the documents and
+estimates the cost; the text is sent to the model provider.
+"""
 
 from __future__ import annotations
 
@@ -232,11 +219,11 @@ Extract these 6 types of facts:
    Connection predicates: KNOWS, INTRODUCED_BY, MEMBER_OF
    Each: {subject, predicate, object, quote, summary, confidence, speaker}
    Examples:
-   - "Alex works at Initech" -> WORKS_AT
-   - "Alex Rossi provides consulting to Initech" -> PROVIDES_SERVICE_TO
-   - "Sam Taylor owns 40% of Globex" -> OWNS_EQUITY_IN (include percentage in object)
-   - "Globex pays Mia Conti 1K/month" -> PAYS (include amount in object)
-   - "Kim lives in Springfield" -> LIVES_IN
+   - "Person A works at Company X" -> WORKS_AT
+   - "Person B provides consulting to Company X" -> PROVIDES_SERVICE_TO
+   - "Person C owns 40% of Company Y" -> OWNS_EQUITY_IN (include percentage in object)
+   - "Company Y pays Person D 1K/month" -> PAYS (include amount in object)
+   - "Person E lives in City Z" -> LIVES_IN
 
 2. personal_details: Facts about individuals.
    Types: birthday, family, preference, hobby, location, background
@@ -273,7 +260,7 @@ Rules:
   BAD: "my father helped me" -> No name given. Skip generic family references without names.
 - For "ex" references: "ex colleague", "ex employee", "former partner" are PROFESSIONAL relationships (WORKS_WITH), not FAMILY_OF.
 - Do NOT extract generic role words as person names: "the lawyer", "my mentor", "the accountant" are roles, not names. Only extract if a proper name follows (e.g., "my lawyer Giovanni").
-- Brand/company names are NOT people: "Acme Labs" (if it's a brand/project), "Team Finance" are organizations, not person names.
+- Brand/company names are NOT people: "Brand X Labs" (if it's a brand/project), "Team Finance" are organizations, not person names.
 <<OWNER_RULE>>
 - Maximum {max_facts} facts per document. Prioritize high-confidence, specific facts over generic ones.
 - ALWAYS use ENGLISH predicate names exactly as listed above (WORKS_AT, PARTNER_OF, etc.). The "quote" field MUST stay in the language of the source — English predicate names do not make English quotes.
@@ -1857,7 +1844,7 @@ Rules:
   BAD: "my father helped me" -> No name given. Skip generic family references without names.
 - For "ex" references: "ex colleague", "ex employee", "former partner" are PROFESSIONAL relationships (WORKS_WITH), not FAMILY_OF.
 - Do NOT extract generic role words as person names: "the lawyer", "my mentor", "the accountant" are roles, not names. Only extract if a proper name follows (e.g., "my lawyer Giovanni").
-- Brand/company names are NOT people: "Acme Labs" (if it's a brand/project), "Team Finance" are organizations, not person names.
+- Brand/company names are NOT people: "Brand X Labs" (if it's a brand/project), "Team Finance" are organizations, not person names.
 <<OWNER_RULE>>
 - Maximum {max_facts} facts per document. Prioritize high-confidence, specific facts over generic ones.
 - ALWAYS use ENGLISH predicate names exactly as listed above (WORKS_AT, PARTNER_OF, etc.). The "quote" field MUST stay in the language of the source — English predicate names do not make English quotes.
@@ -2575,6 +2562,8 @@ def main():
         help="Economy provider for smart routing (default: deepseek)",
     )
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    _acquire_lock()
 
 
     global _PROVIDER
@@ -2789,7 +2778,6 @@ from pipeline_decorator import pipeline_step
 
 @pipeline_step(name="l3-extract-relationships", source="l3-extract-rel", stage="l3", mark_run=False)
 def _pipeline_run():
-    _acquire_lock()
     main()
 
 

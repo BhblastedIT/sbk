@@ -1,34 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Coverage check: how much of what is in your data (attributes, sources, episodes, names, relationships, pipeline
+steps) the code's lists and dispositions cover, and whether coverage got worse.
+"""
 
 from __future__ import annotations
 
@@ -122,7 +95,7 @@ def _da_parquet(percorso: Path, colonna: str) -> collections.Counter:
         from sbk_resources import configure_duckdb
 
         configure_duckdb(con)
-    except Exception:  # pragma: no cover - il tetto è un di più, non un requisito
+    except Exception:  # pragma: no cover - the memory cap is a nice-to-have, not a requirement
         pass
     try:
         righe = con.execute(

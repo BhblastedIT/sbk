@@ -1,29 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Live monitor: watches your connected sources (Slack, mail, calendar, meetings) while it runs, keeps the sync
+state, sends alerts and runs the pipeline cycles. Jobs that send data to a model run only with your consent
+(--with-model or SBK_MONITOR_MODEL=1). --once runs one cycle, --status shows the sync state.
+"""
 
 from __future__ import annotations
 
@@ -492,7 +471,8 @@ def _discover_active_convos_api(token: str, channel_ts: dict) -> list[tuple]:
             if cursor:
                 params["cursor"] = cursor
 
-            result = _slack_api("conversations.list", token, params)
+            # users.conversations: only the conversations you are a member of.
+            result = _slack_api("users.conversations", token, params)
             if not result:
                 break
 
@@ -686,7 +666,8 @@ def _discover_convos_by_types(token: str, channel_ts: dict, conv_types: list[str
                 if cursor:
                     params["cursor"] = cursor
 
-                result = _slack_api("conversations.list", token, params)
+                # users.conversations: only the conversations you are a member of.
+                result = _slack_api("users.conversations", token, params)
                 if not result:
                     break
 
@@ -1660,6 +1641,7 @@ _MONITOR_INJECTION_PATTERNS = [
         r"(?:base64|decode|decrypt)\s+(?:this|the\s+following)\s+and\s+(?:follow|execute|run)",
         r"(?:ignora|dimentica|sovrascrivi)\s+(?:tutte?\s+)?(?:le\s+)?(?:istruzioni|regole|prompt)",
         r"da\s+(?:ora|adesso)\s+(?:in\s+poi\s+)?(?:devi|rispondi|comportati|sei)",
+        r"from\s+now\s+on,?\s+(?:you\s+(?:must|should|are|will)|answer|respond|behave|act)",
     ]
 ]
 
@@ -2435,7 +2417,7 @@ def run_pipeline_cycle():
     pause_flag = DATA_ROOT / "monitor-pause.flag"
     if pause_flag.exists():
         log.info(
-            "─── Pipeline cycle SKIPPED: monitor-pause.flag presente (run manuale in corso) ───"
+            "─── Pipeline cycle SKIPPED: monitor-pause.flag present (a manual run is in progress) ───"
         )
         return
     log.info("─── Pipeline cycle start ───")
@@ -2446,7 +2428,7 @@ def run_pipeline_cycle():
 
     try:
         result = subprocess.run(
-            [sys.executable, str(pipeline_script), "--propaga"],
+            [sys.executable, str(pipeline_script), "--propagate"],
             capture_output=True,
             text=True,
             timeout=2400,
@@ -2493,8 +2475,10 @@ def run_digest_cycle():
         return
 
     try:
+        # model_gate above is your consent, so the script is asked for the model digest explicitly
+        # (without --synthesize it only lists the stories).
         result = subprocess.run(
-            [sys.executable, str(digest_script)],
+            [sys.executable, str(digest_script), "--synthesize"],
             capture_output=True,
             text=True,
             timeout=180,
@@ -3186,9 +3170,15 @@ def check_signals():
 
 
     try:
-        from monitoring.signal_detector import run_signal_scan
+        import importlib.util
 
-        result = run_signal_scan(synthesize=False)
+        spec = importlib.util.spec_from_file_location(
+            "signal_detector", Path(__file__).resolve().parent / "signal-detector.py"
+        )
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        result = mod.run_signal_scan(synthesize=False)
         new_count = result.get("new_signals", 0)
         if new_count:
             log.info("Signal scan: %d new signals detected", new_count)

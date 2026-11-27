@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
+"""RQ-04: third-party map: for each person, who in your network shares meetings and email threads with them and
+could make a warm introduction.
+"""
 
 from __future__ import annotations
 

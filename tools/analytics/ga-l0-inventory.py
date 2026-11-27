@@ -1,24 +1,9 @@
 #!/usr/bin/env python3
-""
+"""Google Analytics 4 download: sessions, users, page views and engagement by channel and page for every GA4
+property your signed-in Google accounts can see (your own login, read-only scope), into <data root>/analytics/.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/analytics/ga-l0-inventory.py --login <label>   (once per account), then without it
+"""
 
 from __future__ import annotations
 

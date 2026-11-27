@@ -1,31 +1,9 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""L0 refresh: downloads every connected source in the registry (tools/sorgenti.py) one after the other, with a
+diary per run that a later run resumes from; --dry-run prints the plan, --check only checks that every live source
+is in the plan, --then-ingest runs the ingest afterwards. When enabled_sources (sbk.config.json) is set, only the
+sources it lists are planned; empty = every source.
+"""
 
 from __future__ import annotations
 
@@ -48,7 +26,7 @@ sys.path.insert(0, str(ROOT / "tools"))
 
 import sorgenti  # noqa: E402
 
-from sbk_config import DATA_ROOT  # noqa: E402
+from sbk_config import DATA_ROOT, ENABLED_SOURCES, source_enabled, source_listed  # noqa: E402
 
 PY = ["uv", "run", "python"]
 
@@ -79,6 +57,11 @@ PIANO: tuple[Passo, ...] = (
     ),
     # every account in imap_caldav.accounts (sbk.config.json)
     Passo("imap-caldav", "imap-caldav", ("tools/imap-caldav/ic-l0-download.py",), 4 * 3600),
+    # every label in teams.accounts, signed in with tools/teams/tm-l0-auth.py --account <label>
+    Passo("teams", "teams", ("tools/teams/tm-l0-download.py", "--all"), 2 * 3600),
+    # every label in contacts.google_accounts; none listed = nothing to do (exit 0). The exports
+    # you make are imported by hand with tools/contacts/ct-l0-import.py
+    Passo("contacts", "contacts-google", ("tools/contacts/ct-l0-download.py", "--all"), 1800),
     Passo("slack", "slack-index", ("tools/slack/sl-l0-channel-index.py",)),
     Passo(
         "slack", "slack-canali", ("tools/slack/sl-l0-download.py", "--refresh-channels"), 4 * 3600
@@ -90,12 +73,17 @@ PIANO: tuple[Passo, ...] = (
         ("tools/attio/at-l0-download.py", "--workspace", "all", "--retry-stubs"),
         2 * 3600,
     ),
+    Passo("hubspot", "hubspot", ("tools/hubspot/hs-l0-download.py",), 2 * 3600),
+    # a run that reaches pipedrive.max_requests_per_run stops and the next run continues
+    Passo("pipedrive", "pipedrive", ("tools/pipedrive/pd-l0-download.py", "--quiet"), 1800),
     Passo(
         "clickup",
         "clickup",
         ("tools/clickup/cu-l0-backup.py", "--team", "all", "--incremental"),
         8 * 3600,
     ),
+    Passo("atlassian", "atlassian", ("tools/atlassian/as-l0-download.py", "--quiet"), 1800),
+    Passo("linear", "linear", ("tools/linear/ln-l0-download.py", "--quiet"), 1800),
     Passo("personio", "personio", ("tools/personio/pe-l0-download.py",)),
     Passo("whoop", "whoop", ("tools/whoop/wp-l0-download.py", "--days", "30"), 1800),
 
@@ -103,6 +91,10 @@ PIANO: tuple[Passo, ...] = (
     Passo("plaud", "plaud", ("tools/plaud/pl-l0-download.py", "--direct"), 2 * 3600),
     Passo("tactiq", "tactiq", ("tools/tactiq/tq-l0-download.py", "--direct"), 2 * 3600),
     Passo("zoom", "zoom", ("tools/zoom/zm-l0-download.py",), 2 * 3600),
+    Passo("fireflies", "fireflies", ("tools/fireflies/ff-l0-download.py",), 2 * 3600),
+    Passo("fathom", "fathom", ("tools/fathom/fa-l0-download.py",), 2 * 3600),
+    # the API route (personal key, Business plan); the free plan's CSV export is imported by hand
+    Passo("granola", "granola", ("tools/granola/gr-l0-download.py",), 2 * 3600),
     Passo("docusign", "docusign", ("tools/docusign/ds-l0-api.py",)),
 
     Passo("docusign", "docusign-pdf", ("tools/docusign/ds-l0-pdf.py",), 2 * 3600),
@@ -123,6 +115,37 @@ PIANO: tuple[Passo, ...] = (
 )
 
 
+# Downloads that read a login session of an app or a browser on this Mac. They are planned and
+# run only when the source is written in enabled_sources (sbk.config.json): an empty list does
+# not switch them on. The text says exactly what each one reads.
+SESSIONE: dict[str, str] = {
+    "plaud": "reads the session token of the Plaud desktop app on this Mac "
+    "(tools/plaud/pl_auth_refresh.py; a copy in <data root>/secrets/plaud-wt.json)",
+    "tactiq": "reads the Tactiq refresh token from Chrome's storage for app.tactiq.io "
+    "(Chrome IndexedDB; a copy in the Keychain entry sbk-tactiq/refresh-token)",
+}
+
+
+def solo_se_elencate(piano: list[Passo]) -> tuple[list[Passo], list[str]]:
+    """Drop the session-based downloads whose source is not in enabled_sources."""
+    fuori = sorted(
+        {p.sorgente for p in piano if p.sorgente in SESSIONE and not source_listed(p.sorgente)}
+    )
+    return [p for p in piano if p.sorgente not in fuori], fuori
+
+
+def solo_abilitate(piano: list[Passo]) -> tuple[list[Passo], list[str]]:
+    """When enabled_sources is set, drop the downloads of the sources it does not list.
+
+    An empty or missing enabled_sources keeps every download (as before the field was read),
+    except the session-based ones, which solo_se_elencate() handles.
+    """
+    if not ENABLED_SOURCES:
+        return piano, []
+    fuori = sorted({p.sorgente for p in piano if not source_enabled(p.sorgente)})
+    return [p for p in piano if p.sorgente not in fuori], fuori
+
+
 MANUALI: dict[str, str] = {
     "whatsapp": "L0 = chat exports you make on the phone (imported by wa-l0l3-full.py, or wa-l0-import-history.py for a bulk text export)",
     "voicememos": "L0 = copy of the .m4a files into voice-memos/: the system folder is TCC-protected",
@@ -131,6 +154,8 @@ MANUALI: dict[str, str] = {
     "the identity step that calls a model needs your --yes, so it never runs in the full run",
     "databases": "on request: it runs the queries you declared in sbk.config.json against your own "
     "database; run db-l0-download.py (then db-l1-enrich.py) when you want it read",
+    "telegram": "L0 = the data export you make in Telegram Desktop (Machine-readable JSON), imported "
+    "by tg-l0-import.py <export folder>; nothing to download",
 }
 
 
@@ -149,6 +174,33 @@ def controlla_copertura() -> list[str]:
 def _cartella_di_default() -> Path:
     # The callers create it (mkdir parents=True).
     return DATA_ROOT / "work" / "sbk" / "default" / f"{datetime.now():%Y-%m-%d}-l0-refresh"
+
+
+# Words of the run diary (esiti.tsv) and of the attempt header of a step log. Diaries and logs
+# written before these English words used "INIZIO", "FINE", "tent.N", "── tentativo N",
+# "solo L0" and "poi-ingest"/"poi-tutto": the readers (sb_ripresa, sb_errori, sb-app) accept both.
+DIARIO_INIZIO = "START"
+DIARIO_FINE = "END"
+DIARIO_SOLO_L0 = "L0 only"
+DIARIO_POI_INGEST = "then-ingest"
+DIARIO_POI_TUTTO = "then-all"
+# Status words of a diary row. Older diaries wrote FERMATO, INTERROTTO, NON PARTITO, "non partita" and
+# "ripreso": the readers accept both (sb_ripresa SEGNI_*, sb_errori, sb-app).
+DIARIO_FERMATO = "STOPPED"  # END row of a run stopped on request
+DIARIO_INTERROTTO = "INTERRUPTED"  # an attempt cut off before its exit code
+DIARIO_NON_PARTITO = "NOT STARTED"  # END row of a download that another process already holds
+DIARIO_NON_PARTITA = "not started"  # a lane that could not start
+DIARIO_RIPRESO = "resumed"  # a step closed in the run being resumed
+
+
+def tentativo_campo(n: int) -> str:
+    """The attempt field of a diary row: "attempt.N" ("tent.N" in older diaries)."""
+    return f"attempt.{n}"
+
+
+def tentativo_testa(n: int, comando: list[str]) -> str:
+    """The line that opens one attempt in a step log: "── attempt N · dd/mm HH:MM:SS · <command>"."""
+    return f"── attempt {n} · {datetime.now():%d/%m %H:%M:%S} · {' '.join(comando)}\n"
 
 
 def _esito(esiti: Path, *campi: object) -> None:
@@ -281,19 +333,19 @@ def esegui(
                 _esito(esiti, nome, "resume not computed", f"{type(e).__name__}: {e}")
             if stadio:
                 comando = _con_ripresa(cmd, stadio)
-                _esito(esiti, nome, "resume", f"tent.{tentativo} from {stadio}")
+                _esito(esiti, nome, "resume", f"{tentativo_campo(tentativo)} from {stadio}")
         t0 = time.time()
         inizio = log.stat().st_size if log.exists() else 0
         with log.open("a", encoding="utf-8") as f:
-            f.write(
-                f"── tentativo {tentativo} · {datetime.now():%d/%m %H:%M:%S} · {' '.join(comando)}\n"
-            )
+            f.write(tentativo_testa(tentativo, comando))
             f.flush()
             rc = _lancia(comando, f, timeout_s)
         nota = ""
         if rc == 2 and 2 in rc_ok and not _ingest_chiuso(log, inizio):
             nota = "rc 2 but the outcome is not only advisories (vanished or seriously skipped stages)"
-        _esito(esiti, nome, f"tent.{tentativo}", f"rc={rc}", f"{int(time.time() - t0)}s", nota)
+        _esito(
+            esiti, nome, tentativo_campo(tentativo), f"rc={rc}", f"{int(time.time() - t0)}s", nota
+        )
         if rc in rc_ok and not nota:
             if rc == 2 and (ferme := fonti_non_chiuse(log, inizio)):
                 _esito(esiti, nome, "sources not closed", ferme)
@@ -302,13 +354,13 @@ def esegui(
             _esito(
                 esiti,
                 nome,
-                f"NON CHIUSO DOPO {tentativo} TENTATIV{'O' if tentativo == 1 else 'I'}",
+                f"NOT CLOSED AFTER {tentativo} ATTEMPT{'' if tentativo == 1 else 'S'}",
                 f"false precondition on {fermo}, not retrying: the fix is in the log",
             )
             return False
         if tentativo < 3:
             time.sleep(120 if rc == 75 else 60)
-    _esito(esiti, nome, "NON CHIUSO DOPO 3 TENTATIVI")
+    _esito(esiti, nome, "NOT CLOSED AFTER 3 ATTEMPTS")
     return False
 
 
@@ -347,18 +399,35 @@ def ripresa_della_rilettura(modo: str) -> Callable[[Path], str | None]:
     return _stadio
 
 
-def backup_kb(cartella: Path) -> bool:
-    dest = (
-        Path.home()
-        / ".sbk-backups"
-        / f"knowledge-{datetime.now():%Y%m%d-%H%M}-pre-ingest.tar.gz"
-    )
-    dest.parent.mkdir(parents=True, exist_ok=True)
+# The brain copies (tars of <data root>/knowledge) live under the data root, next to the other
+# KB tars that tools/util/sb-kb-ripara.py reads.
+COPIE_KB = DATA_ROOT / "backups-knowledge"
 
 
-
-    parziale = dest.with_name(dest.name + ".parziale")
+def knowledge_da_proteggere() -> bool:
+    """True if <data root>/knowledge holds at least one file (a store to protect)."""
+    kb = DATA_ROOT / "knowledge"
     try:
+        return kb.is_dir() and any(p.is_file() for p in kb.rglob("*"))
+    except OSError:
+        return True
+
+
+def backup_kb(cartella: Path) -> bool:
+    """Tar <data root>/knowledge into <data root>/backups-knowledge before the re-read.
+
+    A missing or empty knowledge folder (a new install) is nothing to protect: no tar,
+    True. A failed or interrupted copy never leaves its .parziale file behind.
+    """
+    esiti = cartella / "esiti.tsv"
+    if not knowledge_da_proteggere():
+        _esito(esiti, "backup-kb", "rc=0", "nothing to protect: no knowledge store yet")
+        return True
+    dest = COPIE_KB / f"knowledge-{datetime.now():%Y%m%d-%H%M}-pre-ingest.tar.gz"
+    parziale = dest.with_name(dest.name + ".parziale")
+    ok = False
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
         with tarfile.open(parziale, "w:gz") as tar:
             tar.add(DATA_ROOT / "knowledge", arcname="knowledge")
         ok = subprocess.run(["gzip", "-t", str(parziale)], timeout=1800).returncode == 0
@@ -366,7 +435,13 @@ def backup_kb(cartella: Path) -> bool:
             os.replace(parziale, dest)
     except (OSError, subprocess.SubprocessError, tarfile.TarError):
         ok = False
-    _esito(cartella / "esiti.tsv", "backup-kb", "rc=0" if ok else "rc=1", dest.name)
+    except BaseException:
+        parziale.unlink(missing_ok=True)
+        _esito(esiti, "backup-kb", "INTERRUPTED", f"half copy {parziale.name} removed")
+        raise
+    if not ok:
+        parziale.unlink(missing_ok=True)
+    _esito(esiti, "backup-kb", "rc=0" if ok else "rc=1", dest.name)
     return ok
 
 
@@ -375,7 +450,9 @@ def main() -> int:
         description=(
             "L0 refresh: runs the download (L0) of every enabled source in the registry, one after the "
             "other, and writes a diary of the outcomes. With --then-ingest it then rereads them "
-            "(xs-pipeline-run.py --ingest)."
+            "(xs-pipeline-run.py --ingest). When enabled_sources in sbk.config.json lists "
+            "sources, only those are downloaded (empty = every source). The downloads that read "
+            "an app or browser session (plaud, tactiq) run only when enabled_sources lists them."
         )
     )
     ap.add_argument("--dry-run", action="store_true", help="print the plan and do not run")
@@ -402,7 +479,8 @@ def main() -> int:
         "--brain-copy",
         action="store_true",
         dest="copia_del_cervello",
-        help="only the KB copy into ~/.sbk-backups, the safety net the re-read requires before changing it",
+        help="only the KB copy into <data root>/backups-knowledge, the safety net the re-read "
+        "requires before changing it (nothing to copy on a new install)",
     )
     # Older Italian names, kept as hidden aliases.
     ap.add_argument("--controlla", action="store_true", dest="controlla", help=argparse.SUPPRESS)
@@ -420,10 +498,13 @@ def main() -> int:
 
         cartella = args.dir or _cartella_di_default()
         cartella.mkdir(parents=True, exist_ok=True)
+        vuoto = not knowledge_da_proteggere()
         ok = backup_kb(cartella)
         print(
             (
-                "✅ brain copy done, diary "
+                "✅ brain copy: nothing to protect yet (no knowledge store), diary "
+                if ok and vuoto
+                else "✅ brain copy done, diary "
                 if ok
                 else "⛔ brain copy FAILED, diary "
             )
@@ -464,6 +545,11 @@ def main() -> int:
         print(f"sources not in the plan: {', '.join(sorted(ignote))}")
         return 2
     piano = [p for p in PIANO if not solo or p.sorgente in solo]
+    # Session-based downloads (Plaud app, Tactiq in Chrome): only when enabled_sources lists them,
+    # also with --only.
+    piano, sessione_fuori = solo_se_elencate(piano)
+    # enabled_sources set: only the sources it lists (also with --only). Empty = every source.
+    piano, non_abilitate = solo_abilitate(piano)
 
 
     import impostazioni_pipeline
@@ -473,6 +559,13 @@ def main() -> int:
     if args.dry_run:
         for p in piano:
             print(f"{p.nome:16} {p.timeout_s // 60:4d} min  {' '.join(p.args)}")
+        for sid in sessione_fuori:
+            print(
+                f"{'(not run) ' + sid:16}           {SESSIONE[sid]}: it runs only when "
+                f'"{sid}" is in enabled_sources (sbk.config.json)'
+            )
+        for sid in non_abilitate:
+            print(f"{'(not run) ' + sid:16}           not in enabled_sources (sbk.config.json)")
         for sid, perche in MANUALI.items():
             print(f"{'(manual) ' + sid:16}           {perche}")
         if args.poi_ingest:
@@ -510,9 +603,18 @@ def main() -> int:
 
 
     diario = un_run_alla_volta.diario_inizio("giro", cartella=str(cartella))
-    _esito(esiti, "INIZIO", f"{len(piano)} steps", "poi-ingest" if args.poi_ingest else "solo L0")
+    _esito(
+        esiti,
+        DIARIO_INIZIO,
+        f"{len(piano)} steps",
+        DIARIO_POI_INGEST if args.poi_ingest else DIARIO_SOLO_L0,
+    )
     for sid, perche in MANUALI.items():
         _esito(esiti, f"manual:{sid}", "outside the run", perche)
+    for sid in sessione_fuori:
+        _esito(esiti, f"session:{sid}", "not run, not in enabled_sources", SESSIONE[sid])
+    for sid in non_abilitate:
+        _esito(esiti, f"not-enabled:{sid}", "not run, not in enabled_sources")
 
     non_chiusi = [
         p.nome for p in piano if not esegui(p.nome, [*PY, *p.args], p.timeout_s, cartella)
@@ -539,7 +641,7 @@ def main() -> int:
             ):
                 non_chiusi.append("ingest")
 
-    _esito(esiti, "FINE", "not closed: " + (", ".join(non_chiusi) or "none"))
+    _esito(esiti, DIARIO_FINE, "not closed: " + (", ".join(non_chiusi) or "none"))
     print(f"diary: {esiti}")
     rc = 1 if non_chiusi else 0
     un_run_alla_volta.diario_fine(diario, rc)

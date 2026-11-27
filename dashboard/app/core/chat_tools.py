@@ -84,6 +84,7 @@ _INJECTION_PATTERNS = [
         r"(?:ignora|dimentica|sovrascrivi)\s+(?:tutte?\s+)?(?:le\s+)?(?:istruzioni|regole|prompt)\s+(?:precedenti|di\s+sistema)",
         r"(?:nuova|nuove)\s+(?:istruzion[ei]|regol[ae])\s*:",
         r"da\s+(?:ora|adesso)\s+(?:in\s+poi\s+)?(?:devi|rispondi|comportati|sei)",
+        r"from\s+now\s+on,?\s+(?:you\s+(?:must|should|are|will)|answer|respond|behave|act)",
     ]
 ]
 
@@ -361,7 +362,7 @@ _BASE_SYSTEM_PROMPT = (
     "- The query has no clear subject ('any news?', 'updates?').\n"
     "- The search results are empty or clearly irrelevant.\n"
     "- The name FOUND by the tool differs from the name SEARCHED by the user — "
-    "both for first name (e.g. 'Sam' vs 'Kim') and surname (e.g. 'Taylor' vs 'Rossi'). "
+    "both for first name (e.g. first name A vs first name B) and surname (e.g. surname A vs surname B). "
     "If the result contains an 'attenzione' field, SHOW IT TO THE USER before giving info.\n"
     "- The result says 'Connected to the group' (not 'Part of'): DO NOT claim the person works in the group. "
     "Just say they are connected/associated.\n"
@@ -408,9 +409,9 @@ _BASE_SYSTEM_PROMPT = (
     "- Low days_since: 'you were in touch recently'\n"
     "- Many active sources: 'you interact across several channels'\n\n"
     "## GOOD EXAMPLE\n"
-    "User: 'tell me about Sam'\n"
+    "User: 'tell me about Person A'\n"
     "Response:\n"
-    "'Sam Taylor is at Initech and you interact often over email and meetings. "
+    "'Person A is at Company X and you interact often over email and meetings. "
     "They handle account management and projects for clients.\n\n"
     "From recent meetings it emerges that you are working on a new project, "
     "planning for the next quarter and reviewing some processes. "
@@ -419,8 +420,8 @@ _BASE_SYSTEM_PROMPT = (
     "You have known each other for about 2 years.\n\n"
     "Do you want me to go deeper on something?'\n\n"
     "## BAD EXAMPLE (never do)\n"
-    "'Sam Taylor. Score: 80/100, Tier: inner circle, "
-    "Email: sams@initech.example, 100 emails, 200 calendar events, "
+    "'Person A. Score: 80/100, Tier: inner circle, "
+    "Email: person.a@company-x.example, 100 emails, 200 calendar events, "
     "Connection: Very strong, Decay baseline: 70'\n\n"
     "## KNOWLEDGE FRESHNESS RULE (CRITICAL)\n"
     "When you are asked for information about people, companies, teams, deals:\n"
@@ -558,7 +559,7 @@ TOOLS = [
             "properties": {
                 "company_name": {
                     "type": "string",
-                    "description": "Company name (e.g. 'Acme', 'Agency', 'Initech')",
+                    "description": "Company name (e.g. 'Company X', 'Company Y')",
                 },
                 "include_former": {
                     "type": "boolean",
@@ -982,7 +983,7 @@ TOOLS = [
             "properties": {
                 "path": {
                     "type": "string",
-                    "description": "Path relative to sbk/. E.g. 'network/sam-taylor.md'",
+                    "description": "Path relative to sbk/. E.g. 'network/person-a.md'",
                 },
             },
             "required": ["path"],
@@ -1221,7 +1222,7 @@ TOOLS = [
         "description": (
             "Who had ACCESS to a topic/subject (who-knows-what), from the epistemic "
             "Episode/KNOWS layer. Distinguishes ACTIVE knowledge (spoke/was in a meeting) from "
-            "access only via email/cc. Use for: 'who knows about Globex?', 'who is aware "
+            "access only via email/cc. Use for: 'who knows about Company X?', 'who is aware "
             "of deal X?', 'who had access to topic Y?'."
         ),
         "input_schema": {
@@ -1229,7 +1230,7 @@ TOOLS = [
             "properties": {
                 "subject": {
                     "type": "string",
-                    "description": "Topic/subject (min 2 characters). E.g. 'Globex', 'Project Apollo'.",
+                    "description": "Topic/subject (min 2 characters). E.g. 'Company X', 'Project Y'.",
                 },
             },
             "required": ["subject"],
@@ -1240,7 +1241,7 @@ TOOLS = [
         "description": (
             "The episodes (meeting/email/call) a person had access to, with the type "
             "of access (spoke/attended/received) and the topics. Use for: 'what did "
-            "Sam take part in?', 'which meetings did someone have in May?', 'what does X know and from where'."
+            "Person A take part in?', 'which meetings did someone have in May?', 'what does X know and from where'."
         ),
         "input_schema": {
             "type": "object",

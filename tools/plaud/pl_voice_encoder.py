@@ -83,7 +83,7 @@ def _best_device() -> str:  # pragma: no cover - dipende dall'hardware
 def _build_inference(device: str | None = None) -> Any:  # pragma: no cover - richiede modello
     if not is_backend_available():
         raise EncoderBackendError(
-            "pyannote/torch non installati: impossibile estrarre embedding vocali"
+            "pyannote/torch not installed: voice embeddings cannot be extracted"
         )
     import torch
     from pyannote.audio import Inference, Model
@@ -91,7 +91,7 @@ def _build_inference(device: str | None = None) -> Any:  # pragma: no cover - ri
     try:
         model = Model.from_pretrained(EMBED_MODEL)
     except Exception as e:  # noqa: BLE001
-        raise EncoderBackendError(f"modello embedding non caricabile ({EMBED_MODEL}): {e}") from e
+        raise EncoderBackendError(f"embedding model cannot be loaded ({EMBED_MODEL}): {e}") from e
     dev = device or _best_device()
     return Inference(model, window="whole", device=torch.device(dev))
 
@@ -110,7 +110,7 @@ def to_wav16k(audio_path: str | Path, *, timeout: int = 120) -> str:
 
     src = Path(audio_path)
     if not src.exists():
-        raise AudioNotFoundError(f"audio non trovato: {src}")
+        raise AudioNotFoundError(f"audio not found: {src}")
     wav = tempfile.mktemp(suffix=".wav")
     r = subprocess.run(
         ["ffmpeg", "-y", "-i", str(src), "-ar", "16000", "-ac", "1", wav],
@@ -118,7 +118,7 @@ def to_wav16k(audio_path: str | Path, *, timeout: int = 120) -> str:
         timeout=timeout,
     )
     if r.returncode != 0 or not Path(wav).exists():
-        raise VoiceEncoderError(f"ffmpeg fallito su {src.name}: {r.stderr[:200]!r}")
+        raise VoiceEncoderError(f"ffmpeg failed on {src.name}: {r.stderr[:200]!r}")
     return wav
 
 
@@ -171,7 +171,7 @@ def embed_files_mean(
         except VoiceEncoderError:
             continue
     if not vecs:
-        raise VoiceEncoderError("nessuna clip valida per il centroide")
+        raise VoiceEncoderError("no valid clip for the centroid")
     m = np.mean(np.stack(vecs), axis=0)
     return l2_normalize(m)
 

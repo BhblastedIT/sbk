@@ -1,24 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""RQ-05: fills the relationship event store (rq/events.db) from the existing data: emails, calendar, Slack, calls,
+WhatsApp and knowledge facts, incremental with watermarks.
+"""
 
 from __future__ import annotations
 
@@ -296,7 +279,7 @@ def backfill_emails(
     import pandas as pd
 
     total_events = 0
-    account_dirs = sorted(EMAILS_DIR.iterdir())
+    account_dirs = sorted(EMAILS_DIR.iterdir()) if EMAILS_DIR.is_dir() else []
 
     for account_dir in account_dirs:
         parquet_path = account_dir / "messages.parquet"
@@ -1059,7 +1042,7 @@ def main() -> None:
     from sbk_config import acquire_pid_lock
 
     if not acquire_pid_lock("rq-backfill-events", logger=log):
-        log.warning("rq-backfill-events: lock tenuto da un'altra istanza, exit 75")
+        log.warning("rq-backfill-events: lock held by another instance, exit 75")
         sys.exit(75)
 
     logging.basicConfig(

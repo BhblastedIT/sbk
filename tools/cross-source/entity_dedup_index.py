@@ -1,42 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Deduplication index of the people in the knowledge base (LinkedIn slug, normalized name) and the promotion of
+second-class contacts into entities. Dry run by default; --promuovi --apply writes a reversible journal.
+"""
 
 from __future__ import annotations
 

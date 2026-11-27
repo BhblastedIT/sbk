@@ -1,20 +1,16 @@
-""
+"""Quality profiles for relationship scoring.
 
-
-
-
-
-
-
-
-
-
+For each person it combines signals, knowledge facts, events, personal channels, transcript classifications,
+an ex-employee penalty and recency into one multiplier (get_quality_multiplier). Run as a script to print the
+distribution of the multipliers, and the profile of the people you pass with --person.
+"""
 
 from __future__ import annotations
 
 import json
 import logging
 import math
+import os
 from pathlib import Path
 
 log = logging.getLogger("rq.quality")
@@ -290,7 +286,11 @@ def _load_from_knowledge(profiles: dict[str, QualityProfile]) -> None:
 
         golden_types: dict[str, dict] = {}
         try:
-            golden_path = Path("~/.sbk-data/rq/golden-ranking.json").expanduser()
+            golden_path = (
+                Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+                / "rq"
+                / "golden-ranking.json"
+            )
             if golden_path.exists():
                 with open(golden_path, encoding="utf-8") as f:
                     gdata = json.load(f)
@@ -960,14 +960,21 @@ def print_profile(person_id: str) -> None:
 
 
 if __name__ == "__main__":
+    import argparse
     import sys
 
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("--person", action="append", default=[], metavar="PERSON_ID",
+                     help="also print this person's profile (repeatable)")
+    _args = _ap.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     sys.path.insert(0, str(Path(__file__).resolve().parent))
 
     profiles = load_quality_profiles(force_reload=True)
-
+    if not profiles:
+        print("No quality profiles: the knowledge base and the signal files are still empty.")
+        sys.exit(0)
 
     mults = [p.overall_multiplier for p in profiles.values()]
     print(f"\nQuality profiles: {len(profiles)}")
@@ -979,9 +986,8 @@ if __name__ == "__main__":
     print(f">2.0 (exceptional): {sum(1 for m in mults if m >= 2.0)}")
 
 
-    # People to inspect in this debug run: {person_id: label}.
-    # Load from an unversioned local config; defaults to none.
-    key_people: dict[str, str] = {}
+    # People to inspect in this run: {person_id: label}, from --person.
+    key_people: dict[str, str] = {pid: pid for pid in _args.person}
     print(
         f"\n{'Name':25s} {'Depth':>6} {'Person':>6} {'Content':>7} {'Style':>6} {'Engage':>7} {'Struct':>6} {'MULTI':>6}"
     )

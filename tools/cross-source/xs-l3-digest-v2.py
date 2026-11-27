@@ -1,24 +1,15 @@
 #!/usr/bin/env python3
-""
+"""Digest v2 (`sbk brief`): gathers calendar, email, Slack, WhatsApp, decay alerts, follow-ups, decisions and
+knowledge changes, groups them into stories by person and topic, ranks them and prints them.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Nothing is sent to a model by default: you get the stories, and the stories file the dashboard shows
+(<data root>/briefs/digest-v2-<date>.json). A written digest from Claude is your choice: --synthesize for
+one run, or "brief": {"synthesis": true} in sbk.config.json. It then sends the stories (titles, the
+people with organisation and role, up to five items per story with the text of the messages, the context the
+search index found, knowledge changes) to Claude through the Anthropic API with your ANTHROPIC_API_KEY, and the log says so first.
+Without the key it prints the stories and exits 0. --no-synthesis forces the stories only; --dry-run
+shows them and writes nothing.
+"""
 
 from __future__ import annotations
 
@@ -26,6 +17,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import re
 import sys
 import time
@@ -336,7 +328,8 @@ def collect_slack(data: SBKData, target_date: datetime, hours: int = 24) -> list
 
     from slack_esclusi import e_escluso, esclusi
 
-    fuori = esclusi()
+    # Slack never downloaded: nothing to read, so the channel index is not needed.
+    fuori = esclusi() if SLACK_CONVERSATIONS_DIR.exists() else frozenset()
 
     for fpath in sorted(SLACK_CONVERSATIONS_DIR.glob("*.json")):
         try:
@@ -718,6 +711,93 @@ def collect_knowledge_changes(target_date: datetime) -> list[dict]:
 
 
 
+
+
+def _looks_like_phone(text: str) -> bool:
+    """True for a bare phone number ("+44 7700 900123", "07700 900123"), never for a name or an e-mail."""
+    t = str(text or "").strip()
+    if not t or "@" in t or re.search(r"[^\d\s+()./-]", t):
+        return False
+    return len(re.sub(r"\D", "", t)) >= 6
+
+
+def _book_names_by_phone(data: SBKData) -> dict[str, str]:
+    """Normalised phone -> the name the merged address book gives it (contacts-merged.parquet).
+
+    Rows whose name is itself only a number (an unsaved WhatsApp or Telegram contact) give no name.
+    When two rows share a number, the e-mail-keyed one wins, as in the merge.
+    """
+    from text_utils import normalize_phone
+
+    book = data.contacts
+    if book is None or book.empty or "name" not in book.columns:
+        return {}
+    names: dict[str, str] = {}
+    has_email: dict[str, bool] = {}
+    for row in book.to_dict("records"):
+        name = str(row.get("name") or "").strip()
+        if not name or name.lower() == "nan" or _looks_like_phone(name):
+            continue
+        phones = [row.get("phone_primary")]
+        key = str(row.get("contact_key") or "")
+        if key.startswith("tel:"):
+            phones.append(key[4:])
+        extra = row.get("all_phones")
+        if isinstance(extra, (list, tuple)) or hasattr(extra, "tolist"):
+            phones.extend(list(extra))
+        email_row = bool(str(row.get("email") or "").strip())
+        for ph in phones:
+            norm = normalize_phone(str(ph)) if ph is not None else ""
+            if not norm:
+                continue
+            if norm not in names or (email_row and not has_email.get(norm)):
+                names[norm] = name
+                has_email[norm] = email_row
+    return names
+
+
+def name_phone_senders(all_items: list[DigestItem], data: SBKData) -> int:
+    """Name the people who appear only as a phone number (an unsaved WhatsApp sender) from the book.
+
+    A number the merged address book knows ("+44 7700 900123" saved as Mia Cole on a card, or
+    the phone of an e-mail-keyed row) becomes that name in the item's people and title, so the
+    story says "WhatsApp from Mia Cole", not the number. Numbers the book does not name stay as
+    they are. Returns how many items were renamed.
+    """
+    from text_utils import normalize_phone
+
+    if not any(_looks_like_phone(p) for item in all_items for p in item.persons):
+        return 0
+    by_phone = _book_names_by_phone(data)
+    if not by_phone:
+        return 0
+    renamed = 0
+    for item in all_items:
+        new_persons = []
+        changed = False
+        for p in item.persons:
+            name = by_phone.get(normalize_phone(p)) if _looks_like_phone(p) else None
+            if not name:
+                new_persons.append(p)
+                continue
+            changed = True
+            new_persons.append(name)
+            item.metadata.setdefault("phone", p)
+            if item.type == "whatsapp":
+                chat = str(item.metadata.get("chat", ""))
+                same_chat = not chat or (
+                    _looks_like_phone(chat.replace("-", " "))
+                    and normalize_phone(chat.replace("-", " ")) == normalize_phone(p)
+                )
+                item.title = f"WhatsApp from {name}" + ("" if same_chat else f" ({chat})")
+            elif p in item.title:
+                item.title = item.title.replace(p, name)
+        if changed:
+            item.persons = new_persons
+            renamed += 1
+    if renamed:
+        log.info(f"Named {renamed} item(s) from a phone number through the address book")
+    return renamed
 
 
 def enrich_persons(all_items: list[DigestItem], data: SBKData) -> dict[str, PersonContext]:
@@ -1342,16 +1422,33 @@ def write_outputs(
     elapsed_sec: float,
     knowledge_changes: list[dict] | None = None,
 ) -> tuple[Path, Path]:
-    ""
-    date_slug = target_date.strftime("%Y%m%d")
-
-
+    """The written digest (Markdown) and the stories file the dashboard reads."""
     md_path = write_brief(digest_md, "digest-v2")
+    json_path = write_stories_json(
+        stories, target_date, cost_usd, elapsed_sec, knowledge_changes, synthesized=True
+    )
+    log.info(f"Outputs: {md_path.name} + {json_path.name}")
+    return md_path, json_path
 
+
+def write_stories_json(
+    stories: list[Story],
+    target_date: datetime,
+    cost_usd: float,
+    elapsed_sec: float,
+    knowledge_changes: list[dict] | None = None,
+    synthesized: bool = False,
+) -> Path:
+    """<data root>/briefs/digest-v2-<date>.json: the stories of the day (the dashboard home shows them).
+
+    Written with or without the model summary; "synthesized" says which.
+    """
+    date_slug = target_date.strftime("%Y%m%d")
 
     json_data = {
         "date": target_date.strftime("%Y-%m-%d"),
         "generated_at": datetime.now(UTC).isoformat(),
+        "synthesized": synthesized,
         "stats": {
             "story_count": len(stories),
             "source_types": sorted({s for st in stories for s in st.sources}),
@@ -1400,53 +1497,141 @@ def write_outputs(
     json_path = BRIEFS_DIR / f"digest-v2-{date_slug}.json"
     json_path.parent.mkdir(parents=True, exist_ok=True)
     json_path.write_text(json.dumps(json_data, indent=2, ensure_ascii=False, default=str))
-
-    log.info(f"Outputs: {md_path.name} + {json_path.name}")
-    return md_path, json_path
+    return json_path
 
 
+def synthesis_wanted(synthesize_flag: bool = False, no_synthesis_flag: bool = False) -> bool:
+    """True only when you asked for the model summary: --synthesize, or brief.synthesis true in sbk.config.json.
+
+    Off by default, so a plain `sbk brief` sends nothing to a model. --no-synthesis always wins.
+    """
+    if no_synthesis_flag:
+        return False
+    if synthesize_flag:
+        return True
+    import sbk_config
+
+    return sbk_config.user_cfg("brief.synthesis", False) is True
 
 
-
-
-
-def main():
-    parser = argparse.ArgumentParser(description="SBK Digest V2: Intelligence Engine")
+def parse_args(argv: list[str] | None = None, prog: str | None = None) -> argparse.Namespace:
+    """The options of `sbk brief` / xs-l3-digest-v2.py."""
+    parser = argparse.ArgumentParser(
+        prog=prog,
+        description="Morning brief: today's stories from your sources. Nothing is sent to a model "
+        "unless you ask (--synthesize, or brief.synthesis true in sbk.config.json).",
+    )
     parser.add_argument(
-        "--dry-run", action="store_true", help="Show stories without Claude synthesis"
+        "--dry-run",
+        action="store_true",
+        help="Show the stories and write nothing (no stories file, no model summary)",
+    )
+    sintesi = parser.add_mutually_exclusive_group()
+    sintesi.add_argument(
+        "--synthesize",
+        action="store_true",
+        help="Also send the stories to Claude through the Anthropic API with your ANTHROPIC_API_KEY "
+        "and write the digest it returns. Off by default; brief.synthesis true in sbk.config.json "
+        "turns it on for every brief",
+    )
+    sintesi.add_argument(
+        "--no-synthesis",
+        action="store_true",
+        help="Stories only (the default); overrides brief.synthesis true in sbk.config.json",
     )
     parser.add_argument("--date", type=str, help="Target date YYYY-MM-DD (default: today)")
     parser.add_argument(
         "--no-research", action="store_true", help="Skip vector search for historical context"
     )
-    parser.add_argument("--force", action="store_true", help="Bypass today-already-run guard")
+    parser.add_argument(
+        "--force", action="store_true", help="Write the model digest again even if today's exists"
+    )
     parser.add_argument("--verbose", action="store_true", help="Debug logging")
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def _display_names(story: Story) -> list[str]:
+    """The story's people as the book writes them (one entry per name), else the raw identifiers."""
+    names: list[str] = []
+    for pc in story.person_contexts:
+        if pc.name and pc.name.lower() not in {n.lower() for n in names}:
+            names.append(pc.name)
+    return names or list(story.persons)
+
+
+def print_stories(stories: list[Story], all_items: list[DigestItem], person_count: int, t0: float):
+    """The stories as plain text (what `sbk brief` prints without a model)."""
+    print("\n=== Today's stories ===\n")
+    for i, story in enumerate(stories, 1):
+        print(f"{i}. [{story.priority_score:3d}] {story.title}")
+        print(
+            f"   Sources: {', '.join(story.sources)} | Persons: {', '.join(_display_names(story)[:3])}"
+        )
+        for item in story.items[:3]:
+            print(f"   [{item.type}] {item.content[:80]}")
+        if story.research_context:
+            print(f"   Research: {story.research_context[:100]}...")
+        print()
+
+    print("=== Stats ===")
+    print(f"  Items: {len(all_items)}")
+    print(f"  Stories: {len(stories)}")
+    print(f"  Persons: {person_count}")
+    print(f"  Sources: {sorted({i.source for i in all_items})}")
+    print(f"  Elapsed: {time.time() - t0:.1f}s")
+
+
+def _how_many(stories: list[Story]) -> str:
+    """'this story' / 'these N stories' (the prompt holds at most 15)."""
+    n = min(len(stories), 15)
+    return "this story" if n == 1 else f"these {n} stories"
+
+
+def what_would_be_sent(stories: list[Story], prompt_data: str) -> str:
+    """The one line that says how to turn the model summary on and what it sends."""
+    return (
+        f"Model summary off: `sbk brief --synthesize` (or \"brief\": {{\"synthesis\": true}} in "
+        f"sbk.config.json) sends {_how_many(stories)} ({len(prompt_data)} characters: titles, the people "
+        "with organisation and role, up to 5 items per story with the text of the messages, the search "
+        "context, knowledge changes) to Claude through the Anthropic API with your ANTHROPIC_API_KEY."
+    )
+
+
+def _synthesized_file_exists(target_date: datetime) -> bool:
+    """True when today's stories file came with a model digest (a stories-only run keeps it)."""
+    path = BRIEFS_DIR / f"digest-v2-{target_date.strftime('%Y%m%d')}.json"
+    if not path.exists():
+        return False
+    try:
+        return json.loads(path.read_text()).get("synthesized", True) is not False
+    except (json.JSONDecodeError, OSError, AttributeError):
+        return False
+
+
+def main(argv: list[str] | None = None, prog: str | None = None) -> int:
+    args = parse_args(argv, prog)
 
     setup_logging(verbose=args.verbose, name="sbk-l3-digest-v2")
     t0 = time.time()
-
+    synth = not args.dry_run and synthesis_wanted(args.synthesize, args.no_synthesis)
 
     if args.date:
         try:
             target_date = datetime.strptime(args.date, "%Y-%m-%d")
         except ValueError:
             log.error(f"Invalid date format: {args.date}. Use YYYY-MM-DD")
-            sys.exit(1)
+            return 1
     else:
         target_date = datetime.now().replace(hour=7, minute=0, second=0, microsecond=0)
 
     today_str = target_date.strftime("%Y-%m-%d")
     log.info(f"=== Digest V2 for {today_str} ===")
 
-
     state = load_state()
 
-
-    if not args.force and not args.dry_run and state.get("last_digest_date") == today_str:
+    if synth and not args.force and state.get("last_digest_date") == today_str:
         log.info(f"Digest already run today ({today_str}), skipping. Use --force to override.")
-        return
-
+        return 0
 
     log.info("Phase 1: COLLECT")
     data = SBKData()
@@ -1461,7 +1646,6 @@ def main():
     all_items.extend(collect_recent_decisions(target_date, days=7))
     all_items.extend(collect_pending_events())
 
-
     knowledge_changes = collect_knowledge_changes(target_date)
     try:
         from xs_l3_knowledge_alerts import filter_changes_for_digest
@@ -1469,7 +1653,6 @@ def main():
         knowledge_changes = filter_changes_for_digest(knowledge_changes)
     except ImportError:
         log.debug("xs_l3_knowledge_alerts not available, keeping all changes")
-
 
     try:
         from golden_record import collect_golden_record_changes
@@ -1496,18 +1679,17 @@ def main():
 
     if not all_items:
         log.info("No items to include. Skipping.")
-        return
-
+        return 0
 
     log.info("Phase 2: ENRICH")
+    name_phone_senders(all_items, data)
     person_cache = enrich_persons(all_items, data)
-
 
     log.info("Phase 3: CORRELATE")
     stories = correlate_stories(all_items, person_cache)
 
-
-    if not args.dry_run:
+    # Anti-fatigue (a story is not repeated every day) applies to the model digest only.
+    if synth:
         filtered_stories = []
         for story in stories:
             if should_show_story(story.story_hash, state, today_str):
@@ -1517,56 +1699,57 @@ def main():
                 log.debug(f"Skipping story (anti-fatigue): {story.title[:40]}")
         stories = filtered_stories
 
-
     if not args.no_research:
         log.info("Phase 4: RESEARCH")
         stories = research_stories(stories, max_stories=10)
     else:
         log.info("Phase 4: RESEARCH (skipped: --no-research)")
 
+    prompt_data = build_synthesis_prompt(stories, target_date, knowledge_changes)
 
-    if args.dry_run:
-        print("\n=== DRY RUN: Digest V2 Stories ===\n")
-        for i, story in enumerate(stories, 1):
-            print(f"{i}. [{story.priority_score:3d}] {story.title}")
-            print(
-                f"   Sources: {', '.join(story.sources)} | Persons: {', '.join(story.persons[:3])}"
+    if not synth:
+        print_stories(stories, all_items, len(person_cache), t0)
+        if not args.dry_run and not _synthesized_file_exists(target_date):
+            json_path = write_stories_json(
+                stories, target_date, 0.0, time.time() - t0, knowledge_changes, synthesized=False
             )
-            for item in story.items[:3]:
-                print(f"   [{item.type}] {item.content[:80]}")
-            if story.research_context:
-                print(f"   Research: {story.research_context[:100]}...")
-            print()
+            print(f"\nStories file: {json_path}")
+        print("\nNothing was sent to a model. " + what_would_be_sent(stories, prompt_data))
+        return 0
 
-        print("=== Stats ===")
-        print(f"  Items: {len(all_items)}")
-        print(f"  Stories: {len(stories)}")
-        print(f"  Persons: {len(person_cache)}")
-        print(f"  Sources: {sorted({i.source for i in all_items})}")
-        print(f"  Elapsed: {time.time() - t0:.1f}s")
-        return
-
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        print_stories(stories, all_items, len(person_cache), t0)
+        print(
+            "\nNo model summary: ANTHROPIC_API_KEY is not set (put it in .env or in the environment), "
+            "so nothing was sent. With the key, the stories above go to Claude through the Anthropic API."
+        )
+        return 0
 
     log.info("Phase 5: SYNTHESIZE")
-    prompt_data = build_synthesis_prompt(stories, target_date, knowledge_changes)
-    digest_md = synthesize_digest(prompt_data, target_date)
+    log.info(
+        f"Sending {_how_many(stories)} ({len(prompt_data)} characters: titles, people, "
+        "message text, knowledge changes) to Claude through the Anthropic API with your "
+        "ANTHROPIC_API_KEY for the digest"
+    )
+    try:
+        digest_md = synthesize_digest(prompt_data, target_date)
+    except Exception as e:  # the stories are still worth printing
+        print_stories(stories, all_items, len(person_cache), t0)
+        print(f"\nThe model summary failed ({e}); the stories above are what SBK found.")
+        return 1
 
     elapsed = time.time() - t0
-
 
     prompt_tokens = len(prompt_data) // 4
     output_tokens = len(digest_md) // 4
     cost = (prompt_tokens * 3.0 + output_tokens * 15.0) / 1_000_000
 
-
     md_path, json_path = write_outputs(
         digest_md, stories, target_date, cost, elapsed, knowledge_changes
     )
 
-
     state["last_digest_date"] = today_str
     save_state(state)
-
 
     urgent_count = sum(1 for s in stories if s.priority_score >= 70)
     msg = f"{len(stories)} stories, {urgent_count} urgent"
@@ -1576,6 +1759,7 @@ def main():
     print(f"  {len(stories)} stories, {urgent_count} urgent, {len(person_cache)} people")
     print(f"  JSON: {json_path}")
     print(f"  Time: {elapsed:.1f}s, Cost: ~${cost:.4f}")
+    return 0
 
 
 from pipeline_decorator import pipeline_step
@@ -1583,7 +1767,9 @@ from pipeline_decorator import pipeline_step
 
 @pipeline_step(name="l3-digest-v2", source="l3-digest-v2", stage="l3")
 def _pipeline_run():
-    main()
+    rc = main()
+    if rc:
+        sys.exit(rc)
 
 
 if __name__ == "__main__":

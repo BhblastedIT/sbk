@@ -1,81 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Encrypted backup of the data root and your config files, with rotation (--keep), a disk-space guard, an
+encryption self-check and verification of each archive; --list shows the backups, --dry-run the plan.
+"""
 
 from __future__ import annotations
 
@@ -146,26 +72,20 @@ SOGLIA_CALO_ROTAZIONE = 0.10
 
 
 
-REPO_SBK_DIR = Path.home() / "Projects" / "SBK" / "sbk"
+# The repo is wherever you cloned it: found from where this script sits (tools/infrastructure/).
+REPO_DIR = Path(__file__).resolve().parents[2]
+REPO_SBK_DIR = REPO_DIR / "sbk"
 
-# Claude Code encodes a project's path into its sessions/memory folder name by
-# replacing every "/" with "-". Derive it from the repo location.
-_CLAUDE_PROJECT_ROOT = REPO_SBK_DIR.parent
-_CLAUDE_MEMORY_DIR = (
-    Path.home()
-    / ".claude"
-    / "projects"
-    / str(_CLAUDE_PROJECT_ROOT).replace("/", "-")
-    / "memory"
-)
-_CLAUDE_PROJECT_DIR = _CLAUDE_MEMORY_DIR.parent
-VAULT_DIR = Path.home() / ".sbk-credentials"
+# Claude Code keeps a project's sessions and memory in a folder named after the project's path, with
+# every character that is not a letter or a digit turned into "-". CLAUDE_CONFIG_DIR moves ~/.claude.
+CLAUDE_HOME = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude").expanduser()
+_CLAUDE_PROJECT_DIR = CLAUDE_HOME / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(REPO_DIR))
+_CLAUDE_MEMORY_DIR = _CLAUDE_PROJECT_DIR / "memory"
 
 SOURCES: list[tuple[str, Path]] = [
     ("sbk-data", DATA_ROOT),
     ("repo-sbk", REPO_SBK_DIR),
     ("claude-memory", _CLAUDE_MEMORY_DIR),
-    ("vault", VAULT_DIR),
 ]
 
 TRANSCRIPT_SOURCE: tuple[str, Path] = ("transcripts", _CLAUDE_PROJECT_DIR)
@@ -350,8 +270,13 @@ def impronta_chiave(passphrase: str) -> str:
     return hmac.new(passphrase.encode(), IMPRONTA_ETICHETTA, hashlib.sha256).hexdigest()[:16]
 
 
-def _file_chiave_vault() -> Path:
-    return VAULT_DIR / "files" / "sbk" / "backup-enc-key.txt"
+# The key lives only in your Keychain: SBK writes no other copy. These are the commands you run
+# yourself to keep an offline copy (it prints the key) and to put that copy back on a new machine.
+EXPORT_KEY_HINT = f"uv run python -c \"import keyring; print(keyring.get_password('{ENC_SERVICE}', '{ENC_ACCOUNT}'))\""
+IMPORT_KEY_HINT = (
+    'uv run python -c "import getpass, keyring; '
+    f"keyring.set_password('{ENC_SERVICE}', '{ENC_ACCOUNT}', getpass.getpass('key: '))\""
+)
 
 
 def _ultima_impronta(destination: Path) -> str | None:
@@ -383,25 +308,21 @@ def _ensure_encryption_key(destination: Path | None = None) -> str:
         if attesa and impronta_chiave(key) != attesa:
             raise ChiaveNonDisponibile(
                 f"the key in the Keychain has fingerprint {impronta_chiave(key)}, the last archive {attesa}: "
-                "I will not write archives with a different key. Put the stored key back in the Keychain (L0 kit)"
+                "I will not write archives with a different key. Put your offline copy of the key back in "
+                f"the Keychain: {IMPORT_KEY_HINT}"
             )
         return key
 
-    vault_file = _file_chiave_vault()
     esistenti = (
         sorted(destination.glob("sbk-*.tar.gz.enc"))
         if destination is not None and destination.exists()
         else []
     )
-    if vault_file.exists() or esistenti:
+    if esistenti:
         raise ChiaveNonDisponibile(
-            "backup key not readable from the Keychain "
-            f"({ENC_SERVICE}/{ENC_ACCOUNT}), but there are "
-            + (f"{len(esistenti)} encrypted archives" if esistenti else "")
-            + (" and " if esistenti and vault_file.exists() else "")
-            + ("the vault copy" if vault_file.exists() else "")
-            + ": I will not generate a new one (the existing archives would become unreadable). "
-            "Put the key back in the Keychain from the stored copy (L0 kit)"
+            f"backup key not readable from the Keychain ({ENC_SERVICE}/{ENC_ACCOUNT}), but there are "
+            f"{len(esistenti)} encrypted archives: I will not generate a new one (the existing archives "
+            f"would become unreadable). Put your offline copy of the key back in the Keychain: {IMPORT_KEY_HINT}"
         )
 
     log.info("No encryption key and no archive anywhere: generating the first one")
@@ -411,14 +332,20 @@ def _ensure_encryption_key(destination: Path | None = None) -> str:
     key = raw.stdout.strip()
 
     set_secret(ENC_SERVICE, ENC_ACCOUNT, key)
-    log.info("Encryption key saved to Keychain (%s/%s)", ENC_SERVICE, ENC_ACCOUNT)
-
-
-    vault_file.parent.mkdir(parents=True, exist_ok=True)
-    fd = os.open(vault_file, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w") as fh:
-        fh.write(key + "\n")
-    log.info("Encryption key copy saved to vault (fingerprint %s)", impronta_chiave(key))
+    if get_secret(ENC_SERVICE, ENC_ACCOUNT) != key:
+        # container mode stores nothing, and a key kept nowhere would make every archive unreadable
+        raise ChiaveNonDisponibile(
+            f"the new backup key could not be stored in the Keychain ({ENC_SERVICE}/{ENC_ACCOUNT}). "
+            "In container mode set SBK_BACKUP_ENC_KEY to a key you keep yourself (e.g. openssl rand -base64 32)"
+        )
+    log.info(
+        "Encryption key saved to the Keychain (%s/%s), fingerprint %s. It is the only copy: keep one "
+        "offline yourself, printed by: %s",
+        ENC_SERVICE,
+        ENC_ACCOUNT,
+        impronta_chiave(key),
+        EXPORT_KEY_HINT,
+    )
     return key
 
 
@@ -766,16 +693,6 @@ def _esito(outcome: str, detail: str = "") -> None:
 
 
 
-def _archiviati_su_drive() -> dict[str, int]:
-    ""
-
-    try:
-        reg = json.loads((DATA_ROOT / "archivio-drive" / "registro.json").read_text())
-        return {k: int(v["byte"]) for k, v in reg.items()}
-    except Exception:
-        return {}
-
-
 def _walk_source(
     source_root: Path,
     prefix: str,
@@ -789,8 +706,6 @@ def _walk_source(
 
 
     root_excl = root_excl or frozenset()
-    is_vault = prefix == "vault"
-    su_drive = _archiviati_su_drive() if prefix == "sbk-data" else {}
     stats: dict = {
         "prefix": prefix,
         "root": str(source_root),
@@ -801,7 +716,6 @@ def _walk_source(
         "vanished": 0,
         "errors": 0,
         "symlinks": 0,
-        "su_drive": 0,
     }
 
     if not source_root.exists():
@@ -856,9 +770,6 @@ def _walk_source(
                     continue
                 if not stat_mod.S_ISREG(lst.st_mode):
                     continue
-                if su_drive.get(rel) == lst.st_size:
-                    stats["su_drive"] += 1
-                    continue
 
                 if tar is not None:
                     tar.add(full, arcname=arcname, recursive=False)
@@ -868,16 +779,10 @@ def _walk_source(
 
             except FileNotFoundError:
                 stats["vanished"] += 1
-                if is_vault:
-                    log.warning("File vanished in vault source")
-                else:
-                    log.warning("File vanished: %s/%s", prefix, rel)
+                log.warning("File vanished: %s/%s", prefix, rel)
             except OSError as e:
                 stats["errors"] += 1
-                if is_vault:
-                    log.warning("Cannot read file in vault: %s", type(e).__name__)
-                else:
-                    log.warning("Cannot read %s/%s: %s", prefix, rel, e)
+                log.warning("Cannot read %s/%s: %s", prefix, rel, e)
 
     return stats
 
@@ -949,7 +854,6 @@ def _write_manifest(
             "vanished": st["vanished"],
             "unreadable": st.get("errors", 0),
             "symlinks": st["symlinks"],
-            "su_drive": st.get("su_drive", 0),
         }
         totals["files"] += st["files"]
         totals["bytes"] += st["bytes"]
@@ -1449,8 +1353,6 @@ def _add_all_sources(
 
 
 
-REPO_DIR = Path.home() / "Projects" / "SBK"
-
 REPO_NON_TRACCIATO_MAX = 50 * 1024**2
 
 PREFISSI_LIVELLO = {"memoria-claude": "claude-memory", "sessioni-claude": "transcripts"}
@@ -1477,7 +1379,6 @@ def _stats_vuote(prefix: str, root: Path) -> dict:
         "vanished": 0,
         "errors": 0,
         "symlinks": 0,
-        "su_drive": 0,
     }
 
 
@@ -1556,14 +1457,9 @@ def _aggiungi_livello(
     ""
 
 
-    su_drive = _archiviati_su_drive()
     stats: dict[str, dict] = {}
     for prefisso, base, arcname, p, size, regola in _voci_livello(livello, per_drive):
         st = stats.setdefault(prefisso, _stats_vuote(prefisso, base))
-        vault = prefisso == "vault"
-        if prefisso == "sbk-data" and su_drive.get(arcname.split("/", 1)[1]) == size:
-            st["su_drive"] += 1
-            continue
         try:
             lst = os.lstat(p)
             if stat_mod.S_ISLNK(lst.st_mode):
@@ -1583,10 +1479,10 @@ def _aggiungi_livello(
                 per_radice[radice] = per_radice.get(radice, 0) + 1
         except FileNotFoundError:
             st["vanished"] += 1
-            log.warning("File vanished: %s", "(vault)" if vault else arcname)
+            log.warning("File vanished: %s", arcname)
         except OSError as e:
             st["errors"] += 1
-            log.warning("Cannot read %s: %s", "(vault)" if vault else arcname, type(e).__name__)
+            log.warning("Cannot read %s: %s", arcname, type(e).__name__)
     if livello == 1:
         codice, troppo_grandi = _codice_repo(cartella_tmp)
         st = stats.setdefault("repo-git", _stats_vuote("repo-git", REPO_DIR))
@@ -1930,7 +1826,7 @@ def prova_campione(archive_path: Path, quanti: int = 500, *, chiave_da_stdin: bo
                     s = vivo.lstat()
                 except FileNotFoundError:
                     conti["spariti"] += 1
-                    spariti.append("(vault)" if m.name.startswith("vault/") else m.name)
+                    spariti.append(m.name)
                     continue
                 if s.st_mtime > inizio:
                     conti["cambiati_dopo"] += 1
@@ -1938,7 +1834,7 @@ def prova_campione(archive_path: Path, quanti: int = 500, *, chiave_da_stdin: bo
                 if _sha256_file(vivo) == h.hexdigest():
                     conti["uguali"] += 1
                 else:
-                    diversi.append("(vault)" if m.name.startswith("vault/") else m.name)
+                    diversi.append(m.name)
         while reader.read(4 * 1024 * 1024):
             pass
         autentico = reader.verify()
@@ -2189,7 +2085,16 @@ def list_backups(destination: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="SBK Backup -- multi-source encrypted backup with rotation"
+        description="SBK Backup -- multi-source encrypted backup with rotation",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            f"The encryption key lives only in your Keychain ({ENC_SERVICE}/{ENC_ACCOUNT}); SBK writes no\n"
+            "other copy. Keep one offline yourself (it prints the key):\n"
+            f"  {EXPORT_KEY_HINT}\n"
+            "Put it back on a new machine with:\n"
+            f"  {IMPORT_KEY_HINT}\n"
+            "or restore without the Keychain: --restore <archive> --to <dir> --key-from-stdin"
+        ),
     )
     parser.add_argument("--config-only", action="store_true", help="Config files only")
     parser.add_argument(

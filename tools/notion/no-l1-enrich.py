@@ -1,22 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Notion L1: from the Notion download, the database schemas, the people and companies in your databases, the task
+timeline, the page text and the mentions, as parquet files with a summary.
+"""
 
 from __future__ import annotations
 

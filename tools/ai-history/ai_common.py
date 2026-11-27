@@ -156,6 +156,15 @@ def write_messages(
     }
 
 
+def write_private(path: Path | str, text: str) -> None:
+    """Write `text` to `path` readable by you only (mode 0600), also when the file exists."""
+    path = Path(path)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as out:
+        out.write(text)
+    os.chmod(path, 0o600)
+
+
 def print_counts(title: str, counts: dict, indent: str = "  ") -> None:
     print(title)
     if not counts:

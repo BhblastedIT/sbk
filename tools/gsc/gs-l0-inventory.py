@@ -1,35 +1,9 @@
 #!/usr/bin/env python3
-""
+"""Google Search Console download: properties, clicks, impressions, queries and pages of every property your
+signed-in Google accounts can see (your own login, read-only scope), into <data root>/gsc/.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/gsc/gs-l0-inventory.py --login <label>   (once per account), then without it
+"""
 
 from __future__ import annotations
 

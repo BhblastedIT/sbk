@@ -1,25 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Attio L1: turns the Attio download into contacts and companies parquet files with notes and meeting counts,
+optionally also the people without an email (--contacts-without-email).
+"""
 
 from __future__ import annotations
 
@@ -43,6 +25,7 @@ from text_utils import normalize_email  # noqa: E402
 
 from sbk_config import (
     ATTIO_DIR,
+    ATTIO_PRIMARY_WORKSPACE,
     ATTIO_SECONDA_CLASSE_PARQUET,
     ATTIO_WORKSPACE_DIRS,
     ENRICHED_DIR,
@@ -88,9 +71,9 @@ def _workspaces_to_read() -> dict[str, Path]:
     ""
 
 
-    if ATTIO_WORKSPACE_DIRS["acme"] == ATTIO_DIR:
+    if ATTIO_WORKSPACE_DIRS[ATTIO_PRIMARY_WORKSPACE] == ATTIO_DIR:
         return dict(ATTIO_WORKSPACE_DIRS)
-    return {"acme": ATTIO_DIR}
+    return {ATTIO_PRIMARY_WORKSPACE: ATTIO_DIR}
 
 
 def _across_workspaces(build, key: str | None) -> pd.DataFrame:
@@ -664,7 +647,7 @@ def _attio_input_fingerprints() -> dict[str, str]:
     ""
     fingerprints = {}
     for ws, ws_dir in _workspaces_to_read().items():
-        prefix = "" if ws == "acme" else f"{ws}/"
+        prefix = "" if ws == ATTIO_PRIMARY_WORKSPACE else f"{ws}/"
         for name in ["people.parquet", "companies.parquet"]:
             path = ws_dir / name
             if path.exists():
@@ -765,12 +748,6 @@ def _backfill_from_merged(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def main():
-    if not acquire_pid_lock("at-l1-enrich", logger=log):
-
-
-        log.warning("Another instance is running: lock held, exit 75")
-        sys.exit(75)
-
     parser = argparse.ArgumentParser(description="Attio CRM enrichment — SBK L1")
     parser.add_argument("--dry-run", action="store_true", help="Show stats without writing files")
     parser.add_argument(
@@ -792,6 +769,10 @@ def main():
         "--seconda-classe", action="store_true", dest="seconda_classe", help=argparse.SUPPRESS
     )
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    if not acquire_pid_lock("at-l1-enrich", logger=log):
+        log.warning("Another instance is running: lock held, exit 75")
+        sys.exit(75)
 
     logging.basicConfig(
         level=logging.INFO,

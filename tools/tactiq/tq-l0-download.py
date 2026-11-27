@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Tactiq download: the transcripts of your Tactiq meetings (also those shared with you), through the Tactiq
+session of your browser or a refresh token kept in the Keychain (--direct); --verify checks completeness.
+"""
 
 import argparse
 import json
@@ -36,8 +23,7 @@ from pipeline_decorator import PermanentAPIError  # noqa: E402
 
 from sbk_config import TACTIQ_RAW_DIR, mark_last_run, safe_write_json  # noqa: E402
 
-OUTPUT_DIR = TACTIQ_RAW_DIR
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR = TACTIQ_RAW_DIR  # Created when the script runs, not at import, so --help writes nothing.
 INDEX_PATH = OUTPUT_DIR / "_meeting_index.json"
 ERRORS_PATH = OUTPUT_DIR / "_errors.json"
 
@@ -1001,6 +987,7 @@ def main():
         help="Direct mode: use Python HTTP instead of AppleScript/Chrome (useful when Playwright Chrome interferes)",
     )
     args = parser.parse_args()
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     logging.basicConfig(
         level=logging.INFO,

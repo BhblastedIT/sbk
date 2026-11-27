@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Annotation of the relationship facts: saves the high-confidence ones automatically (--auto), lets you review the
+uncertain ones (--review), shows a person's facts or the statistics.
+"""
 
 from __future__ import annotations
 

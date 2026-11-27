@@ -58,15 +58,15 @@ class PlaudSessionExecutor(PlaudHttpExecutor):
         self.web_origin = web_origin
 
         self.user_data_dir = (
-            str(user_data_dir) if user_data_dir is not None else "/tmp/plaud-session-executor"  # noqa: S108 - scratch dedicato, mai il profilo browser dell'utente
+            str(user_data_dir) if user_data_dir is not None else "/tmp/plaud-session-executor"  # noqa: S108 - dedicated scratch, never the user's browser profile
         )
 
     def _transport_rename(self, file_id: str, diff: RenameDiff) -> Any:
 
 
         raise LiveWriteDisabled(
-            "Esecutore C (session-replay): XHR di rename non catturata (F0 pending). "
-            "Il replay same-origin su Chromium dedicato si attiva post-F0. Dry-run only."
+            "Executor C (session replay): the rename XHR has not been captured yet. "
+            "Same-origin replay on a dedicated Chromium is not enabled. Dry run only."
         )
 
     def health(self) -> bool:

@@ -1,28 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Queries over episodes and the KNOWS view: who attended an episode, the episodes of a person, who knows about a
+subject, who met whom, and a person's summary.
+"""
 
 from __future__ import annotations
 
@@ -412,6 +391,12 @@ def build_subject_index() -> int:
             if sl:
                 idx[sl].add(eid)
     rows = [{"subject_lower": k, "episode_ids": sorted(v)} for k, v in idx.items()]
+    if not rows and (not SUBJECT_INDEX.exists() or pq.read_metadata(SUBJECT_INDEX).num_rows == 0):
+        # No episode subjects yet and no index with rows to protect (a first install): empty index.
+        SUBJECT_INDEX.parent.mkdir(parents=True, exist_ok=True)
+        schema = pa.schema([("subject_lower", pa.string()), ("episode_ids", pa.list_(pa.string()))])
+        pq.write_table(pa.Table.from_pylist([], schema=schema), SUBJECT_INDEX)
+        return 0
     if not rows:
 
         raise RuntimeError(

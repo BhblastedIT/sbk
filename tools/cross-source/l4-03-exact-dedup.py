@@ -1,25 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""L4-03: merges the person entities with exactly the same name when their emails do not contradict each other,
+keeping a canonical one and archiving the others. Dry run by default; --apply executes.
+"""
 
 from __future__ import annotations
 

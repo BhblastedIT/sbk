@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""L4-02: splits composite person entities ("A, B", "A / B") into the single people and assigns each fact to the
+right one, leaving out companies and roles. Dry run by default; --apply executes.
+"""
 
 from __future__ import annotations
 

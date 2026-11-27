@@ -1,54 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Regenerates the relationship-facts table from the cached model responses, without calling any API, one source or
+all; --scrivi writes relationship-facts-rigenerato.parquet next to the one in use.
+"""
 
 from __future__ import annotations
 

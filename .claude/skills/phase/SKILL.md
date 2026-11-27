@@ -1,6 +1,6 @@
 ---
 name: phase
-description: Phased implementation workflow — read your project's tracker, implement one phase item by item with the tests of the touched files after each, commit, update the tracker, plan the next phase. Invoke when asked to implement the next phase of a plan.
+description: Phased implementation workflow — read your project's tracker, implement one phase item by item with the tests of the touched files after each, update the tracker, plan the next phase; commit and push only when the user asks. Invoke when asked to implement the next phase of a plan.
 ---
 
 # /phase — Phased Implementation Workflow
@@ -19,15 +19,18 @@ A structured workflow for phased implementation. Used for infrastructure, featur
      ⛔ Do not run the full test suite if it is memory-heavy on the current machine: run only the files you touched.
    - If a test fails, diagnose and fix it before moving on
 
-4. **Commit**: commit with a conventional-commit message that references the phase/item ID
+4. **Commit, only when the user asks**: never commit on your own. When the user asks for it, use a
+   conventional-commit message that references the phase/item ID
    - Format: `feat: complete phase N — item description`
+   - Otherwise leave the changes in the working tree and list them in the report (step 7)
 
 5. **Update the tracker**: update the tracker files (PROGRESS.md, INDEX.md) marking the phase done with a timestamp and test count.
 
 6. **Plan the next phase**: write the detailed plan for the next phase in the appropriate document.
 
-7. **Push and report**: push the changes and produce a summary:
+7. **Report**: never push on your own; push only when the user asks. Produce a summary:
    - What was completed
+   - What is committed and what is still only in the working tree
    - Total tests (before/after)
    - What remains
    - Any blockers

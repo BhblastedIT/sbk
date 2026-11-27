@@ -1,32 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Shadow contacts: the people mentioned in your conversations and meetings who are not in your contacts, clustered
+by name, with company, role and a score, into l3/nlp/shadow-contacts.parquet.
+"""
 
 from __future__ import annotations
 
@@ -1736,7 +1711,7 @@ def main():
     from sbk_config import acquire_pid_lock
 
     if not acquire_pid_lock("l3-shadow-extract", logger=log):
-        log.warning("l3-shadow-extract: lock tenuto da un'altra istanza, exit 75")
+        log.warning("l3-shadow-extract: lock held by another instance, exit 75")
         sys.exit(75)
 
     shadows = run(

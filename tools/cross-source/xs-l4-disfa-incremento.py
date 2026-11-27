@@ -1,36 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Undoes an incremental write to the knowledge base, operation by operation in reverse order (--id; --elenca lists
+the increments on disk). Dry run by default; --apply executes.
+"""
 
 from __future__ import annotations
 
@@ -66,9 +37,7 @@ def main() -> int:
         elenco = inc_mod.elenca(radice)
         if not elenco:
             print(f"no increment in {inc_mod.cartella_incrementi(radice)}")
-            print(
-                "  (as long as no script is hooked up, this is the expected result: see docs/sbk/audits/INCREMENTO.json)"
-            )
+            print("  (no run has written an increment journal here yet)")
             return 0
         for i in elenco:
             letto = inc_mod.leggi(i, radice)

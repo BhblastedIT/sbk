@@ -1,5 +1,5 @@
-# Manifest job registro — rq-01-decay
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: rq-01-decay
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: rq-01-decay
 cmd: python3
 args:
@@ -17,4 +17,4 @@ fragile: false
 artifact_refs:
 - relationship-facts.parquet
 forbidden_adapter_types: []
-description: RQ-01 motore di decadimento.
+description: RQ-01 decay engine.

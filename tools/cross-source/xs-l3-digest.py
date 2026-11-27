@@ -1,25 +1,17 @@
 #!/usr/bin/env python3
-""
+"""Morning digest (the older version; `sbk brief` runs xs-l3-digest-v2.py): today's calendar, urgent email, Slack
+highlights, decay alerts, follow-ups, deadlines, decisions and stale threads, ranked and grouped by person.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+Nothing is sent to a model by default: it prints the items. --synthesize (or "brief": {"synthesis": true} in
+sbk.config.json) sends them to Claude through the Anthropic API with your ANTHROPIC_API_KEY and writes the digest.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import logging
+import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -911,13 +903,34 @@ Rules:
 def main():
     parser = argparse.ArgumentParser(description="SBK Morning Digest Generator")
     parser.add_argument(
-        "--dry-run", action="store_true", help="Show items without Claude synthesis"
+        "--dry-run", action="store_true", help="Show the items and send nothing (the default)"
+    )
+    parser.add_argument(
+        "--synthesize",
+        action="store_true",
+        help="Send the items to Claude through the Anthropic API with your ANTHROPIC_API_KEY and write "
+        "the digest. Off by default; brief.synthesis true in sbk.config.json turns it on",
     )
     parser.add_argument("--date", type=str, help="Target date YYYY-MM-DD (default: today)")
     parser.add_argument("--verbose", action="store_true", help="Debug logging")
     args = parser.parse_args()
 
     setup_logging(verbose=args.verbose, name="sbk-l3-digest")
+
+    import sbk_config
+
+    wants_model = args.synthesize or sbk_config.user_cfg("brief.synthesis", False) is True
+    model_note = ""
+    if not args.dry_run and not wants_model:
+        args.dry_run = True
+        model_note = (
+            "Nothing was sent to a model. --synthesize (or \"brief\": {\"synthesis\": true} in "
+            "sbk.config.json) sends the digest data above to Claude through the Anthropic API with "
+            "your ANTHROPIC_API_KEY."
+        )
+    elif not args.dry_run and not os.environ.get("ANTHROPIC_API_KEY"):
+        args.dry_run = True
+        model_note = "No model summary: ANTHROPIC_API_KEY is not set, so nothing was sent."
 
 
     if args.date:
@@ -1032,7 +1045,8 @@ def main():
                 f"  [{item['_priority_score']:3d}] [{item['type']:8s}] {name}: {item.get('title', '')[:60]}"
             )
 
-
+        if model_note:
+            print("\n" + model_note)
         return
 
 

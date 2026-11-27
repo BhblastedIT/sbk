@@ -58,8 +58,8 @@ def check_freshness(
             target=target,
             status=CheckStatus.BROKEN,
             detail=(
-                "nessuna colonna-data presente tra "
-                f"{list(date_columns)}: rifiuto il fallback a mtime"
+                "no date column among "
+                f"{list(date_columns)}: refusing the mtime fallback"
             ),
             metrics=base_metrics,
             as_of=as_of_dt.isoformat(),
@@ -71,9 +71,9 @@ def check_freshness(
             target=target,
             status=CheckStatus.BROKEN,
             detail=(
-                "nessuna data valida dopo il clamp "
+                "no valid date after the clamp "
                 f"(future={cd.n_future_clamped}, pre-floor={cd.n_floor_clamped}): "
-                "freschezza non stabilibile senza inventare"
+                "freshness cannot be established without guessing"
             ),
             metrics=base_metrics,
             as_of=as_of_dt.isoformat(),

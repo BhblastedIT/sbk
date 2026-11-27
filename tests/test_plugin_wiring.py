@@ -194,3 +194,70 @@ print("ok")
         tmp_path,
     )
     assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-2000:]
+
+
+_NEW_PLUGINS = (
+    "hubspot",
+    "pipedrive",
+    "fireflies",
+    "fathom",
+    "granola",
+    "telegram",
+    "teams",
+    "atlassian",
+    "linear",
+    "contacts",
+)
+
+
+def test_batch_two_and_three_plugins_are_wired(tmp_path):
+    r = _py(
+        _LOAD_RUNNER
+        + f"""
+import sorgenti, json, secrets_adapter
+new = {_NEW_PLUGINS!r}
+for k in new:
+    s = sorgenti.SORGENTI[k]
+    assert k in m.L1_SCRIPTS_BASE and m.L1_SCRIPTS_BASE[k].is_file(), k
+    assert m.L1_SCRIPTS_BASE[k].as_posix().endswith(s.l1), (k, s.l1)
+    assert s.dato_in and not any(p.startswith("processed/") for p in s.dato_in), k
+cfg = json.load(open("sbk.config.example.json"))
+for k in new:
+    assert k in cfg and cfg[k].get("_help"), k
+env = open(".env.example").read()
+for v in ("HUBSPOT_CLIENT_ID", "PIPEDRIVE_API_TOKEN", "FIREFLIES_API_KEY", "FATHOM_API_KEY",
+          "GRANOLA_API_KEY", "ATLASSIAN_API_TOKEN", "LINEAR_API_KEY", "SBK_GCONTACTS_TOKEN_"):
+    assert v in env, v
+mapped = set(secrets_adapter._ENV_MAP)
+assert ("sbk-hubspot", "default") not in mapped and ("sbk-pipedrive", "refresh-token") not in mapped
+assert m.WATCHED_CONSUMERS["contacts_iphone"] == ("l2_merge",)
+assert str(m.WATCHED_FILES["contacts_iphone"]).endswith("contacts/processed/contacts-iphone.parquet")
+saltate = set()
+assert set(m._solo_abilitate(dict(m.L1_SCRIPTS_BASE), saltate)) == {{"telegram", "contacts"}}
+print("ok")
+""",
+        tmp_path,
+        {"enabled_sources": ["telegram", "contacts"]},
+    )
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-2000:]
+
+
+def test_batch_two_and_three_downloads_are_planned(tmp_path):
+    r = _py(
+        f"""
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("l0r", "tools/cross-source/xs-l0-refresh.py")
+m = importlib.util.module_from_spec(spec); sys.modules["l0r"] = m; spec.loader.exec_module(m)
+import sb_errori as e
+planned = {{p.sorgente for p in m.PIANO}}
+for k in {_NEW_PLUGINS!r}:
+    assert (k in planned) != (k in m.MANUALI), k
+assert "telegram" in m.MANUALI and "telegram" not in planned
+step = {{p.nome: p for p in m.PIANO}}["contacts-google"]
+assert step.sorgente == "contacts" and e.sorgente_del_passo("contacts-google") == "contacts"
+assert m.controlla_copertura() == []
+print("ok")
+""",
+        tmp_path,
+    )
+    assert r.returncode == 0 and r.stdout.strip() == "ok", r.stderr[-2000:]

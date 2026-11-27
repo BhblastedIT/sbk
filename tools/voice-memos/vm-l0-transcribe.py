@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Transcribes your Voice Memos recordings locally with whisper.cpp (model in ~/whisper-models), in parallel, one
+transcript per memo; the language comes from voice_memos.language.
+"""
 
 import argparse
 import json

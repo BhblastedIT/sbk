@@ -1,52 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Splits the "Speaker N" chimeras of the knowledge base (one entity collecting the generic speaker of many
+recordings) into one pseudo-identity per recording. Dry run by default; --esegui writes, with a journal.
+"""
 
 from __future__ import annotations
 

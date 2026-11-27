@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
+"""Apple Health L1: reads export.xml and writes one row per day of the measures SBK uses (weight, body fat, blood
+pressure, heart rate, resting heart rate, HRV, respiratory rate, steps, energy) to metrics.parquet.
+"""
 
 import argparse
 import logging

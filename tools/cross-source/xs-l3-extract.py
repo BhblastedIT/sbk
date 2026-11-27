@@ -1,21 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""NLP extraction for transcripts and messages: decisions, action items with assignee and deadline, and financial
+mentions, first with free regex rules, then (--batch) with a model, and topics and named entities with BERTopic
+and GLiNER (--topics), into the l3/nlp tables.
+"""
 
 from __future__ import annotations
 

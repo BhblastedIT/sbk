@@ -1,33 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""People universe: every person named anywhere (contacts, CRM, graph, HR directory, transcripts, Notion, Slack,
+LinkedIn, DocuSign, relationship facts), clustered by name, with when they were first and last seen, into
+enriched/people-universe.parquet.
+"""
 
 from __future__ import annotations
 

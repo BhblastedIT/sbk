@@ -1,28 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Voice memos L1: indexes the recordings and their transcripts, splits the speech segments, tags companies, people
+and topics from your configuration, and builds the corpus of what you said.
+"""
 
 from __future__ import annotations
 
@@ -56,10 +35,10 @@ from sbk_config import (  # noqa: E402
 
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
 VM_TRANSCRIPTS_DIR = VOICE_MEMOS_TRANSCRIPTS_DIR
 VM_PARQUET = VOICE_MEMOS_DIR / "voice-memos.parquet"
-AT_DIR = PROJECT_ROOT / "sbk" / "raw" / "audio-transcripts"
+# Optional extra transcripts (JSON), under the data root: <data root>/voice-memos/audio-transcripts.
+AT_DIR = VOICE_MEMOS_DIR / "audio-transcripts"
 PROCESSED_DIR = VOICE_MEMOS_PROCESSED_DIR
 
 log = logging.getLogger("voice-memos-enrich")

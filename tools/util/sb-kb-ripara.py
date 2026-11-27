@@ -1,46 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Restores one unreadable knowledge-base profile from the most recent backup tar that holds it. Dry run by default;
+--apply writes, and the damaged file is kept for diagnosis.
+"""
 
 from __future__ import annotations
 
@@ -59,8 +20,10 @@ from sbk_config import DATA_ROOT, KNOWLEDGE_ENTITIES_DIR, safe_write_json  # noq
 
 
 
+# Where the KB tars are: the brain copies of tools/cross-source/xs-l0-refresh.py (backup_kb)
+# and the copies made before compaction and re-anchoring, all under the data root.
 CARTELLE_TAR = (
-    Path.home() / ".sbk-backups",
+    DATA_ROOT / "backups-knowledge",
     DATA_ROOT / "backups-compaction",
     DATA_ROOT / "backups-reanchor",
 )
@@ -182,7 +145,6 @@ def main() -> int:
     print(f"\n✓ restored: {esito['vivo_path']}")
     if esito.get("accantonato"):
         print(f"  the broken one is here, not deleted: {esito['accantonato']}")
-    print("  re-measure the guard: uv run python tools/util/sb-ratchet.py --scrivi")
     return 0
 
 

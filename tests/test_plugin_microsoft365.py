@@ -378,7 +378,7 @@ class FakeMicrosoft:
                         "givenName": "Mia",
                         "surname": "Conti",
                         "emailAddresses": [{"address": "mia@fabrikam.example"}],
-                        "mobilePhone": "+39 333 000 0001",
+                        "mobilePhone": "+44 7700 900001",
                         "businessPhones": [],
                         "homePhones": [],
                         "companyName": "Fabrikam",
@@ -789,7 +789,7 @@ def test_first_run_fills_the_three_slots(env):
     ct = pd.read_parquet(tmp / "contacts" / "contacts.parquet")
     assert set(ct["full_name"]) == {"Mia Conti", "Lee Park"}
     mia = ct.set_index("full_name").loc["Mia Conti"]
-    assert mia["primary_phone"] == "+39 333 000 0001" and mia["organization"] == "Fabrikam"
+    assert mia["primary_phone"] == "+44 7700 900001" and mia["organization"] == "Fabrikam"
 
     st = json.loads((tmp / "microsoft365" / "outlook" / "state.json").read_text())
     assert st["mail"]["folders"]["F_INBOX"]["delta_link"].endswith("$deltatoken=D1F_INBOX")
@@ -962,7 +962,7 @@ print(json.dumps({{"accounts": sorted(set(msgs['account'])), "msgs": len(msgs),
         "lee@fabrikam.example",
         "mia@fabrikam.example",
     ]
-    assert ["Lee Park", "+1 555 0100"] in out["book"] and ["Mia Conti", "+39 333 000 0001"] in out[
+    assert ["Lee Park", "+1 555 0100"] in out["book"] and ["Mia Conti", "+44 7700 900001"] in out[
         "book"
     ]
 
@@ -1125,3 +1125,53 @@ def test_all_goes_on_when_one_mailbox_has_no_sign_in(env, monkeypatch, capsys):
     err = capsys.readouterr().err.strip().splitlines()
     assert rc == 1 and len(err) == 1 and "no sign-in for 'other'" in err[0]
     assert (tmp / "emails" / "outlook" / "messages.parquet").is_file()
+
+
+# --------------------------------------------------------------------------- scopes of another plugin
+
+
+def test_explicit_scopes_reach_the_sign_in_and_the_refresh(env):
+    teams = ("offline_access", "User.Read", "Chat.Read")
+    url = mg.authorize_url("CID", "common", "http://localhost:5555", "CH", "ST", scopes=teams)
+    q = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(url).query).items()}
+    assert q["scope"] == " ".join(teams)
+    # without the argument nothing changes
+    url = mg.authorize_url("CID", "common", "http://localhost:5555", "CH", "ST")
+    q = {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(url).query).items()}
+    assert q["scope"] == " ".join(mg.SCOPES)
+    fake = FakeMicrosoft()
+    mg.exchange_code(fake, "CID", "common", "C", "http://localhost:1", "V", scopes=teams)
+    assert fake.token_forms[-1]["scope"] == " ".join(teams)
+    mg.TokenProvider("outlook", fake, scopes=teams).token()
+    assert fake.token_forms[-1]["scope"] == " ".join(teams)
+    mg.TokenProvider("outlook", fake).token()
+    assert fake.token_forms[-1]["scope"] == " ".join(mg.SCOPES)
+
+
+def test_auth_keeps_the_scope_teams_added_to_the_sign_in(env, monkeypatch):
+    _tmp, vault = env
+    vault[(mg.SECRET_SERVICE, "outlook")] = json.dumps(
+        {
+            "refresh_token": "RT_TEAMS",
+            "client_id": "11111111-2222-3333-4444-555555555555",
+            "tenant": "organizations",
+            "requested_scopes": "offline_access User.Read Chat.Read Mail.Read Calendars.Read "
+            "Contacts.Read",
+        }
+    )
+    fake = FakeMicrosoft()
+    asked = {}
+
+    def login(cid, tenant, http, **kw):
+        asked.update(kw)
+        return fake._identity("/common/oauth2/v2.0/token", {"grant_type": "authorization_code"})[2]
+
+    monkeypatch.setattr(mg, "browser_login", login)
+    assert AUTH.main(["--account", "outlook", "--tenant", "organizations"], http=fake) == 0
+    assert asked["scopes"] == (*mg.SCOPES, "Chat.Read")
+    rec = json.loads(vault[(mg.SECRET_SERVICE, "outlook")])
+    assert rec["requested_scopes"].split() == [*mg.SCOPES, "Chat.Read"]
+    # a personal-accounts sign-in cannot carry the Teams scope, so it is not asked
+    assert AUTH.kept_scopes(rec, "consumers") == ()
+    assert AUTH.kept_scopes(None, "common") == ()
+    assert AUTH.kept_scopes({"refresh_token": "x"}, "common") == ()

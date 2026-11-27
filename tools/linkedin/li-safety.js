@@ -69,7 +69,7 @@ const BACKOFF_MAX_ATTEMPTS = 3;      // then abort the run
 const BACKOFF_JITTER_FRACTION = 0.30; // +0..30% random jitter on backoff
 
 
-const DATA_DIR = path.join(os.homedir(), '.sbk-data', 'linkedin');
+const DATA_DIR = path.join(process.env.SBK_DATA_ROOT || path.join(os.homedir(), '.sbk-data'), 'linkedin');
 const KILLSWITCH_LOCK = path.join(DATA_DIR, '.linkedin-killswitch');
 
 

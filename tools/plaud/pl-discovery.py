@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
-""
+"""Read-only look at your Plaud account: how many recordings, by year and month, the long ones, durations,
+and the structure of a few transcript details.
 
+It signs in with the Plaud desktop app session (like pl-l0-download.py --direct), downloads nothing in bulk and
+writes nothing.
+"""
 
-
-
-
-
-
-
-
-
-
-
+import argparse
 import gzip
 import json
 import sys
@@ -27,12 +22,19 @@ if str(_TOOLS_DIR) not in sys.path:
 
 import importlib.util
 
-_dl_path = _TOOLS_DIR / "plaud" / "pl-l0-download.py"
-_spec = importlib.util.spec_from_file_location("pl_l0_download", _dl_path)
-_dl = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(_dl)
+_dl = None
+API_BASE = ""
 
-API_BASE = _dl.API_BASE  # sbk.config.json plaud.api_base (see pl-l0-download.py)
+
+def _load_downloader():
+    # Loaded when the script runs, not at import, so --help needs no Plaud session.
+    global _dl, API_BASE
+    spec = importlib.util.spec_from_file_location(
+        "pl_l0_download", _TOOLS_DIR / "plaud" / "pl-l0-download.py"
+    )
+    _dl = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(_dl)
+    API_BASE = _dl.API_BASE  # sbk.config.json plaud.api_base (see pl-l0-download.py)
 
 
 def api_get(token, path, timeout=60):
@@ -53,26 +55,28 @@ def api_get(token, path, timeout=60):
 
 
 def main():
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+    _load_downloader()
     print("=" * 64)
     print("PLAUD DISCOVERY (read-only)")
     print("=" * 64)
 
-    print("Decifro token via Electron safeStorage...")
+    print("Reading the Plaud app session (Electron safeStorage)...")
     token = _dl.get_token_direct()
-    print(f"  Token OK ({token[:24]}...)\n")
+    print("  Session OK\n")
 
-    print("Scarico file list completa (read-only)...")
+    print("Fetching the full file list (read-only)...")
     data = api_get(
         token,
         "/file/simple/web?skip=0&limit=9999&is_trash=2&sort_by=start_time&is_desc=true",
     )
     files = data.get("data_file_list", [])
     total = data.get("data_file_total", len(files))
-    print(f"  {len(files)} file (total dichiarato: {total})\n")
+    print(f"  {len(files)} files (total reported: {total})\n")
 
 
     if files:
-        print("Chiavi disponibili per file (primo record):")
+        print("Keys available per file (first record):")
         print("  " + ", ".join(sorted(files[0].keys())))
         print()
 
@@ -100,15 +104,15 @@ def main():
         if dur_h >= 5.0:
             very_long.append((f.get("id"), round(dur_h, 2)))
 
-    print("Distribuzione per ANNO:")
+    print("By YEAR:")
     for y in sorted(by_year):
-        print(f"  {y}: {by_year[y]} file")
+        print(f"  {y}: {by_year[y]} files")
     print()
 
     anno_corrente = datetime.now(tz=UTC).year
-    print(f"Distribuzione {anno_corrente} per MESE:")
+    print(f"{anno_corrente} by MONTH:")
     for m in sorted(k for k in by_month if k.startswith(str(anno_corrente))):
-        print(f"  {m}: {by_month[m]} file")
+        print(f"  {m}: {by_month[m]} files")
     print()
 
     files_anno = [
@@ -118,27 +122,27 @@ def main():
         and datetime.fromtimestamp(f["start_time"] / 1000, tz=UTC).year == anno_corrente
     ]
     print(
-        f"TOTALE {anno_corrente}: {len(files_anno)} file, di cui con transcript: {sum(1 for f in files_anno if f.get('is_trans'))}"
+        f"TOTAL {anno_corrente}: {len(files_anno)} files, with a transcript: {sum(1 for f in files_anno if f.get('is_trans'))}"
     )
     print()
 
-    print(f"Registrazioni >= 3h (degrado diarization atteso): {len(long_files)}")
+    print(f"Recordings >= 3h (speaker separation gets worse): {len(long_files)}")
     for fid, fn, h, st in sorted(long_files, key=lambda x: -x[2])[:15]:
         y = datetime.fromtimestamp(st / 1000, tz=UTC).year if st else "?"
         print(f"  [{y}] {h}h  {fn}  (id={fid})")
-    print(f"  ... di cui >= 5h (split meccanico Plaud): {len(very_long)}")
+    print(f"  ... of which >= 5h (Plaud splits them): {len(very_long)}")
     print()
 
     if durations:
         durations.sort()
         print(
-            f"Durata: media {sum(durations) / len(durations):.2f}h, max {max(durations):.2f}h, mediana {durations[len(durations) // 2]:.2f}h"
+            f"Duration: mean {sum(durations) / len(durations):.2f}h, max {max(durations):.2f}h, median {durations[len(durations) // 2]:.2f}h"
         )
     print()
 
 
     print("=" * 64)
-    print("CAMPIONE /file/detail (struttura content_list + audio)")
+    print("SAMPLE /file/detail (content_list + audio structure)")
     print("=" * 64)
     sample = [f for f in files_anno if f.get("is_trans")][:3]
     for f in sample:
@@ -170,7 +174,7 @@ def main():
             print(f"  temp-url: {str(e)[:80]}")
 
     print("\n" + "=" * 64)
-    print("DISCOVERY COMPLETATA (nessuna scrittura, nessun download massivo)")
+    print("DISCOVERY DONE (nothing written, no bulk download)")
     print("=" * 64)
 
 

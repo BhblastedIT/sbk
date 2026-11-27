@@ -1,28 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Google Calendar download: events of each signed-in account (your own OAuth client, a browser login per account),
+incremental with sync tokens, merged into events.parquet per account.
+"""
 
 import argparse
 import json
@@ -49,14 +28,15 @@ load_dotenv(_TOOLS_DIR.parent / ".env", override=True)
 from secrets_adapter import get_secret, set_secret  # noqa: E402
 
 from sbk_config import (  # noqa: E402
+    CALENDAR_RAW_DIR,
     CALENDARS_DIR,
     acquire_pid_lock,
     mark_last_run,
     safe_write_parquet,
 )
 
-PROJECT_ROOT = _TOOLS_DIR.parent
-RAW_CALENDAR_DIR = PROJECT_ROOT / "sbk" / "raw" / "calendar"
+# The JSON copy of a full download lives under the data root, never in the repo.
+RAW_CALENDAR_DIR = CALENDAR_RAW_DIR
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
@@ -626,13 +606,6 @@ def save_accounts_config(accounts_info: list[dict]):
 
 
 def main():
-    if not acquire_pid_lock("ca-l0-download", logger=log):
-
-
-
-        log.warning("Another instance is running, exiting")
-        sys.exit(75)
-
     parser = argparse.ArgumentParser(description="Google Calendar download — SBK")
     parser.add_argument("--account", help="Download single account")
     parser.add_argument("--since", help="Download events since YYYY-MM-DD")
@@ -665,6 +638,10 @@ def main():
     parser.add_argument("--senza-login", action="store_true", dest="senza_login", help=argparse.SUPPRESS)
     parser.add_argument("--verbose", action="store_true")
     args = parser.parse_args()
+    # Take the lock only after the arguments are parsed, so --help writes nothing.
+    if not acquire_pid_lock("ca-l0-download", logger=log):
+        log.warning("Another instance is running, exiting")
+        sys.exit(75)
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,

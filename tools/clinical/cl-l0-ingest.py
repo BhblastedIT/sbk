@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
+"""Clinical ingest: copies a clinical document you add (PDF or image of a blood test, visit, vaccination, allergy,
+medication, ECG or imaging) into <data root>/clinical/ with its metadata, ready for cl-l1-parse.py.
+"""
 
 import argparse
 import base64

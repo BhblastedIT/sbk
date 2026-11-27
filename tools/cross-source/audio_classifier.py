@@ -1,33 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Audio recording classifier: tells a voice memo from a meeting, a call or a lecture, from metadata, spectrum,
+speech patterns, speaker count and transcript, and suggests the transcription settings for each kind.
+"""
 
 from __future__ import annotations
 

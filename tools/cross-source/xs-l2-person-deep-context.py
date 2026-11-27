@@ -1,34 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Deep context profiles for your top people: for each one, the email, calendar, WhatsApp, Slack, meeting and
+attachment history plus the knowledge-base and NLP facts, one JSON per person in enriched/person-deep-context/.
+"""
 
 from __future__ import annotations
 
@@ -871,7 +844,7 @@ def _build_knowledge_facts(profile: dict, person_id: str) -> None:
     if not hasattr(_build_knowledge_facts, "_name_cache"):
         log.debug("Building Knowledge Layer name cache (one-time)...")
         cache: dict[str, list[tuple[str, dict]]] = {}
-        for f in knowledge_dir.iterdir():
+        for f in knowledge_dir.iterdir() if knowledge_dir.is_dir() else []:
             if not f.name.endswith(".json"):
                 continue
             try:
@@ -1016,6 +989,22 @@ def _build_nlp_facts(
 
 
 
+def _top_from_scores(top_n: int) -> list[dict]:
+    """The top people by RQ score when there is no top-150-people.json (nothing writes it)."""
+    for fname in ("composite-scores-v3.parquet", "composite-scores-v2.parquet", "composite-scores.parquet"):
+        fpath = RQ_DIR / fname
+        if not fpath.exists():
+            continue
+        df = pd.read_parquet(fpath)
+        col = "score_v3" if "score_v3" in df.columns else "score"
+        if "person_id" not in df.columns or col not in df.columns:
+            continue
+        df = df[df["person_id"].fillna("").astype(str) != ""].sort_values(col, ascending=False)
+        log.info("No top-150-people.json: top people from %s", fname)
+        return [{"person_id": str(pid)} for pid in df["person_id"].head(top_n)]
+    return []
+
+
 def run(
     top_n: int = 100,
     person_id: str | None = None,
@@ -1042,10 +1031,13 @@ def run(
         log.info("Building profile for single person: %s", person_id)
     else:
 
-        top_list = data.top_people
+        top_list = data.top_people or _top_from_scores(top_n)
         if not top_list:
-            log.error("No top-150-people.json found — cannot determine top people")
-            sys.exit(1)
+            # A first install: no people ranking yet (the RQ scores come later in the same run).
+            log.info(
+                "No people ranking yet (rq/top-150-people.json or RQ scores): nothing to build"
+            )
+            return []
         target_pids = [p["person_id"] for p in top_list[:top_n] if p.get("person_id")]
         log.info("Building profiles for top %d people (%d with person_id)", top_n, len(target_pids))
 
@@ -1137,7 +1129,7 @@ def run(
     )
 
     if falliti:
-        log.error("Profili NON fatti: %d su %d", len(falliti), len(target_pids))
+        log.error("Profiles NOT done: %d out of %d", len(falliti), len(target_pids))
         for pid, perche in falliti:
             log.error("  %s — %s", pid, perche)
 
@@ -1180,7 +1172,7 @@ def main():
     from sbk_config import acquire_pid_lock
 
     if not acquire_pid_lock("person-deep-context", logger=log):
-        log.warning("person-deep-context: lock tenuto da un'altra istanza, exit 75")
+        log.warning("person-deep-context: lock held by another instance, exit 75")
         sys.exit(75)
     run(top_n=args.top, person_id=args.person, dry_run=args.dry_run, verbose=args.verbose)
     if falliti:

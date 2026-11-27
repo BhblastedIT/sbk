@@ -35,7 +35,8 @@ const readline = require('readline');
 
 const safety = require('./li-safety.js');
 
-const OUTPUT_DIR = path.join(__dirname, '..', '..', 'sbk', 'raw', 'linkedin');
+// Under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo.
+const OUTPUT_DIR = path.join(process.env.SBK_DATA_ROOT || path.join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw');
 const SESSION_FILE = path.join(OUTPUT_DIR, 'linkedin-session.json');
 
 

@@ -1,27 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Orchestrated email extraction in three phases: NLP and relationship extraction in parallel, then the deep
+extraction, then the retry of the failures with a fallback provider; --dry-run counts the documents and estimates
+the cost.
+"""
 
 from __future__ import annotations
 
@@ -837,8 +818,8 @@ Examples:
         "--workers",
         type=int,
         default=None,
-        help="Worker per script. Default: calcolato sulla memoria disponibile "
-        "(sbk_resources.io_workers(), lavoro legato all'attesa di risposte API).",
+        help="Workers per script. Default: computed from the available memory "
+        "(sbk_resources.io_workers(); the work mostly waits on API answers).",
     )
     parser.add_argument(
         "--batch-size",
@@ -887,11 +868,11 @@ Examples:
 
             args.workers = io_workers()
             log.info(
-                "Worker calcolati sulle risorse disponibili: %d — %s", args.workers, shared_state()
+                "Workers sized to the available resources: %d — %s", args.workers, shared_state()
             )
         except ImportError:
             args.workers = 8
-            log.warning("sbk_resources non disponibile: uso 8 worker (prudente)")
+            log.warning("sbk_resources not available: using 8 workers (cautious)")
 
     log.info(f"Workers: {args.workers} (extract gets {args.workers * 2})")
     log.info(f"Batch size: {args.batch_size}")

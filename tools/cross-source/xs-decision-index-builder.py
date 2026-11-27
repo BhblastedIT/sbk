@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Decision index: classifies the decisions found in your data by domain and keywords, offline with no API call,
+together with the decision framework you write in decisions.md.
+"""
 
 from __future__ import annotations
 

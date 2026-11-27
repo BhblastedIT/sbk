@@ -55,6 +55,8 @@ for _p in (_HERE, _TOOLS_DIR, _CROSS_SOURCE_DIR):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
+from ai_common import write_private  # noqa: E402  (files readable by you only, mode 0600)
+
 SCRIPT_NAME = "tools/ai-history/ai-l3-how-you-work.py"
 IDENTITY_DIR = PROJECT_ROOT / "sbk" / "identity"
 
@@ -1295,7 +1297,7 @@ def run(argv: list[str] | None = None, caller: Callable[..., str] | None = None)
     stats = compute_stats(loaded.messages, args.min_sessions)
     stats_out = args.stats_out or root / "ai-history" / "how-you-work-stats.json"
     stats_out.parent.mkdir(parents=True, exist_ok=True)
-    stats_out.write_text(json.dumps(stats, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_private(stats_out, json.dumps(stats, ensure_ascii=False, indent=2))
     print_stats(stats)
     print(f"  saved: {stats_out}")
     if args.stats_only:
@@ -1311,7 +1313,7 @@ def run(argv: list[str] | None = None, caller: Callable[..., str] | None = None)
     if args.dry_run:
         if args.show_payload:
             pay = root / "ai-history" / "how-you-work-payload.txt"
-            pay.write_text(evidence, encoding="utf-8")
+            write_private(pay, evidence)
             print(f"  exact evidence text saved for review (not sent): {pay}")
         print("\nDry run: nothing was sent, nothing was written in the identity folder.")
         return 0
@@ -1361,7 +1363,7 @@ def run(argv: list[str] | None = None, caller: Callable[..., str] | None = None)
             " Edit freely: a new run writes a .new.md next to this file unless you pass --force. -->\n\n"
         )
         dest = targets[name]
-        dest.write_text(header + text.rstrip() + "\n", encoding="utf-8")
+        write_private(dest, header + text.rstrip() + "\n")
         written.append(dest)
         print(f"  saved: {dest}")
 

@@ -49,16 +49,15 @@ const safety = require('./li-safety.js');
 
 
 const PROJECT_DIR = path.join(__dirname, '..', '..');
+// Under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo.
+const SBK_DATA = path.join(process.env.SBK_DATA_ROOT || path.join(require('os').homedir(), '.sbk-data'), 'linkedin');
 const SESSION_FILE = process.env.LINKEDIN_SESSION
-  || path.join(PROJECT_DIR, 'sbk', 'raw', 'linkedin', 'linkedin-session.json');
-
-const SBK_DATA = path.join(process.env.HOME, '.sbk-data', 'linkedin');
+  || path.join(SBK_DATA, 'raw', 'linkedin-session.json');
 const INPUT_FILE = path.join(SBK_DATA, 'raw', 'profile-urls-to-scrape.json');
 const OUTPUT_FILE = path.join(SBK_DATA, 'raw', 'profiles-enriched.json');
 const CHECKPOINT_FILE = path.join(SBK_DATA, 'raw', '.profiles-checkpoint.json');
 
 const VOYAGER_BASE = 'https://www.linkedin.com/voyager/api';
-const MY_URN = 'ACoAAEXAMPLE_URN_PLACEHOLDER';
 
 
 

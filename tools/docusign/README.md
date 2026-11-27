@@ -7,8 +7,8 @@
 your API user ID and, if you belong to more than one account, the account ID. Freemium accounts have
 no API access (registry note).
 **Create it** In DocuSign, open *Apps and Keys*: create an app, generate an RSA key pair and save the
-private key as `~/.sbk-data/secrets/docusign-private.key` with permissions 600 (another path goes in
-`DOCUSIGN_PRIVATE_KEY_PATH`; this default does not follow `SBK_DATA_ROOT`). Add the redirect URI
+private key as `<data root>/secrets/docusign-private.key` with permissions 600 (another path goes in
+`DOCUSIGN_PRIVATE_KEY_PATH`). Add the redirect URI
 `http://localhost:8765/docusign/callback` (or your own, in `DOCUSIGN_REDIRECT_URI`). Copy the
 integration key, your API user ID and the account ID into `.env`. Then give your consent once:
 ```bash
@@ -17,7 +17,8 @@ uv run python tools/docusign/ds-l0-api.py --consent-url    # open the printed UR
 **Where the code looks** env first, then the Keychain (`_cred` in `tools/docusign/ds-l0-api.py`):
 `DOCUSIGN_INTEGRATION_KEY` or `sbk-docusign/integration-key`, `DOCUSIGN_USER_ID` or
 `sbk-docusign/user-id`, `DOCUSIGN_ACCOUNT_ID` or `sbk-docusign/account-id` (optional: without it the
-default account of your user is read). Key file at `DOCUSIGN_PRIVATE_KEY_PATH`.
+default account of your user is read). Key file at `DOCUSIGN_PRIVATE_KEY_PATH`, else
+`<data root>/secrets/docusign-private.key`.
 `DOCUSIGN_AUTH_HOST` defaults to `account.docusign.com` (production).
 **sbk.config.json** none.
 **Download** (this script does not load `.env` by itself: export it first, see

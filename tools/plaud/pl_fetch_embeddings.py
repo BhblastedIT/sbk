@@ -1,30 +1,13 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Downloads from Plaud the voice embedding of each generic speaker slot (Speaker 1, 2...) of your recordings, for
+the voice clustering; --dry-run computes the set of recordings without network.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -38,9 +21,17 @@ _REPO_DIR = _TOOLS_DIR.parent
 if str(_REPO_DIR) not in sys.path:
     sys.path.insert(0, str(_REPO_DIR))
 
-RAW_DIR = Path.home() / ".sbk-data" / "plaud" / "raw"
+RAW_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "raw"
+)
 INDEX_PATH = RAW_DIR / "_file_index.json"
-OUT_DIR = Path.home() / ".sbk-data" / "plaud" / "embeddings"
+OUT_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "embeddings"
+)
 OUT_PATH = OUT_DIR / "speaker-embeddings.json"
 
 GENERIC_RE = re.compile(r"^\s*(speaker|relatore|persona)\s*\d+\s*$", re.I)

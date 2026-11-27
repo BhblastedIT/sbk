@@ -37,7 +37,10 @@ def weekly_insights_latest(request: Request):
     data = bridge.get_weekly_insights()
     if data is None:
         return JSONResponse(
-            {"error": "No weekly insights found. Run xs-temporal-analysis.py first."},
+            {
+                "error": "No weekly insights found. Run xs-temporal-analysis.py first "
+                "(local; --ai adds insights written by Claude)."
+            },
             status_code=404,
         )
     return data
@@ -48,7 +51,9 @@ def weekly_insights_partial(request: Request):
     ""
     from fastapi.templating import Jinja2Templates
 
-    templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+    templates = getattr(request.app.state, "templates", None) or Jinja2Templates(
+        directory=str(Path(__file__).resolve().parent.parent / "templates")
+    )
     bridge = request.app.state.bridge
     data = bridge.get_weekly_insights()
     insights = data.get("insights", []) if data else []

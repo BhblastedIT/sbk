@@ -1,33 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Epistemic view KNOWS: who had access to what, one row per person per episode they took part in, built from
+knowledge/episodes/. Dry run by default; --apply writes knowledge/epistemic/knows.parquet.
+"""
 
 from __future__ import annotations
 
@@ -101,8 +75,8 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     if not args.episodes_dir.exists():
-        log.error("episodes/ doesn't exist — run xs-l2-episodes.py --apply first")
-        return 1
+        # No episodes yet (a first install, or xs-l2-episodes.py found none): KNOWS is empty.
+        log.info("No episodes yet in %s: KNOWS has nothing to read", args.episodes_dir)
 
     log.info("Building KNOWS from %s ...", args.episodes_dir)
     df = build_knows(args.episodes_dir)

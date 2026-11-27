@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""ChatGPT L1: classifies the conversations of a ChatGPT export by topic and tags the people and companies from
+your configuration, writing a topics index and a summary.
+"""
 
 from __future__ import annotations
 

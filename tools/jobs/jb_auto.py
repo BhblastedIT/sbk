@@ -1,77 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Automatic job recorder: a scheduled Python script calls aggancia("<job key>") at start, and its start and end
+(outcome, exit code, crash or signal) are recorded in the jobs ledger with no other code; esito() declares the
+outcome. Run directly it records a test job.
+"""
 
 from __future__ import annotations
 
@@ -265,10 +196,17 @@ def uscita(codice) -> None:
 
 
 if __name__ == "__main__":
+    import argparse
 
-
+    _ap = argparse.ArgumentParser(
+        description="Self-test of the automatic job recorder: records a test job (com.sbk.PROVA-jb-auto) "
+        "in the jobs ledger, then ends it as ok, or as a crash with --crash."
+    )
+    _ap.add_argument("--crash", action="store_true", help="end the test job with a deliberate crash")
+    _ap.add_argument("--esplodi", action="store_true", dest="crash", help=argparse.SUPPRESS)
+    _crash = _ap.parse_args().crash
     aggancia("com.sbk.PROVA-jb-auto")
-    if "--esplodi" in sys.argv:
+    if _crash:
         raise RuntimeError("deliberate crash")
     esito("ok", "test passed")
     print("ok", file=sys.stderr)

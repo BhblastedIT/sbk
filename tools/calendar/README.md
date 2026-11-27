@@ -1,7 +1,7 @@
 <!-- generated from docs/CONNECTING.md -->
 # Google Calendar (`ca-`)
 
-Signs in through your own Google app, which you set up once for the five Google plugins: [Google](../../docs/CONNECTING.md#google).
+Signs in through your own Google app, which you set up once for the Google plugins: [Google](../../docs/CONNECTING.md#google).
 
 **Status** mature · registry `continua`, every 3 days.
 **Reads** past and future events, with attendees, of every calendar in the account's calendar list
@@ -27,7 +27,9 @@ uv run python tools/calendar/ca-l0-download.py --no-login      # skip accounts w
 **Check** `<data root>/calendars/<label>/events.parquet`; after `--ingest`,
 `<data root>/enriched/contacts-calendar.parquet`.
 **Limits** Without `--since` the first run reads the full history, later runs only what changed. A
-login made for a different account than the label's address is refused for that label.
+login made for a different account than the label's address is refused for that label. The first run,
+and a run with `--since`, also keep a JSON copy of the events in
+`<data root>/calendars/raw/cal-<label>.json`.
 **Alternative, an MCP server** Google runs a Google Calendar MCP server (Developer Preview,
 `https://calendarmcp.googleapis.com/mcp/v1`), with an OAuth client in your own Google Cloud project
 ([Using an MCP server](../../docs/CONNECTING.md#using-an-mcp-server-instead-of-a-download)). It lets an agent read your

@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -34,7 +35,11 @@ except ImportError:  # pragma: no cover
 try:
     from sbk_config import PLAUD_DIR as _RAW_DIR
 except Exception:  # pragma: no cover
-    _RAW_DIR = Path.home() / ".sbk-data" / "plaud" / "raw"
+    _RAW_DIR = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "plaud"
+        / "raw"
+    )
 
 _ID_RE = re.compile(r"^#\s*ID:\s*([0-9a-f]{6,})\s*$", re.IGNORECASE | re.MULTILINE)
 

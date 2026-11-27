@@ -1,17 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Pipeline settings (<data root>/system/pipeline-settings.json): Drive limits, the guardian, Plaud, the noise
+filter and the other thresholds, with their defaults and English names. Run it to print the settings in force.
+"""
 
 from __future__ import annotations
 

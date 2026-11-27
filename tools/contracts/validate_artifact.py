@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Checks a data file against its contract in artifacts.yaml (columns, types, tier), read-only, and prints a JSON
+report; --list shows the artifacts in the contract.
+"""
 
 from __future__ import annotations
 

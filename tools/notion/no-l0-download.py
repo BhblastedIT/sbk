@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Notion download: the databases, pages, blocks and comments your Notion integration token can see, incremental
+with an edit tracker (--force downloads everything again).
+"""
 
 import argparse
 import json
@@ -52,9 +41,8 @@ from sbk_config import DATA_ROOT, get_last_run, mark_last_run  # noqa: E402
 NOTION_VERSION = "2022-06-28"
 BASE_URL = "https://api.notion.com/v1"
 OUTPUT_DIR = DATA_ROOT / "notion"
-INDEX_PATH = (
-    Path(__file__).resolve().parent.parent.parent / "sbk" / "raw" / "misc" / "notion-index.json"
-)
+# The list of databases and pages to fetch, under the data root (never in the repo).
+INDEX_PATH = OUTPUT_DIR / "notion-index.json"
 
 
 SKIP_DB_IDS = {
@@ -491,6 +479,13 @@ def main():
             log.info("No edit tracker history: downloading everything")
 
 
+    if not INDEX_PATH.is_file():
+        log.error(
+            f"No Notion index at {INDEX_PATH}: this downloader fetches the databases and pages "
+            "listed there (keys databases, pages_in_db, pages_standalone, pages_subpage). "
+            "Nothing downloaded."
+        )
+        sys.exit(1)
     with open(INDEX_PATH) as f:
         index = json.load(f)
 

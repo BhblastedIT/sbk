@@ -1,21 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Network profiles: one Markdown profile per person listed in "network_profiles.people" in sbk.config.json, from
+email scores, calendar contacts, Plaud mentions and the raw data, plus an index.
+"""
 
 import argparse
 import json
@@ -33,13 +19,13 @@ _TOOLS_DIR = Path(__file__).resolve().parent.parent
 if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
-from sbk_config import DATA_ROOT, user_cfg
+from sbk_config import DATA_ROOT, NETWORK_DIR, NOTES_DIR, user_cfg
 
-
-SBK_DIR = Path(__file__).resolve().parent.parent
-NETWORK_DIR = SBK_DIR / "sbk" / "network"
+# Profiles are personal data: they go under the data root (<data root>/network/<tier>/<id>.md),
+# never into the repo. Paths in the output are shown relative to the data root.
+SBK_DIR = DATA_ROOT
 INDEX_FILE = NETWORK_DIR / "_index.md"
-RAW_DIR = SBK_DIR / "sbk" / "raw"
+RAW_DIR = NOTES_DIR
 
 DATA_DIR = DATA_ROOT
 SCORES_FILE = DATA_DIR / "exports" / "relationship-scores.parquet"

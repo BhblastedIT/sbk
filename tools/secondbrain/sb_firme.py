@@ -1,24 +1,11 @@
 #!/usr/bin/env python3
-""
+"""To-sign section of the SecondBrain app: the contracts waiting for your signature, even if you archived the email.
 
+It lists your DocuSign envelopes where you sign next or after other people (DocuSign plugin login), adds the
+signature requests that reached your Gmail mailboxes from other signing services in the last 90 days, and keeps
+the ones you chose not to sign, with the reason. The result is cached for 10 minutes.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/secondbrain/sb_firme.py [--reread]   (prints the state the app shows, as JSON)"""
 
 from __future__ import annotations
 
@@ -494,4 +481,9 @@ def componi(grezzo: dict, tolti: list[dict]) -> dict:
 
 
 if __name__ == "__main__":
-    print(json.dumps(stato(rileggi="--rileggi" in sys.argv), ensure_ascii=False, indent=1))
+    import argparse
+
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("--reread", action="store_true", help="read DocuSign and the mail now, ignoring the cache")
+    _ap.add_argument("--rileggi", action="store_true", dest="reread", help=argparse.SUPPRESS)
+    print(json.dumps(stato(rileggi=_ap.parse_args().reread), ensure_ascii=False, indent=1))

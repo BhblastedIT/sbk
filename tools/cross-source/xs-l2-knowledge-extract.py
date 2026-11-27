@@ -1,26 +1,9 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Knowledge store fact extraction: turns what every source says about people and organizations (contacts, CRM, HR,
+transcripts, deep facts...) into facts on the knowledge-base entities, creating entities only for real people
+and routing composite names, unknowns and organizations to their own handling. --incremental, --source and
+--entity-id narrow the run.
+"""
 
 from __future__ import annotations
 
@@ -62,6 +45,7 @@ from knowledge_schema import (
     profile_to_dict,
 )
 from pipeline_decorator import pipeline_step
+from text_utils import normalize_phone
 from xs_l2_incremento import CONTATORI as _INC
 from xs_l2_incremento import (
     Archivio,
@@ -1858,6 +1842,8 @@ def extract_from_personio() -> list[Fact]:
             val = _valore_personio(col, row.get(col_orig))
             if val is None:
                 continue
+            if attr in ("contact.phone", "contact.emergency_phone"):
+                val = normalize_phone(val) or val  # one number, one form in the knowledge base
             if attr == "employment.termination_type":
                 val = _cessazione(val)
                 if val == CESSAZIONE_ASSENTE:
@@ -3865,6 +3851,70 @@ def _nomi_gia_noti() -> set[str]:
     return noti
 
 
+# The coverage checks of tools/util/sb-copertura.py (PRESIDI), by their English name for the log.
+_PRESIDI_EN = {
+    "episodio": "episode",
+    "accesso": "access",
+    "attributo": "attribute",
+    "sorgente": "source",
+    "rete": "network (entities linked to nothing yet)",
+    "nome": "script name",
+    "arco": "network edge",
+    "relazione": "relationship owner",
+    "passo": "pipeline step",
+}
+
+
+def _deriva_in_parole(deriva: dict[str, list], esempi: int = 3) -> str:
+    """{'rete': [ids...]} -> "network (entities linked to nothing yet): 9 (person_x, commitment_y, ... +6)"."""
+    parti = []
+    for nome, elementi in deriva.items():
+        mostra = ", ".join(map(str, elementi[:esempi]))
+        resto = f", ... +{len(elementi) - esempi}" if len(elementi) > esempi else ""
+        parti.append(f"{_PRESIDI_EN.get(nome, nome)}: {len(elementi)} ({mostra}{resto})")
+    return "; ".join(parti)
+
+
+_MESI_EN = {
+    m: i
+    for i, m in enumerate(
+        ("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"), 1
+    )
+}
+_RE_DATA_ISO = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
+_RE_DATA_GMA = re.compile(r"^(\d{1,2})[\s-]+([A-Za-z]{3,9})\.?[\s,-]+(\d{4})$")  # 14 Feb 2025
+_RE_DATA_MGA = re.compile(r"^([A-Za-z]{3,9})\.?\s+(\d{1,2}),?\s+(\d{4})$")  # Feb 14, 2025
+_RE_DATA_US = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{2}|\d{4})$")  # 2/14/25, older exports
+
+
+def _data_linkedin(valore: str | None) -> str | None:
+    """A LinkedIn export date as YYYY-MM-DD, or None when it cannot be read.
+
+    Connections.csv writes 'Connected On' as '14 Feb 2025' (older exports '2/14/25'); the L1 step keeps it as
+    written, while dates taken from messages are already ISO. English month names, whatever the locale.
+    """
+    from datetime import date
+
+    s = (valore or "").strip()
+    if not s:
+        return None
+    if m := _RE_DATA_ISO.match(s):
+        a, me, g = int(m[1]), int(m[2]), int(m[3])
+    elif m := _RE_DATA_GMA.match(s):
+        g, me, a = int(m[1]), _MESI_EN.get(m[2][:3].lower(), 0), int(m[3])
+    elif m := _RE_DATA_MGA.match(s):
+        me, g, a = _MESI_EN.get(m[1][:3].lower(), 0), int(m[2]), int(m[3])
+    elif m := _RE_DATA_US.match(s):
+        me, g, a = int(m[1]), int(m[2]), int(m[3])
+        a += 2000 if a < 100 else 0
+    else:
+        return None
+    try:
+        return date(a, me, g).isoformat()
+    except ValueError:
+        return None
+
+
 def extract_from_linkedin() -> list[Fact]:
     ""
 
@@ -4006,9 +4056,9 @@ def extract_from_linkedin() -> list[Fact]:
                 v = _safe_str(r.get(col))
                 if v:
                     facts.append(_f(attr, v[:10]))
-        quando = _safe_str(r.get("connection_date"))
+        quando = _data_linkedin(_safe_str(r.get("connection_date")))
         if quando:
-            facts.append(_f("relationship.linkedin_connected", quando[:10]))
+            facts.append(_f("relationship.linkedin_connected", quando))
 
     return facts
 
@@ -4053,17 +4103,34 @@ def extract_from_plugins(root: Path | None = None) -> list[Fact]:
 
     facts: list[Fact] = []
 
+    # email -> the person a plugin names in this run: a bare participant with that email (a
+    # meeting attendee, a commitment's people) joins that person even when the knowledge base
+    # did not know them before this run.
+    nominati: dict[str, str] = {}
+
     def _persona(name: str, email: str, src: str, rid: str) -> str | None:
         if (email and is_own_email(email)) or (name and is_own_name(name)):
             return None
         if not name and not email:
             return None
+        if email and email.lower() in nominati:
+            return nominati[email.lower()]
         return _resolve_person_entity_id(
             name or email, None, email=email or None, source_file=src, record_id=rid
         )
 
+    righe = list(people.itertuples(index=False)) if people is not None else []
+    # Named people first, so the participants (and the commitments below) find them.
+    for r in righe:
+        email = r.email if "@" in (r.email or "") else ""
+        name = _safe_str(r.name) or ""
+        if email and name and not bool(getattr(r, _pi.FROM_PARTICIPANTS, False)):
+            eid = _persona(name, email, f"{r.plugin}/processed/{_pi.CONTACTS_FILE}", email)
+            if eid and email.lower() not in nominati:
+                nominati[email.lower()] = eid
+
     n_people = 0
-    for r in people.itertuples(index=False) if people is not None else ():
+    for r in righe:
         email = r.email if "@" in (r.email or "") else ""
         name = _safe_str(r.name) or ""
         da_partecipanti = bool(getattr(r, _pi.FROM_PARTICIPANTS, False))
@@ -4088,7 +4155,7 @@ def extract_from_plugins(root: Path | None = None) -> list[Fact]:
         if email:
             facts.append(_f("contact.email", email))
         if r.phone:
-            facts.append(_f("contact.phone", r.phone))
+            facts.append(_f("contact.phone", normalize_phone(str(r.phone)) or str(r.phone)))
         # Self-declared in the source app: low confidence, like LinkedIn.
         if r.company:
             facts.append(_f("employment.company", r.company, confidence=0.45))
@@ -4143,6 +4210,354 @@ def extract_from_plugins(root: Path | None = None) -> list[Fact]:
     return facts
 
 
+# The merge starts a contact for the people WhatsApp or the address book bring without an email
+# (keyed by phone, or by the WhatsApp name of a one-to-one chat partner): started_by says which.
+# The plugin ones (Telegram, databases...) are coined by extract_from_plugins from the plugin files.
+_AVVIATI_DA = {"whatsapp": "whatsapp", "iphone": "contacts"}
+
+# Filled by extract_from_phone_contacts, read by _segui_la_rubrica after the profiles are written:
+# the normalised phone of every book row that has a real name or an email -> that row's person
+# entity, and the phones of the rows still known only by their number.
+_TEL_DI_PERSONA: dict[str, str] = {}
+_TEL_CONTESI: set[str] = set()
+_TEL_SOLO_NUMERO: set[str] = set()
+
+
+def _e_un_numero(nome) -> bool:
+    """True when a name is only a phone number ("+44 7700 900123"), as WhatsApp writes an unsaved one."""
+    n = str(nome or "").strip()
+    return bool(n) and not re.search(r"[^\W\d_]", n) and bool(normalize_phone(n))
+
+
+def _si(v) -> bool:
+    if v is None:
+        return False
+    try:
+        if pd.isna(v):
+            return False
+    except (TypeError, ValueError):
+        pass
+    return bool(v)
+
+
+def _email_della_riga(row) -> list[str]:
+    """The row's email and every email the entity map gives the same person (all_emails)."""
+    out: list[str] = []
+    email = _safe_str(row.get("email"))
+    if email and "@" in email:
+        out.append(email.strip().lower())
+    tutte = row.get("all_emails")
+    try:
+        lista = json.loads(tutte) if isinstance(tutte, str) else list(tutte or [])
+    except (TypeError, ValueError):
+        lista = []
+    for e in lista:
+        e = str(e or "").strip().lower()
+        if "@" in e and e not in out:
+            out.append(e)
+    return out
+
+
+def extract_from_phone_contacts() -> list[Fact]:
+    """Person facts from the merged book for the people WhatsApp or the address book know.
+
+    Every row the merge started from WhatsApp or the address book, and every other row that a
+    card or a WhatsApp chat joined (an email person with a card or with WhatsApp messages), so
+    the facts follow the person whatever order the sources came in: the card's name, phone,
+    emails and organisation (source "contacts"), the WhatsApp counts and dates (source
+    "whatsapp"). Phones are written normalised. It also records which person owns each phone,
+    for _segui_la_rubrica.
+    """
+    _TEL_DI_PERSONA.clear()
+    _TEL_CONTESI.clear()
+    _TEL_SOLO_NUMERO.clear()
+    path = ENRICHED_DIR / "contacts-merged.parquet"
+    if not path.exists():
+        log.info("contacts-merged.parquet not found — no contacts started by phone yet")
+        return []
+    df = pd.read_parquet(path)
+    if "started_by" not in df.columns:
+        return []
+    avviati = df["started_by"].astype(str).isin(_AVVIATI_DA)
+    con_scheda = df["has_iphone"].map(_si) if "has_iphone" in df.columns else False
+    if "whatsapp_messages" in df.columns:
+        con_wa = pd.to_numeric(df["whatsapp_messages"], errors="coerce").fillna(0) > 0
+    else:
+        con_wa = False
+    if "has_whatsapp" in df.columns:
+        con_wa = con_wa | df["has_whatsapp"].map(_si)
+    df = df[avviati | con_scheda | con_wa]
+    src_file = "enriched/contacts-merged.parquet"
+    facts: list[Fact] = []
+    for _, row in df.iterrows():
+        name = _safe_str(row.get("name"))
+        email = _safe_str(row.get("email"))
+        grezzo = _safe_str(row.get("phone_primary"))
+        phone = (normalize_phone(grezzo) or grezzo) if grezzo else None
+        if not (name or email or phone):
+            continue
+        avviato = str(row.get("started_by") or "")
+        scheda = _si(row.get("has_iphone"))
+        n_wa = row.get("whatsapp_messages")
+        n_wa = int(n_wa) if n_wa is not None and not pd.isna(n_wa) else 0
+        fonte = _AVVIATI_DA.get(avviato, "contacts" if scheda else "whatsapp")
+        rid = _safe_str(row.get("contact_key")) or email or phone or name
+        solo_numero = (not name or _e_un_numero(name)) and not email
+        eid = _resolve_person_entity_id(
+            name or email or grezzo,
+            _safe_str(row.get("person_id")),
+            email=email,
+            source_file=src_file,
+            record_id=rid,
+        )
+        if phone and phone.startswith("+"):
+            if solo_numero:
+                _TEL_SOLO_NUMERO.add(phone)
+            elif _TEL_DI_PERSONA.get(phone, eid) != eid:
+                _TEL_CONTESI.add(phone)
+            else:
+                _TEL_DI_PERSONA[phone] = eid
+
+        def _f(attr, val, *, confidence=None, _eid=eid, _src=fonte, _rid=rid):
+            return _make_fact(
+                _eid, "person", attr, val, _src, src_file, record_id=_rid, confidence=confidence
+            )
+
+        if avviato in _AVVIATI_DA or scheda:
+            # The row the merge started, or a card that joined someone: what the book knows.
+            facts.append(_f("identity.name", name or grezzo or email))
+            if phone:
+                facts.append(_f("contact.phone", phone))
+            for e in _email_della_riga(row):
+                facts.append(_f("contact.email", e))
+            org = _safe_str(row.get("organization"))
+            if org:
+                # what the card or the chat says, not verified: low confidence, like LinkedIn
+                facts.append(_f("employment.company", org, confidence=0.45))
+        elif phone:
+            # An email person who also writes on WhatsApp: the number the chat came from.
+            facts.append(_f("contact.phone", phone, _src="whatsapp"))
+        if n_wa > 0:
+            facts.append(_f("communication.whatsapp_messages", n_wa, _src="whatsapp"))
+        last = _safe_date(row.get("wa_last_message"))
+        if last:
+            facts.append(_f("communication.whatsapp_last_contact", last, _src="whatsapp"))
+        first = _safe_date(row.get("wa_first_message"))
+        if first:
+            facts.append(_f("communication.whatsapp_first_contact", first, _src="whatsapp"))
+    log.info("Contacts from WhatsApp and the address book: %d rows, %d facts", len(df), len(facts))
+    return facts
+
+
+def _telefoni_delle_schede() -> tuple[set[str], dict[str, str]]:
+    """From the address book (contacts-iphone.parquet): the numbers of company cards (kind org,
+    group, location), and, for person cards, every number of the card -> the card's main number."""
+    from sbk_config import IPHONE_DIR
+
+    aziende: set[str] = set()
+    alla_principale: dict[str, str] = {}
+    path = IPHONE_DIR / "contacts-iphone.parquet"
+    if not path.exists():
+        return aziende, alla_principale
+    try:
+        df = pd.read_parquet(path)
+    except Exception as e:  # pragma: no cover - an unreadable book never stops the run
+        log.warning("address book not readable (%s): company numbers not checked", e)
+        return aziende, alla_principale
+    for _, row in df.iterrows():
+        numeri = []
+        tutti = row.get("phone_numbers")
+        tutti = list(tutti) if isinstance(tutti, (list, tuple)) or hasattr(tutti, "tolist") else []
+        for v in tutti + [row.get("phone_primary")]:
+            n = normalize_phone(str(v)) if isinstance(v, str) and v.strip() else ""
+            if n and n not in numeri:
+                numeri.append(n)
+        if not numeri:
+            continue
+        kind = str(row.get("kind") or "").strip().lower()
+        if kind in ("org", "group", "location"):
+            aziende.update(numeri)
+        else:
+            principale = normalize_phone(str(row.get("phone_primary") or "")) or numeri[0]
+            for n in numeri:
+                alla_principale.setdefault(n, principale)
+    return aziende, alla_principale
+
+
+_MARCATORI_PERSONA = ("identity.classe", "identity.riscontro")
+
+
+def _leggi_profilo(path: Path) -> dict | None:
+    try:
+        d = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return d if isinstance(d, dict) else None
+
+
+def _archivia(dati: dict, path: Path, cartella: str, campi: dict) -> None:
+    """Moves a person entity into knowledge/archive/<cartella>/, as every merge does (never deleted:
+    xs-l4-disfa-fusione.py brings it back)."""
+    from sbk_config import KNOWLEDGE_DIR
+
+    arch = KNOWLEDGE_DIR / "archive" / cartella
+    arch.mkdir(parents=True, exist_ok=True)
+    lapide = arch / path.name
+    if lapide.exists():
+        lapide = arch / f"{path.stem}-{_now_iso()[:19].replace(':', '').replace('-', '')}.json"
+    safe_write_json(lapide, {**dati, **campi}, indent=2, ensure_ascii=True, fsync=True)
+    jl = KNOWLEDGE_FACTS_DIR / "person" / f"{path.stem}.jsonl"
+    if jl.exists():
+        jl.replace(arch / jl.name)
+    path.unlink(missing_ok=True)
+
+
+def _segui_la_rubrica() -> dict:
+    """The knowledge base follows the book across runs (D37).
+
+    A person entity coined in an earlier run for a bare number (WhatsApp's unsaved chats) is
+    merged into the person the book now names for that number (by a card, a database, Telegram),
+    keeping every fact; a number the book now knows as a company card is retired as a person.
+    Both go to knowledge/archive/ (merged/ with merged_into, retired/) and into a merge journal in
+    knowledge/meta/, so xs-l4-disfa-fusione.py can undo them like any other merge. A number still
+    known only by itself in the book is left as it is.
+    """
+    from journal_fusioni import Journal
+
+    esito = {"fuse": 0, "ritirate": 0, "fatti_spostati": 0, "contese": len(_TEL_CONTESI)}
+    cartella = KNOWLEDGE_ENTITIES_DIR / "person"
+    if not cartella.is_dir():
+        return esito
+    segnaposto: list[tuple[Path, dict, str]] = []
+    for path in sorted(cartella.glob("*.json")):
+        dati = _leggi_profilo(path)
+        if not dati or not _e_un_numero(dati.get("canonical_name")):
+            continue
+        segnaposto.append((path, dati, normalize_phone(str(dati.get("canonical_name")))))
+    if not segnaposto:
+        return esito
+    aziende, alla_principale = _telefoni_delle_schede()
+    da_fare = []
+    for path, dati, tel in segnaposto:
+        eid = str(dati.get("entity_id") or path.stem)
+        if tel in _TEL_SOLO_NUMERO or tel in _TEL_CONTESI:
+            continue
+        bersaglio = _TEL_DI_PERSONA.get(tel) or _TEL_DI_PERSONA.get(alla_principale.get(tel, ""))
+        if (bersaglio and bersaglio != eid) or (not bersaglio and tel in aziende):
+            da_fare.append((path, dati, tel, eid, bersaglio))
+    adesso = _now_iso()
+    # The journal file is written only when there is something to merge or retire.
+    with Journal("l2-knowledge-extract-book", attivo=bool(da_fare)) as journal:
+        for path, dati, tel, eid, bersaglio in da_fare:
+            if bersaglio and bersaglio != eid:
+                bpath = cartella / f"{bersaglio}.json"
+                bdati = _leggi_profilo(bpath)
+                if not bdati:
+                    log.warning(
+                        "book: %s («%s») belongs to %s, which is not in the store: left as it is",
+                        eid,
+                        dati.get("canonical_name"),
+                        bersaglio,
+                    )
+                    continue
+                motivo = (
+                    f"the book names {dati.get('canonical_name')} as {bdati.get('canonical_name')}"
+                )
+                journal.fusione(bersaglio, eid, motivo=motivo)
+                chiavi = set()
+                for f in bdati.get("facts") or []:
+                    v = f.get("value")
+                    if f.get("attribute") == "contact.phone":
+                        v = normalize_phone(str(v)) or v
+                    chiavi.add(
+                        (f.get("attribute"), str(v if v is not None else "").strip().lower())
+                    )
+                nuovi = []
+                for f in dati.get("facts") or []:
+                    attr = f.get("attribute")
+                    if attr in _MARCATORI_PERSONA:
+                        journal.fatto_scartato(f, da=eid, perche="marker of the merged entity")
+                        continue
+                    if attr == "identity.name" and _e_un_numero(f.get("value")):
+                        journal.fatto_scartato(
+                            f, da=eid, perche="the number was only a placeholder name"
+                        )
+                        continue
+                    v = f.get("value")
+                    if attr == "contact.phone":
+                        v = normalize_phone(str(v)) or v
+                    k = (attr, str(v if v is not None else "").strip().lower())
+                    if k in chiavi:
+                        journal.fatto_scartato(f, da=eid, perche="duplicate (attribute,value)")
+                        continue
+                    chiavi.add(k)
+                    nuovi.append({**f, "value": v, "entity_id": bersaglio, "source_entity_id": eid})
+                    journal.fatto(f, da=eid, a=bersaglio)
+                bdati["facts"] = list(bdati.get("facts") or []) + nuovi
+                bdati["updated_at"] = adesso
+                bdati["version"] = int(bdati.get("version") or 1) + 1
+                safe_write_json(bpath, bdati, indent=2, ensure_ascii=True, fsync=True, backup=True)
+                safe_write_text(
+                    KNOWLEDGE_FACTS_DIR / "person" / f"{bersaglio}.jsonl",
+                    (json.dumps(f, default=str) + "\n" for f in bdati["facts"]),
+                    fsync=True,
+                )
+                _archivia(
+                    dati,
+                    path,
+                    "merged",
+                    {
+                        "status": "merged",
+                        "merged_into": bersaglio,
+                        "merged_date": adesso,
+                        "merged_by": "l2-knowledge-extract",
+                        "merge_reason": motivo,
+                    },
+                )
+                esito["fuse"] += 1
+                esito["fatti_spostati"] += len(nuovi)
+                log.info(
+                    "book: %s («%s») merged into %s («%s»), %d facts moved",
+                    eid,
+                    dati.get("canonical_name"),
+                    bersaglio,
+                    bdati.get("canonical_name"),
+                    len(nuovi),
+                )
+            elif not bersaglio and tel in aziende:
+                motivo = f"{dati.get('canonical_name')} is a company card in the address book"
+                # canonico "" = retired: undone like a merge (xs-l4-disfa-fusione.py), nothing to take back
+                journal.fusione("", eid, motivo=motivo)
+                _archivia(
+                    dati,
+                    path,
+                    "retired",
+                    {
+                        "status": "retired",
+                        "merged_date": adesso,
+                        "merged_by": "l2-knowledge-extract",
+                        "merge_reason": motivo,
+                    },
+                )
+                esito["ritirate"] += 1
+                log.info(
+                    "book: %s («%s») retired as a person: %s",
+                    eid,
+                    dati.get("canonical_name"),
+                    motivo,
+                )
+    if _TEL_CONTESI:
+        log.info(
+            "book: %d numbers shared by more than one named person: not merged", len(_TEL_CONTESI)
+        )
+    log.info(
+        "book: %d number-only persons merged into the named person, %d retired as company numbers",
+        esito["fuse"],
+        esito["ritirate"],
+    )
+    return esito
+
+
 ALL_SOURCES = [
     "personio",
     "email",
@@ -4159,6 +4574,7 @@ ALL_SOURCES = [
     "clickup",
     "linkedin",
     "plugins",
+    "phone_contacts",
     "relationship_facts",
     "deep_facts",
 ]
@@ -4174,6 +4590,7 @@ EXTRACTORS = {
     "clickup": extract_from_clickup,
     "linkedin": extract_from_linkedin,
     "plugins": extract_from_plugins,
+    "phone_contacts": extract_from_phone_contacts,
     "relationship_facts": extract_from_relationship_facts,
     "deep_facts": extract_from_deep_facts,
 }
@@ -4401,6 +4818,10 @@ def run_extraction(
 
     stats = write_profiles(all_facts, dry_run=dry_run)
     stats["source_stats"] = source_stats
+    if not dry_run and not entity_id and not domain and "phone_contacts" in sources:
+        # The knowledge base follows the book: persons coined earlier for a bare number join
+        # the person the book names now, company numbers stop being persons (D37).
+        stats["rubrica"] = _segui_la_rubrica()
     if stats_conflict:
         stats["conflict_stats"] = stats_conflict
 
@@ -4507,7 +4928,10 @@ def run_extraction(
                         v["copertura"],
                     )
             if _deriva:
-                log.warning("never handled (the code uses the default branch): %s", _deriva)
+                log.warning(
+                    "never handled (the code uses the default branch): %s",
+                    _deriva_in_parole(_deriva),
+                )
         except Exception as e:  # pragma: no cover
             log.warning("coverage not measured (%s)", e)
 
@@ -4517,64 +4941,6 @@ def run_extraction(
 
 
 
-    if not dry_run:
-        try:
-            import importlib.util as _il
-
-            _perc = Path(__file__).resolve().parent.parent / "util" / "sb-ratchet.py"
-            _spec = _il.spec_from_file_location("sb_ratchet_pipeline", _perc)
-            _rat = _il.module_from_spec(_spec)
-            sys.modules["sb_ratchet_pipeline"] = _rat
-            _spec.loader.exec_module(_rat)
-            _prima = _rat.carica()
-
-
-
-
-
-
-            _numeri = _rat.misura(tollera_illeggibili=True)
-
-
-            _giudizio = _rat.giudica(_numeri, _prima)
-            _peggio, _meglio = _giudizio["peggiorati"], _giudizio["migliorati"]
-
-
-
-
-
-
-
-
-
-
-
-
-
-            _sparite = _rat.entita_sparite(_numeri, _prima)
-            _dove = _rat.scrivi_misura(_numeri, _peggio + _sparite, base=_prima)
-            stats["ratchet"] = {
-                "numeri": _numeri,
-                "peggiorati": _peggio,
-                "sparite": _sparite,
-                "migliorati": _meglio,
-                "entro_tolleranza": _giudizio["entro_tolleranza"],
-                "scritto": _dove.name,
-
-
-
-                "quando": json.loads(_dove.read_text(encoding="utf-8")).get("quando", ""),
-            }
-            if _peggio or _sparite:
-                log.warning(
-                    "⚠️  KB numbers WORSENED: %s — baseline NOT updated, wrote %s",
-                    " · ".join(_peggio + _sparite),
-                    _dove.name,
-                )
-            if _meglio:
-                log.info("KB numbers improved: %s", " · ".join(_meglio))
-        except Exception as e:  # pragma: no cover
-            log.warning("ratchet not updated (%s)", e)
 
 
 

@@ -1,32 +1,14 @@
 #!/usr/bin/env python3
-""
+"""Pages section of the SecondBrain app: the pages (artifacts) you publish from Claude Code sessions.
 
+It finds the publish events in your Claude Code session logs (~/.claude/projects), keeps a registry with the
+versions of each page and a local copy of each, under ~/Library/Application Support/SBK/pagine
+(SB_PAGINE_BASE overrides it).
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: sb_pagine.py registra < hook.json        record one publish event (from a Claude Code hook)
+       sb_pagine.py ricostruisci [--tutto] [--senza-copie]   rebuild the registry from the session logs
+       sb_pagine.py json [--rileggi]           print the state the app shows
+"""
 
 from __future__ import annotations
 
@@ -53,25 +35,10 @@ ERRORI = os.path.join(BASE, "errori.log")
 LOCK = os.path.join(BASE, ".lock")
 
 PROGETTI = os.path.join(HOME, ".claude", "projects")
-QUOTA_DIR = os.path.join(HOME, ".config", "quota")
-LIVE_HISTORY = os.path.join(QUOTA_DIR, "live-history.json")
-LIVE_SESSIONS = os.path.join(QUOTA_DIR, "live-sessions.json")
-PANE_MAP = os.path.join(QUOTA_DIR, "pane-accounts.json")
-NOMI = os.path.join(QUOTA_DIR, "nomi-stato.json")
 
-
-PRESTITI = os.path.join(QUOTA_DIR, "prestiti.json")
-PRESTITI_STORIA = os.path.join(QUOTA_DIR, "prestiti-storia.jsonl")
-
-LOG_SPOSTAMENTI = (os.path.join(QUOTA_DIR, "autorotate.log.1"), os.path.join(QUOTA_DIR, "autorotate.log"))
-SNAPSHOT = os.path.join(
-    HOME, "Library", "Group Containers", "XXXXXXXXXX.quota.shared", "quota-snapshot.json"
-)
-SLOT_PANNELLI = os.path.join(HOME, "Library", "Application Support", "AccountPool", "panes")
-
-
-# Main account slug; override from user config/env. Empty means none highlighted.
-ACCOUNT_PRINCIPALE = os.environ.get("SBK_ACCOUNT_PRINCIPALE", "")
+# Every page is on the Claude account you are signed in with: SBK does not track several
+# accounts. A registry row without an account is shown as this one.
+ACCOUNT_PRINCIPALE = "own"
 
 TOLLERANZA_LETTURE = 30
 
@@ -120,10 +87,6 @@ RX_URL = re.compile(r"https://claude\.ai/(?:code/)?artifact/(?P<id>[A-Za-z0-9-]+
 
 
 MARCHE_FILE = (b'"name":"Artifact","input":', b'"name":"mcp__claude-artifacts__')
-RX_MOSSA = re.compile(
-    r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d) (?:autoripara )?(tick|use) "
-    r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}) (.*?)→ ([A-Za-z0-9_.-]+)(.*)$"
-)
 STRUMENTI_PUBBLICA = {
     "mcp__claude-artifacts__publish_files",
     "mcp__claude-artifacts__publish_version",
@@ -148,7 +111,7 @@ MESI = (
 
 TESTI = {
     "titolo": "Pages",
-    "sottotitolo": "The pages I prepared for you, all in one place. In here they read without sign-in, online with the account written on each.",
+    "sottotitolo": "The pages I prepared for you, all in one place. In here they read without sign-in, online with your Claude account.",
     "per_data": "By date",
     "per_account": "By account",
     "aiuto_vista": "Groups the pages by when they were made or by the account needed to open them online.",
@@ -166,8 +129,8 @@ TESTI = {
     "nessuna": "No pages yet.",
     "nessuna_trovata": "No page with these words.",
     "senza_copia": "No copy on the Mac, it opens only online.",
-    "aiuto_principale": "It's on your main account, the one where all the pages should be.",
-    "principale": "your main account",
+    "aiuto_principale": "It's on your Claude account, the one you are signed in with.",
+    "principale": "your Claude account",
     "aiuto_account": "The account the page was published with. Online it opens only from there.",
     "aiuto_certezza": "How I know which account the page is on.",
 
@@ -175,7 +138,7 @@ TESTI = {
     "per_progetto": "By project",
     "senza_progetto": "No project",
     "nascondi_prove": "Hide the tests",
-    "aiuto_prove": "The pages made to test something, like the loan tests. They all stay, here they are only hidden.",
+    "aiuto_prove": "The pages made to test something. They all stay, here they are only hidden.",
     "su_altri": "{n} on other accounts",
     "aiuto_su_altri": "The pages that online open only with another account. Click to see only those, click again to go back to all.",
     "senza_account": "{n} with no known account",
@@ -550,140 +513,17 @@ def _evento_galleria(
 
 
 
-def _account_slot() -> tuple[str | None, str]:
-    ""
-
-    candidati = []
-    cfg = os.environ.get("CLAUDE_SECURESTORAGE_CONFIG_DIR") or ""
-    if cfg:
-        candidati.append(os.path.join(cfg, ".brokered"))
-    chiave = os.environ.get("SB_PANE_KEY") or ""
-    foglia = chiave.split(":")[-1] if chiave else ""
-    if foglia and re.match(r"^[0-9A-Za-z-]{8,}$", foglia):
-        candidati.append(os.path.join(SLOT_PANNELLI, foglia, ".brokered"))
-    for p in candidati:
-        d = _leggi_json(p, {})
-        acct = d.get("account") if isinstance(d, dict) else None
-        if isinstance(acct, str) and acct:
-            return acct, "read from the subscription in use at publication"
-    if foglia:
-        mappa = _leggi_json(PANE_MAP, {})
-        if isinstance(mappa, dict):
-            for k in (chiave, foglia):
-                v = mappa.get(k)
-                if isinstance(v, str) and v:
-                    return v, "from the subscription assigned to the terminal at publication"
-    return None, ""
 
 
 
 
 
 class Storia:
-    ""
-
-    def __init__(self) -> None:
-        self.letture = _leggi_json(LIVE_HISTORY, {})
-        self.sessioni = _leggi_json(LIVE_SESSIONS, {})
-        self.mosse: dict[str, list[tuple[float, str]]] = {}
-
-        self.prestiti: list[tuple[str | None, str | None, str, float, float]] = []
-        aperti = _leggi_json(PRESTITI, {})
-        voci = [v for v in _leggi_jsonl(PRESTITI_STORIA) if isinstance(v, dict)]
-        voci += [
-            v for v in (aperti.values() if isinstance(aperti, dict) else []) if isinstance(v, dict)
-        ]
-        for v in voci:
-            da = v.get("da")
-            if not isinstance(v.get("account"), str) or not isinstance(da, (int, float)):  # noqa: UP038
-                continue
-            fine = v.get("rientro") if isinstance(v.get("rientro"), (int, float)) else time.time()  # noqa: UP038
-            self.prestiti.append(
-                (v.get("sessione"), v.get("leaf"), v["account"], float(da), float(fine))
-            )
-        try:
-            from zoneinfo import ZoneInfo
-
-            roma = ZoneInfo("UTC")
-        except Exception:
-            roma = None
-        for p in LOG_SPOSTAMENTI:
-            try:
-                with open(p, encoding="utf-8", errors="replace") as fh:
-                    righe = fh.readlines()
-            except FileNotFoundError:
-                continue
-            for riga in righe:
-                if "→" not in riga:
-                    continue
-                m = RX_MOSSA.match(riga.rstrip("\n"))
-                if not m:
-                    continue
-                if m.group(2) == "tick" and "ok=True" not in m.group(6):
-                    continue
-                if "ok=False" in m.group(6):
-                    continue
-                try:
-                    t = datetime.datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
-                    t = t.replace(tzinfo=roma) if roma else t.astimezone()
-                except Exception:
-                    continue
-                self.mosse.setdefault(m.group(3), []).append((t.timestamp(), m.group(5)))
-        for v in self.mosse.values():
-            v.sort()
-
-    def foglia(self, sid: str) -> str | None:
-        for fonte in (self.letture, self.sessioni):
-            v = fonte.get(sid) if isinstance(fonte, dict) else None
-            if isinstance(v, dict) and v.get("leaf"):
-                return v["leaf"]
-        return None
+    """Which account a page was published with. SBK reads only your own Claude account, so
+    it never knows another one: every page is on the account you are signed in with."""
 
     def account(self, sid: str, t: float | None) -> tuple[str | None, str, str]:
-        ""
-        if not sid or t is None:
-            return None, "non_noto", ""
-
-
-        foglia_sid = None
-        for sessione, leaf, acct, da, fine in self.prestiti:
-            if not da - 2 <= t <= fine + 2:
-                continue
-            if sessione != sid:
-                if not leaf:
-                    continue
-                if foglia_sid is None:
-                    foglia_sid = self.foglia(sid) or ""
-                if leaf != foglia_sid:
-                    continue
-            return acct, "certo", f"loaded on loan on {acct}"
-        prova = None
-        v = self.letture.get(sid) if isinstance(self.letture, dict) else None
-        if isinstance(v, dict):
-
-
-
-            iniziati = [
-                (inizio, fine, acct) for acct, inizio, fine in v.get("iv") or [] if inizio <= t + 2
-            ]
-            if iniziati:
-                inizio, fine, acct = max(iniziati)
-                if t <= fine + TOLLERANZA_LETTURE:
-                    return acct, "certo", "read from the session at the time of publication"
-                prova = (fine, acct, "last read of the session before publication")
-        foglia = self.foglia(sid)
-        if foglia:
-            mosse = [m for m in self.mosse.get(foglia, []) if m[0] <= t]
-            if mosse:
-                quando, acct = mosse[-1]
-                if prova is None or quando > prova[0]:
-                    prova = (quando, acct, "reconstructed from the terminal's subscription changes")
-        if prova:
-            return prova[1], "storico", prova[2]
         return None, "non_noto", ""
-
-
-
 
 
 def _sessione_del_file(percorso: str) -> str:
@@ -1074,7 +914,6 @@ class _Gruppi:
 
 def componi_registro(eventi: list, storia: Storia | None) -> list:
     ""
-    nomi = _leggi_json(NOMI, {})
     pagine: dict[str, dict] = {}
     gallerie = []
     for e in eventi:
@@ -1111,7 +950,7 @@ def componi_registro(eventi: list, storia: Storia | None) -> list:
                 acct, certezza, come = (
                     e["slot"]["account"],
                     "certo",
-                    "read from the subscription in use when the gallery was viewed",
+                    "read when the gallery was viewed",
                 )
             elif storia is not None:
                 acct, certezza, come = storia.account(e.get("sessione") or "", t)
@@ -1204,7 +1043,7 @@ def componi_registro(eventi: list, storia: Storia | None) -> list:
             r, a, c, _ref = max(prove, key=lambda x: x[0])
             acct, certezza, come = a, ("storico" if r < 2 else "certo"), c
         sid = ultima.get("sessione") or prima.get("sessione") or ""
-        nome_sess = nomi.get(sid, {}).get("voluto") if isinstance(nomi.get(sid), dict) else None
+        nome_sess = None
         riga = {
             "id": pid,
             "url": p.get("url") or f"https://claude.ai/artifact/{pid}",
@@ -1473,9 +1312,6 @@ def registra(grezzo: str) -> None:
     )
     if not e:
         return
-    acct, come = _account_slot()
-    if acct:
-        e["slot"] = {"account": acct, "come": come}
     with _Lucchetto():
         eventi = _unisci_eventi(_leggi_jsonl(EVENTI), [e])
         _scrivi_jsonl(EVENTI, eventi)
@@ -1615,41 +1451,21 @@ def _quando_breve(d: datetime.datetime | None) -> str:
 
 def _solo_online(chi: str) -> str:
     ""
-    if chi:
-        return f"This page opens only online, with {chi}."
-    return "This page opens only online, and it's no longer known with which account."
+    return f"This page opens only online, with {chi or TESTI['principale']}."
 
 
 def _frase_certezza(certezza: str, come: str) -> str:
-    if certezza == "certo":
-        return ""
-    if certezza == "storico":
-        return "Account reconstructed from the subscription moves, not read at the time."
-    return "Account unknown. If it doesn't open online, try the other accounts."
+    return ""
 
 
 def stato() -> dict:
     ""
     registro = _leggi_jsonl(REGISTRO)
-    snap = _leggi_json(SNAPSHOT, {})
-    conti = {}
-    for a in snap.get("accounts") or [] if isinstance(snap, dict) else []:
-        if isinstance(a, dict) and a.get("id"):
-            conti[a["id"]] = {"email": a.get("email") or "", "nome": a.get("label") or a["id"]}
-
-
-    doppi = {}
-    for info in conti.values():
-        if info["email"]:
-            doppi[info["email"]] = doppi.get(info["email"], 0) + 1
-    for chi, info in conti.items():
-        if chi != ACCOUNT_PRINCIPALE and info["email"] and doppi[info["email"]] > 1:
-            nome = re.sub(r"^\d+\s*|\s*★\s*", "", str(info["nome"])).strip()
-            info["email"] = f"{info['email']} ({nome})" if nome else info["email"]
+    conti: dict[str, dict] = {}
     pagine = []
     per_account: dict[str, int] = {}
     for r in registro:
-        acct = r.get("account")
+        acct = r.get("account") or ACCOUNT_PRINCIPALE
         info = conti.get(acct or "", {})
         email = info.get("email") or ""
         d = _locale(r.get("ultima"))
@@ -1657,14 +1473,13 @@ def stato() -> dict:
         copia = os.path.join(BASE, r["copia"]) if r.get("copia") else None
         if copia and not os.path.exists(copia):
             copia = None
-        if acct:
-            if email:
-                frase_account = f"Online with {email}"
-            else:
-                frase_account = f"Online with the account {acct}"
-        else:
-            frase_account = "Account unknown"
         principale = acct == ACCOUNT_PRINCIPALE
+        if principale:
+            frase_account = f"Online with {TESTI['principale']}"
+        elif email:
+            frase_account = f"Online with {email}"
+        else:
+            frase_account = f"Online with the account {acct}"
         vers = r.get("versioni") or []
         n_copia = next(
             (v.get("n") for v in vers if v.get("vid") and v.get("vid") == r.get("copia_vid")), None
@@ -1717,7 +1532,7 @@ def stato() -> dict:
                 "dove": dove,
 
                 "copia_vecchia": bool(copia and r.get("copia_vecchia")),
-                "solo_online": "" if copia else _solo_online(email or acct),
+                "solo_online": "" if copia else _solo_online("" if principale else email or acct),
                 "_contesto": contesto,
                 "_breve": [
                     x for x in (r.get("conversazione") or r.get("progetto"), _quando_breve(d)) if x
@@ -1741,7 +1556,7 @@ def stato() -> dict:
         if not acct:
             titolo = "Account unknown"
         elif acct == ACCOUNT_PRINCIPALE:
-            titolo = f"On {email or acct}, {TESTI['principale']}"
+            titolo = f"On {TESTI['principale']}"
         else:
             titolo = f"On {email or acct}"
         account.append({"id": acct, "titolo": titolo, "email": email, "pagine": quante})
@@ -1807,8 +1622,21 @@ def per_app(rileggi: bool = False) -> dict:
     return stato()
 
 
+USO = (
+    "usage: sb_pagine.py registra < hook.json | ricostruisci [--tutto] [--senza-copie] | json [--rileggi]\n"
+    "The Pages view of the app: the claude.ai pages your Claude Code sessions published, read from\n"
+    "~/.claude/projects (locally, nothing is sent), with a copy of each page kept on the Mac."
+)
+
+
 def main(argv: list[str]) -> int:
+    if argv[1:2] in (["-h"], ["--help"]):
+        print(__doc__)
+        return 0
     cmd = argv[1] if len(argv) > 1 else ""
+    if cmd in ("-h", "--help"):
+        print(USO)
+        return 0
     if cmd == "registra":
         try:
             registra(sys.stdin.read(5 * 1024 * 1024))
@@ -1824,10 +1652,7 @@ def main(argv: list[str]) -> int:
     if cmd == "json":
         print(json.dumps(per_app("--rileggi" in argv), ensure_ascii=False))
         return 0
-    print(
-        "usage: sb_pagine.py registra < hook.json | ricostruisci [--tutto] [--senza-copie] | json [--rileggi]",
-        file=sys.stderr,
-    )
+    print(USO, file=sys.stderr)
     return 2
 
 

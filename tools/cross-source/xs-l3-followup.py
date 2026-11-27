@@ -1,21 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Follow-up reminders: the action items with a deadline in the next days or overdue (deadlines in Italian or
+English parsed), with the contact details of the people involved, as Markdown or JSON.
+"""
 
 from __future__ import annotations
 
@@ -302,17 +288,24 @@ def load_action_items() -> pd.DataFrame:
     if _CACHED_DF is not None:
         return _CACHED_DF
 
+    # Library function: the web dashboard calls it inside a request, so it never ends the process.
+    # No file yet (the paid L3 extract writes it) = nothing to follow up yet: an empty frame, not cached.
     path = NLP_DIR / "action-items.parquet"
     if not path.exists():
-        log.error(f"Action items not found: {path}")
-        sys.exit(1)
+        log.info(f"No action items yet ({path} is written by the L3 extract): nothing to follow up")
+        return pd.DataFrame(
+            {
+                "meeting_id": pd.Series(dtype=str),
+                "action_text": pd.Series(dtype=str),
+                "_deadline_dt": pd.Series(dtype="datetime64[ns, UTC]"),
+            }
+        )
 
     df = pd.read_parquet(path)
     required = {"meeting_id", "action_text"}
     missing = required - set(df.columns)
     if missing:
-        log.error(f"Missing columns in action-items.parquet: {missing}")
-        sys.exit(1)
+        raise ValueError(f"Missing columns in action-items.parquet: {sorted(missing)}")
 
 
     if "_deadline_dt" not in df.columns:
@@ -486,7 +479,7 @@ def enrich_with_contacts(items: list[dict], data: SBKData) -> dict[str, list[dic
 
     for item in items:
         assignee = item.get("assignee", "").strip()
-        person_key = assignee if assignee else "(non assegnato)"
+        person_key = assignee if assignee else "(unassigned)"
 
 
         if assignee:
@@ -603,8 +596,11 @@ def main():
         return
 
 
-    df = load_action_items()
-
+    try:
+        df = load_action_items()
+    except ValueError as e:
+        log.error(str(e))
+        sys.exit(1)
 
     items = filter_actionable(
         df,
@@ -614,7 +610,7 @@ def main():
     )
 
     if not items:
-        print("Nessun follow-up trovato nel periodo selezionato.")
+        print("No follow-ups found in the selected period.")
         return
 
 

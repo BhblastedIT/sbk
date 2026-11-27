@@ -803,7 +803,7 @@ def costruisci_da_archivio(
             import knowledge_resolve  # type: ignore[import-not-found]
 
             indice = knowledge_resolve.Indice.costruisci(store, controlla_pressione=False)
-        except Exception:  # pragma: no cover - il seme si costruisce lo stesso
+        except Exception:  # pragma: no cover - the seed is built anyway
             indice = None
 
     def scarta(r: dict, motivo: str, extra: str = "") -> None:
@@ -1347,7 +1347,10 @@ def voci_mancanti(store: Path | str, registro: Registro) -> list[str]:
 
 
 def _store_predefinito() -> Path:
-    return Path.home() / ".sbk-data" / "knowledge"
+    return (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "knowledge"
+    )
 
 
 def main() -> int:

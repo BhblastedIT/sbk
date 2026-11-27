@@ -1,55 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Read-only health check of the knowledge store: entities and facts by type, empty and partial values, dual-homed
+entities, compared with a baseline; --assert-clean exits non-zero on a regression.
+"""
 
 from __future__ import annotations
 
@@ -70,7 +22,11 @@ if str(_TOOLS_DIR) not in sys.path:
 try:
     from sbk_config import KNOWLEDGE_ENTITIES_DIR
 except Exception:  # pragma: no cover - fallback if config not importable
-    KNOWLEDGE_ENTITIES_DIR = Path.home() / ".sbk-data" / "knowledge" / "entities"
+    KNOWLEDGE_ENTITIES_DIR = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "knowledge"
+        / "entities"
+    )
 
 
 from knowledge_schema import (  # noqa: E402

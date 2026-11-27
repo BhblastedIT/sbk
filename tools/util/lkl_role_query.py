@@ -1,34 +1,22 @@
 #!/usr/bin/env python3
-""
+"""Looks up a person in the knowledge base by name and tells whether they still work where the knowledge base says
+(employment status, organization, role, and whether the person counts as active).
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/util/lkl_role_query.py "<full name>"   (prints JSON)
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import sys
 import time
 from pathlib import Path
 
-LKL_PERSON_DIR = Path.home() / ".sbk-data" / "knowledge" / "entities" / "person"
-NAME_INDEX_PATH = Path.home() / ".sbk-data" / "clickup-lkl-name-index.json"
+_DATA_ROOT = Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data")
+LKL_PERSON_DIR = _DATA_ROOT / "knowledge" / "entities" / "person"
+NAME_INDEX_PATH = _DATA_ROOT / "clickup-lkl-name-index.json"
 NAME_INDEX_TTL_SECS = 86400
 
 
@@ -154,7 +142,7 @@ def get_employment_status(name: str) -> dict:
 
     profile = lookup_person(name)
     if profile is None:
-        return {"found": False, "reason": f"Profile non trovato in LKL per '{name}'"}
+        return {"found": False, "reason": f"Profile not found in the knowledge layer for '{name}'"}
 
     out: dict = {
         "found": True,
@@ -233,7 +221,7 @@ def is_person_active(name: str) -> bool:
             from knowledge_view import verdetto_stato
 
             return verdetto_stato(fatti).esito != "CHIUSO"
-        except Exception:  # noqa: BLE001 — se il modulo non c'è si prosegue col criterio vecchio
+        except Exception:  # noqa: BLE001 — if the module is missing, the old criterion applies
             pass
 
     status = (info.get("status") or "").lower().strip()
@@ -243,10 +231,9 @@ def is_person_active(name: str) -> bool:
 
 
 def main() -> int:
-    if len(sys.argv) < 2:
-        print("Usage: lkl_role_query.py '<canonical_name>'", file=sys.stderr)
-        return 1
-    name = sys.argv[1]
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("name", help="the person's full name as the knowledge base writes it")
+    name = ap.parse_args().name
     info = get_employment_status(name)
     info["is_active"] = is_person_active(name)
     print(json.dumps(info, indent=2, ensure_ascii=False))

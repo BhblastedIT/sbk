@@ -1,24 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Writes a context JSON for each person from their relationship facts, the graph and the decay state, with a
+model (Anthropic by default). --dry-run estimates the cost; text about your people is sent to the model.
+"""
 
 from __future__ import annotations
 

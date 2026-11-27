@@ -1,18 +1,12 @@
 #!/usr/bin/env python3
-""
+"""Search over your indexed data: hybrid vector and full-text search with reranking and a recency boost, filters by
+source, date and person.
 
-
-
-
-
-
-
-
-
-
-
-
-
+By default it prints the raw results and sends nothing to a model. With --synthesize (or "search": {"synthesis":
+true} in sbk.config.json) it also sends your question and the retrieved results to Claude with your own claude
+login (`claude -p`), says so in the log, and prints the answer above the sources. --no-synthesis is still accepted:
+it forces raw results even when the config turns synthesis on.
+"""
 
 from __future__ import annotations
 
@@ -645,7 +639,7 @@ def format_context_for_claude(results: list[dict], max_tokens: int = MAX_CONTEXT
         if context:
             header += f" {context}"
         if participants:
-            header += f" | Partecipanti: {participants}"
+            header += f" | Participants: {participants}"
 
         chunk = f"{header}\n{text}"
         chunk_tokens = _estimate_tokens(chunk)
@@ -665,7 +659,7 @@ def format_context_for_claude(results: list[dict], max_tokens: int = MAX_CONTEXT
 
 def format_sources_section(results: list[dict]) -> str:
     ""
-    lines = ["### Fonti consultate"]
+    lines = ["### Sources"]
     for i, r in enumerate(results, 1):
         source = r.get("source_type", "unknown")
         date = r.get("date", "n/a")
@@ -713,10 +707,10 @@ def _chiama_abbonamento(prompt: str, timeout: int = 300) -> str:
         d = json.loads(r.stdout)
     except ValueError as exc:
         raise RuntimeError(
-            f"risposta non JSON (exit {r.returncode}): {(r.stdout or r.stderr)[:200]}"
+            f"answer is not JSON (exit {r.returncode}): {(r.stdout or r.stderr)[:200]}"
         ) from exc
     if d.get("is_error"):
-        raise RuntimeError(f"errore dalla CLI: {str(d.get('result'))[:200]}")
+        raise RuntimeError(f"error from the CLI: {str(d.get('result'))[:200]}")
     return d.get("result") or ""
 
 
@@ -726,10 +720,44 @@ def synthesize(query: str, results: list[dict], chiama=_chiama_abbonamento) -> s
 
 
 
-    prompt = f"{SYSTEM_PROMPT}\n\nDomanda: {query}\n\nContesto (da {len(results)} fonti SBK):\n\n{context}"
+    prompt = f"{SYSTEM_PROMPT}\n\nQuestion: {query}\n\nContext (from {len(results)} SBK sources):\n\n{context}"
 
-    log.info(f"Calling Claude on the subscription for synthesis ({len(results)} sources)")
+    log.info(
+        f"Sending your question and {len(results)} results ({len(prompt)} characters) to Claude "
+        f"with your own claude login (claude -p --model {MODELLO_SINTESI}) for the answer"
+    )
     return chiama(prompt)
+
+
+def synthesis_wanted(synthesize_flag: bool = False, no_synthesis_flag: bool = False) -> bool:
+    """True only when you asked for the model answer: --synthesize, or search.synthesis true in sbk.config.json.
+
+    Off by default, so a plain search sends nothing to a model. --no-synthesis always wins.
+    """
+    if no_synthesis_flag:
+        return False
+    if synthesize_flag:
+        return True
+    import sbk_config
+
+    return sbk_config.user_cfg("search.synthesis", False) is True
+
+
+def add_synthesis_args(parser: argparse.ArgumentParser) -> None:
+    """The two synthesis flags (tools/sbk_cli.py `sbk search` declares the same two)."""
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--synthesize",
+        action="store_true",
+        help="Also send the question and the results to Claude with your own claude login "
+        "(claude -p) and print its answer. Off by default; search.synthesis true in "
+        "sbk.config.json turns it on for every search",
+    )
+    group.add_argument(
+        "--no-synthesis",
+        action="store_true",
+        help="Raw results only (the default); overrides search.synthesis true in sbk.config.json",
+    )
 
 
 def stampa_risultati(query: str, results: list[dict], grezzo: bool, sintetizza=synthesize) -> None:
@@ -742,14 +770,14 @@ def stampa_risultati(query: str, results: list[dict], grezzo: bool, sintetizza=s
         try:
             answer = sintetizza(query, results)
         except (RuntimeError, subprocess.TimeoutExpired, OSError) as e:
-            print(f"\nIl riassunto non è riuscito ({str(e)[:200]}). Qui sotto i risultati grezzi.")
+            print(f"\nThe summary failed ({str(e)[:200]}). The raw results follow.")
         else:
-            print("\n## Risposta\n")
+            print("\n## Answer\n")
             print(answer)
             print("\n---")
             print(format_sources_section(results))
             return
-    print(f"\n## Risultati ({len(results)})\n")
+    print(f"\n## Results ({len(results)})\n")
     for i, r in enumerate(results, 1):
         print(format_result_for_display(r, i))
         print()
@@ -758,11 +786,14 @@ def stampa_risultati(query: str, results: list[dict], grezzo: bool, sintetizza=s
 
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="RAG search over SBK indexed data")
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Search over your indexed data. Raw results by default; --synthesize also asks "
+        "Claude (your own claude login) for an answer."
+    )
     parser.add_argument(
         "query",
-        help="Search query (e.g., 'quando ho parlato con Sam di valutazione?')",
+        help="Search query (e.g., 'when did I last talk with Person A about pricing?')",
     )
     parser.add_argument(
         "--source",
@@ -786,22 +817,18 @@ def parse_args() -> argparse.Namespace:
         metavar="N",
         help=f"Number of results (default: {DEFAULT_TOP_K})",
     )
-    parser.add_argument(
-        "--no-synthesis",
-        action="store_true",
-        help="Show raw search results without Claude synthesis",
-    )
+    add_synthesis_args(parser)
     parser.add_argument(
         "--verbose",
         "-v",
         action="store_true",
         help="Verbose logging output",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main():
-    args = parse_args()
+def main(argv: list[str] | None = None):
+    args = parse_args(argv)
     setup_logging(verbose=args.verbose, name="sbk-l3-search")
 
     log.info(f"Query: {args.query}")
@@ -810,7 +837,7 @@ def main():
     try:
         table = open_lancedb()
     except RuntimeError as e:
-        print(f"Errore: {e}", file=sys.stderr)
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
     row_count = table.count_rows()
@@ -832,12 +859,16 @@ def main():
     )
 
     if not results:
-        print("Nessun risultato trovato.")
+        print("No results found.")
         sys.exit(0)
 
     log.info(f"Found {len(results)} results")
 
-    stampa_risultati(args.query, results, grezzo=args.no_synthesis)
+    stampa_risultati(
+        args.query,
+        results,
+        grezzo=not synthesis_wanted(args.synthesize, args.no_synthesis),
+    )
 
 
 from pipeline_decorator import pipeline_step

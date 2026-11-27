@@ -35,6 +35,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 from collections.abc import Callable, Iterable
@@ -221,7 +222,12 @@ def _default_kb_dir() -> Path:
 
         return Path(KNOWLEDGE_ENTITIES_DIR) / "person"
     except Exception:  # pragma: no cover - fixed fallback path
-        return Path.home() / ".sbk-data" / "knowledge" / "entities" / "person"
+        return (
+            Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+            / "knowledge"
+            / "entities"
+            / "person"
+        )
 
 
 def load_profile(entity_id: str, kb_dir: Path | None = None) -> dict[str, Any] | None:

@@ -1,51 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Snapshots of the knowledge store and the diff between two of them: which entities appeared, disappeared or
+changed and how many facts each gained or lost (snap writes a snapshot; diff compares two).
+"""
 
 from __future__ import annotations
 
@@ -199,7 +155,7 @@ def snap(out: Path, base: Path | None) -> int:
                 else:
                     try:
                         r = _riga_entita(tipo, nome_file, p, is_group)
-                    except Exception:  # noqa: BLE001 — un file rotto si conta, non ferma la foto
+                    except Exception:  # noqa: BLE001 — a broken file is counted, it does not stop the snapshot
                         tot["illeggibili"] += 1
                         r = {
                             "f": f"{tipo}/{nome_file}",

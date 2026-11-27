@@ -124,7 +124,7 @@ def test_near_duplicate_sentences_group(hyw):
 def test_redaction(hyw):
     text, n = hyw.redact(
         "key sk-ant-abcdefghijklmnopqrstuvwxyz0123, token: abc123, mail alex@demo.example,"
-        " call +39 333 123 4567, date 2026-11-25, path /Users/demo/projects/some-long-folder-name/x"
+        " call +44 7700 900123, date 2026-11-25, path /Users/demo/projects/some-long-folder-name/x"
     )
     assert "sk-ant" not in text and "abc123" not in text and "alex@demo.example" not in text
     assert "[phone]" in text and "2026-11-25" in text and "/Users/demo/projects" in text

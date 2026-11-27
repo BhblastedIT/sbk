@@ -36,7 +36,10 @@ log = logging.getLogger("asr.router")
 
 
 
-CONFIG_PATH = Path(os.path.expanduser("~/.sbk-data/asr-routing-config.json"))
+CONFIG_PATH = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "asr-routing-config.json"
+)
 DEFAULT_WHISPER_MODELS_DIR = Path.home() / "whisper-models"
 DEFAULT_QWEN_ASR_DIR = Path("/tmp/qwen-asr")
 

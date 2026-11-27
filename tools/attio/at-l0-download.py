@@ -1,31 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Attio CRM download: records of every object, lists, notes, meetings, call transcripts, tasks and the workspace
+metadata, through the Attio API key, for the primary workspace and the extra ones in sbk.config.json.
+"""
 
 import argparse
 import json
@@ -56,6 +32,7 @@ from datetime import UTC, datetime
 
 from sbk_config import (
     ATTIO_EXTRA_WORKSPACES,
+    ATTIO_PRIMARY_WORKSPACE,
     DATA_ROOT,
     compute_record_hash,
     get_last_run,
@@ -69,21 +46,18 @@ from sbk_config import (
 
 
 
-# The primary workspace (internal label "acme", key ATTIO_API_KEY, data in attio/)
+# The primary workspace (label "primary", key ATTIO_API_KEY, data in attio/)
 # plus the extra ones listed in sbk.config.json "attio.extra_workspaces"
 # (key in Keychain sbk-attio/<label>, data in attio-<label>/).
 WORKSPACES: dict[str, tuple[str, Path]] = {
-    "acme": ("primary", DATA_ROOT / "attio"),
+    ATTIO_PRIMARY_WORKSPACE: ("primary", DATA_ROOT / "attio"),
     **{
         label: (name or label, DATA_ROOT / f"attio-{label}")
         for label, name in ATTIO_EXTRA_WORKSPACES.items()
-        if label != "acme"
+        if label != ATTIO_PRIMARY_WORKSPACE
     },
 }
-# "primary" is accepted as a friendlier name for the primary workspace.
-WORKSPACE = os.environ.get("SBK_ATTIO_WORKSPACE") or "acme"
-if WORKSPACE == "primary":
-    WORKSPACE = "acme"
+WORKSPACE = os.environ.get("SBK_ATTIO_WORKSPACE") or ATTIO_PRIMARY_WORKSPACE
 if WORKSPACE not in WORKSPACES:
     sys.exit(
         f"unknown Attio workspace: {WORKSPACE} (known: {', '.join(WORKSPACES)}). "
@@ -91,7 +65,7 @@ if WORKSPACE not in WORKSPACES:
     )
 ATTIO_DIR = WORKSPACES[WORKSPACE][1]
 
-MARK_KEY = "attio" if WORKSPACE == "acme" else f"attio-{WORKSPACE}"
+MARK_KEY = "attio" if WORKSPACE == ATTIO_PRIMARY_WORKSPACE else f"attio-{WORKSPACE}"
 
 METADATA_DIR = ATTIO_DIR / "metadata"
 LOOKUPS_DIR = ATTIO_DIR / "lookups"
@@ -105,7 +79,7 @@ log = logging.getLogger("at-l0-download")
 def get_api_key() -> str:
     ""
 
-    if WORKSPACE != "acme":
+    if WORKSPACE != ATTIO_PRIMARY_WORKSPACE:
         from secrets_adapter import get_secret
 
         key = get_secret("sbk-attio", WORKSPACE)
@@ -1324,8 +1298,6 @@ def _run_all_workspaces(choice: str) -> int:
     ""
     import subprocess
 
-    if choice == "primary":
-        choice = "acme"
     # "tutti" is the older Italian value, still accepted.
     names = list(WORKSPACES) if choice in ("all", "tutti") else [choice]
     unknown = [n for n in names if n not in WORKSPACES]

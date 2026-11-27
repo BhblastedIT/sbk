@@ -1,30 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Compares the relationship-facts table in use with a regenerated one (rows, columns recovered and lost, contents)
+before the regenerated one replaces it.
+"""
 
 from __future__ import annotations
 

@@ -1,37 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Phase 4 of the episodes: turns each calendar event into a meeting episode in knowledge/episodes/, linked to the
+attendees found in the knowledge base by email. Dry run by default; --apply writes.
+"""
 
 from __future__ import annotations
 
@@ -70,7 +40,7 @@ def build_email_index() -> tuple[dict[str, str], dict[str, str]]:
     ""
     email2pid: dict[str, str] = {}
     pid2name: dict[str, str] = {}
-    for f in PERSON_DIR.iterdir():
+    for f in PERSON_DIR.iterdir() if PERSON_DIR.is_dir() else []:
         if not f.name.endswith(".json") or f.name.startswith("_"):
             continue
         try:
@@ -101,7 +71,7 @@ def _episode_path(episode_id: str, occurred_at: str | None) -> Path:
 
 def run(dry_run: bool) -> dict:
     email2pid, pid2name = build_email_index()
-    log.info("Indice email->person_id: %d", len(email2pid))
+    log.info("Index email->person_id: %d", len(email2pid))
 
     created = 0
     updated = 0
@@ -143,7 +113,7 @@ def run(dry_run: bool) -> dict:
                     d = json.loads(path.read_text(encoding="utf-8"))
                 except (OSError, ValueError) as e:
                     illeggibili.append(str(path))
-                    log.error("  episodio illeggibile, saltato: %s (%s)", path, type(e).__name__)
+                    log.error("  unreadable episode, skipped: %s (%s)", path, type(e).__name__)
                     continue
                 by_pid = {p.get("person_id") for p in d.get("participants", [])}
                 new = [pid for pid in resolved_pids if pid not in by_pid]
@@ -187,7 +157,7 @@ def run(dry_run: bool) -> dict:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Fase 4: eventi calendario come episodi meeting")
+    ap = argparse.ArgumentParser(description="Phase 4: calendar events as meeting episodes")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -203,16 +173,16 @@ def main() -> None:
     res = run(dry_run)
     log.info("")
     log.info("Summary (%s):", "DRY RUN" if dry_run else "APPLIED")
-    log.info("  Eventi visti:               %d", res["seen_events"])
-    log.info("  Episodi calendario creati:  %d", res["created"])
-    log.info("  Episodi aggiornati:         %d", res["updated"])
+    log.info("  Events seen:                %d", res["seen_events"])
+    log.info("  Calendar episodes created:  %d", res["created"])
+    log.info("  Episodes updated:           %d", res["updated"])
     log.info("  Participant 'attended':     %d", res["parts_added"])
     if res["illeggibili"]:
         log.error(
-            "  Episodi illeggibili saltati:%d (da riparare, elenco sopra)", len(res["illeggibili"])
+            "  Unreadable episodes skipped: %d (to repair, list above)", len(res["illeggibili"])
         )
     if dry_run:
-        log.info("  Esegui con --apply.")
+        log.info("  Run with --apply.")
     log.info("=" * 60)
 
 

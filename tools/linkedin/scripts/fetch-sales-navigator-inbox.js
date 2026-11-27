@@ -23,12 +23,12 @@ const path = require('path');
 const safety = require('./li-safety.js');
 const { LinkedInSafetyGuard, OK, GONE, TRANSIENT } = safety;
 
-const OUTPUT_DIR = path.join(__dirname, '..', '..', '..', 'sbk', 'raw', 'linkedin');
+// Under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo.
+const OUTPUT_DIR = path.join(process.env.SBK_DATA_ROOT || path.join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'linkedin-threads-sales-navigator.json');
 const CHECKPOINT_FILE = path.join(OUTPUT_DIR, '.sn-threads-checkpoint.json');
 const SESSION_FILE = process.env.LINKEDIN_SESSION || path.join(OUTPUT_DIR, 'linkedin-session.json');
 
-const MY_URN = 'ACoAAEXAMPLE_URN_PLACEHOLDER';
 
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 const ts = () => new Date().toISOString().substring(11, 19);

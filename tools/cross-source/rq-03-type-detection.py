@@ -1,23 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""RQ-03: detects the type of each relationship (colleague, direct report, ex-employee, investor, vendor, business
+partner, professional friend, family, acquaintance...) from rules over contacts, emails, the HR directory, the CRM
+and interactions.
+"""
 
 from __future__ import annotations
 

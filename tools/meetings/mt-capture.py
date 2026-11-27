@@ -1,17 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
+"""Post-meeting capture: sends a meeting transcript (Plaud, Tactiq or Attio) to a model and saves a structured
+summary (topics, key points, decisions, tasks, follow-ups, attendees resolved to people) in meetings/summaries/; --batch for every
+transcript not yet captured, --dry-run to estimate only.
+"""
 
 from __future__ import annotations
 
@@ -43,8 +34,7 @@ from sbk_config import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 log = logging.getLogger("mt-capture")
 
-SUMMARIES_DIR = DATA_ROOT / "meetings" / "summaries"
-SUMMARIES_DIR.mkdir(parents=True, exist_ok=True)
+SUMMARIES_DIR = DATA_ROOT / "meetings" / "summaries"  # Created when the script runs, not at import, so --help writes nothing.
 
 
 
@@ -276,6 +266,7 @@ def capture_meeting(
     }
 
 
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     log.info(
         "Saved meeting summary: %s (%d attendees, %d decisions, %d follow-ups)",

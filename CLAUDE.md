@@ -31,8 +31,8 @@ On top: a FastAPI dashboard, an `sbk` CLI, a macOS app.
 This is the main work you do with a new user.
 
 1. **Identity and sources.** `cp sbk.config.example.json sbk.config.json`, then
-   fill it in with them: who they are, which mailboxes/accounts, which plugins to
-   turn on.
+   fill it in with them: who they are, which mailboxes/accounts, and which plugins
+   to turn on, by folder name in `enabled_sources`.
 2. **Secrets.** `cp .env.example .env`. For each plugin you turn on, obtain the
    keys/OAuth (the person creates them on the respective services; the exact names
    are in `docs/CONNECTING.md`). **Never write a secret in the code or commit it**:
@@ -53,13 +53,20 @@ This is the main work you do with a new user.
      (the file under `~/.sbk-data/` exists and is not empty) before moving on;
    - if it fails, read the error and the cited `file:line`, fix the setup, retry.
      Do not move to the next source with this one broken or unverified.
-   A source that isn't connected must not raise alarms: declare it in the registry
-   `tools/sorgenti.py` with its nature.
+   **Switch sources on and off only with `enabled_sources` in `sbk.config.json`**,
+   never by editing `tools/sorgenti.py` or other code. `plaud` and `tactiq` read a
+   login session on the person's Mac (the Plaud desktop app, Tactiq in Chrome) and
+   run in the scheduled download only when listed: say what they read before you
+   add them.
 4. **First run.** The free stages, no money spent:
    ```bash
    uv run python tools/cross-source/xs-pipeline-run.py --ingest
    ```
    then look at the dashboard.
+   On a new install, `not downloaded yet` and `nothing to read yet` are harmless skips (the run still
+   says `Pipeline Complete`). The search index downloads its embedding model from Hugging Face once:
+   without the network the run ends INCOMPLETE with `sources not closed: l3_index`
+   (`docs/CONNECTING.md#after-a-download`, *A first run*).
 5. **Teach SBK how you work.** On request only (registry id `ai-history`, never in
    the full run; guide: `docs/CONNECTING.md#ai-history`). It turns what the person
    has typed to AI assistants into the identity files the drafts and the chat read.
@@ -95,8 +102,12 @@ uv run python tools/cross-source/xs-pipeline-run.py --all --dry-run     # the pl
 None of them downloads (L0): that is `tools/cross-source/xs-l0-refresh.py` (`--then-ingest` runs
 `--ingest` after it).
 Rules: no completion percentage without saying over which denominator; a run that
-skips a stage is **not complete** even if it exits OK (name what was skipped);
-paid stages cost money, so ask first.
+skips a stage is **not complete** (name what was skipped), except the harmless skips the
+outcome line counts in brackets (unchanged, resumed, not in `enabled_sources`, nothing to read yet);
+paid stages cost money (they use the person's one `ANTHROPIC_API_KEY`), so ask first.
+With `enabled_sources` set, `xs-l0-refresh.py` plans only the sources it lists; with an
+empty list every source with a download script is in the plan, also the ones the person
+never connected (those fail at once): list them, or run it with `--only <source>,<source>`.
 
 ## Running the interfaces
 
@@ -106,6 +117,26 @@ uv run python tools/sbk_cli.py --help   # CLI: search, brief, lookup, pipeline, 
 # macOS app:
 cd tools/secondbrain/app && swift build
 ```
+
+Six features send data to a model only with the person's consent, and you never
+give it for them: the monitor's model jobs (`SBK_MONITOR_MODEL=1` or `--with-model`),
+the macOS app's background Claude Code sessions (`"app": {"claude_sessions": true}`,
+which use their own `claude` login), the answer of `sbk search` (`--synthesize` or
+`"search": {"synthesis": true}`: the question and the retrieved results go to Claude with
+their own `claude` login; by default search prints raw results), the digest of `sbk brief`
+(`--synthesize` or `"brief": {"synthesis": true}`: today's stories, with the text of the
+messages they come from, go to Claude through the Anthropic API with their
+`ANTHROPIC_API_KEY`; by default brief prints the stories), the weekly insights of
+`tools/cross-source/xs-temporal-analysis.py` (`--ai` or `"insights": {"synthesis": true}`: a
+summary of the week with contact e-mail addresses and deal names goes to Claude through the
+Anthropic API; by default the analysis is local) and the signal summaries of
+`tools/monitoring/signal-detector.py --scan` (`--synthesize` or `"signals": {"synthesis": true}`:
+up to 8 facts per signal about the people involved go to Claude through the Anthropic API; by
+default a local one-line summary). Say what each one sends
+(`docs/CONNECTING.md#the-monitor-and-scheduled-jobs-optional`,
+`docs/CONNECTING.md#the-macos-apps-claude-code-sessions-optional`,
+`docs/CONNECTING.md#search-answer-optional`, `docs/CONNECTING.md#brief-digest-optional`,
+`docs/CONNECTING.md#weekly-insights-and-signal-summaries-optional`) and let them decide.
 
 ## Memory and stability (if the machine is small)
 
@@ -141,6 +172,7 @@ Processing large data can saturate RAM. Don't hard-code budgets in MB: use
 |---|---|
 | Pipeline state | generated: `xs-pipeline-run.py --all --dry-run` |
 | Config, paths, constants | `tools/sbk_config.py` |
+| Which sources are on | `enabled_sources` in `sbk.config.json` |
 | Source/plugin registry | `tools/sorgenti.py` · `docs/PLUGINS.md` |
 | Runtime data L0/L1/L2/L3 | `~/.sbk-data/` (never in git) |
 | Pipeline (overview) | `tools/DATA-PIPELINE.md` |

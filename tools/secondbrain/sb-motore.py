@@ -1,29 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Entry point of the SecondBrain app's back end: the app runs it with a section and arguments (cose, pagine,
+inspiration, plaud, agente) and gets JSON back; any other command goes to sb-app.py.
+"""
 
 from __future__ import annotations
 

@@ -1,34 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Backfills the speaker and the evidence quote of older facts in the knowledge base from the relationship and deep
+fact tables and the episodes. Dry run by default; --apply writes.
+"""
 
 from __future__ import annotations
 
@@ -202,7 +175,7 @@ def build_provenance_map(
             sid = _s(c["source_id"][i])
             eid = episode_id_for(stype, sid) if (stype and sid) else None
             _offer(subject, attr, obj, _s(c["speaker"][i]), _s(c["context"][i]), eid)
-        log.info("relationship-facts: %d righe processate", n)
+        log.info("relationship-facts: %d rows processed", n)
 
 
     if DEEP_PARQUET.exists():
@@ -227,7 +200,7 @@ def build_provenance_map(
             eid = episode_id_for(stype, sid) if (stype and sid) else None
 
             _offer(subject, attr, value, "", _s(c["context"][i]), eid)
-        log.info("deep-facts: %d righe processate", n)
+        log.info("deep-facts: %d rows processed", n)
 
     sq_map: dict[tuple, tuple[str | None, str | None]] = {}
     for k in set(spk_sets) | set(quote_best):
@@ -397,7 +370,7 @@ def _build_shared_names(files: list[Path]) -> frozenset[str]:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Backfill speaker/evidence_quote nei fatti storici")
+    ap = argparse.ArgumentParser(description="Backfill speaker/evidence_quote in historical facts")
     ap.add_argument("--apply", action="store_true")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("-v", "--verbose", action="store_true")
@@ -414,12 +387,12 @@ def main() -> None:
     log.info("=" * 60)
 
     valid_eps = _existing_episode_ids()
-    log.info("Episodi materializzati (per bridge Stadio 2): %d", len(valid_eps))
+    log.info("Episodes materialised (for the stage-2 bridge): %d", len(valid_eps))
     sq_map, ep_map = build_provenance_map(valid_episodes=valid_eps)
     n_spk = sum(1 for v in sq_map.values() if v[0])
     n_q = sum(1 for v in sq_map.values() if v[1])
     log.info(
-        "Mappe: sq %d chiavi (speaker %d, quote %d) · ep %d chiavi (subject-aware)",
+        "Maps: sq %d keys (speaker %d, quote %d) · ep %d keys (subject-aware)",
         len(sq_map),
         n_spk,
         n_q,
@@ -453,9 +426,9 @@ def main() -> None:
     log.info("  ...episode_ids agganciati:%d", tot_ep)
     log.info("  File modificati:         %d", files_changed)
     if _BAD_FILES:
-        log.warning("  File NON parsabili (saltati): %d — es. %s", len(_BAD_FILES), _BAD_FILES[:3])
+        log.warning("  Files NOT parsable (skipped): %d, e.g. %s", len(_BAD_FILES), _BAD_FILES[:3])
     if dry_run:
-        log.info("  Esegui con --apply.")
+        log.info("  Run with --apply.")
     log.info("=" * 60)
 
 

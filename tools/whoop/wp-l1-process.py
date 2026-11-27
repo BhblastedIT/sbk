@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
+"""WHOOP L1: one row per day with sleep, recovery (and its zone), strain and workouts, plus derived measures such as
+sleep debt and the HRV baseline.
+"""
 
 import argparse
 import json

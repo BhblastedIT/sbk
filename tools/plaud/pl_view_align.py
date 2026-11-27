@@ -1,29 +1,14 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Maps the speaker labels of the raw transcript to those of the polished one, note by note, so a rename can be
+written to both.
+"""
 
 from __future__ import annotations
 
 import argparse
 import gzip
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -38,7 +23,11 @@ _REPO_DIR = _TOOLS_DIR.parent
 if str(_REPO_DIR) not in sys.path:
     sys.path.insert(0, str(_REPO_DIR))
 
-EMB_DIR = Path.home() / ".sbk-data" / "plaud" / "embeddings"
+EMB_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "embeddings"
+)
 OUT_PATH = EMB_DIR / "raw-polish-map.json"
 TOL_S = 1.5
 
@@ -115,10 +104,10 @@ def align_note(fid: str, ctx, wt) -> dict | None:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Mappa label raw->polished per nota")
+    ap = argparse.ArgumentParser(description="Map the raw -> polished speaker labels of each note")
     ap.add_argument("--fid", nargs="*", default=[])
     ap.add_argument(
-        "--cluster-notes", action="store_true", help="tutte le note dei cluster battesimo"
+        "--cluster-notes", action="store_true", help="every note of the voice naming clusters"
     )
     ap.add_argument("--sleep", type=float, default=0.4)
     args = ap.parse_args()
@@ -131,14 +120,14 @@ def main() -> int:
             fids.extend(m["file_id"] for m in q["members"])
     fids = sorted(set(fids))
     if not fids:
-        print("nessun fid")
+        print("no file id")
         return 2
 
     from tools.plaud.pl_auth_refresh import build_context, load_saved_wt, load_store_py
 
     wt = load_saved_wt()
     if not wt:
-        print("nessun WT: pl_auth_refresh --refresh")
+        print("no WT: run pl_auth_refresh --refresh")
         return 1
     ctx = build_context(load_store_py())
 

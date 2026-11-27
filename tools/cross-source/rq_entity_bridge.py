@@ -1,30 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Entity bridge: one id per person across the entity map, the merged contacts, the knowledge base and the people
+universe, with your manual overrides (rq/entity-overrides.json). Builds, saves and tests the bridge.
+"""
 
 from __future__ import annotations
 

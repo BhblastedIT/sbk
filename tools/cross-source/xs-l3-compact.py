@@ -1,33 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Maintenance of the L3 vector index (LanceDB): compacts the table and removes old versions to free disk space,
+skipping while an indexing run is in progress. Dry run by default; --apply executes.
+"""
 
 from __future__ import annotations
 

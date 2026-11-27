@@ -18,7 +18,12 @@ Put it in `.env` as `TACTIQ_FIREBASE_API_KEY`.
   (`~/Library/Application Support/Google/Chrome/<profile>/IndexedDB/`), exchanges it with
   `TACTIQ_FIREBASE_API_KEY`, and keeps a copy in the Keychain entry `sbk-tactiq/refresh-token`,
   used when Chrome's copy has expired.
-**sbk.config.json** none.
+**When it runs** The scheduled download (`tools/cross-source/xs-l0-refresh.py`, also with `--only`, and the
+dashboard scheduler) runs Tactiq only when `tactiq` is in `enabled_sources`. It then runs
+`tq-l0-download.py --direct`: it reads the refresh token from Chrome's storage for `app.tactiq.io`,
+exchanges it with `TACTIQ_FIREBASE_API_KEY` and keeps a copy in the Keychain entry
+`sbk-tactiq/refresh-token`. A `tq-l0-download.py` you run yourself is not gated.
+**sbk.config.json** `"tactiq"` in `enabled_sources` for the scheduled download; nothing else.
 **Download** (this script does not load `.env` by itself: export it first, see
 [Before you start](../../docs/CONNECTING.md#before-you-start))
 ```bash

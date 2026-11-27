@@ -46,7 +46,9 @@ for which your *Default Directory* is enough. Python and a browser for the one-t
    uv run python tools/microsoft365/ms-l0-auth.py --account outlook --device-code   # no browser here
    ```
    The browser opens on login.microsoftonline.com, you sign in and accept, and the sign-in is
-   stored.
+   stored. Signing a label in again asks for the same five permissions, plus `Chat.Read` if
+   [teams](../../docs/CONNECTING.md#teams) added it; any other scope recorded on that sign-in is not asked again, and the
+   script names it.
 
 Official guides: [Register an application](https://learn.microsoft.com/en-us/entra/identity-platform/quickstart-register-app) ·
 [Desktop app registration (redirect `http://localhost`, public client flows)](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-registration) ·
@@ -58,11 +60,13 @@ Official guides: [Register an application](https://learn.microsoft.com/en-us/ent
 - client ID: the env variable `SBK_MS365_CLIENT_ID`, else `microsoft365.client_id` in `sbk.config.json`
   (`tools/microsoft365/ms_graph.py:191`); tenant: `SBK_MS365_TENANT`, else `microsoft365.tenant`,
   else `common` (`ms_graph.py:196`).
-- the sign-in: Keychain `sbk-microsoft365/<label>` (`ms_graph.py:236`), written by `ms-l0-auth.py`
+- the sign-in: Keychain `sbk-microsoft365/<label>` (`ms_graph.py:237`), written by `ms-l0-auth.py`
   and replaced by every download, because Microsoft returns a new refresh token at each use
-  (`ms_graph.py:272`). Without a Keychain: `SBK_MS365_TOKEN_FILE` (a JSON file the plugin keeps up
+  (`ms_graph.py:273`). Without a Keychain: `SBK_MS365_TOKEN_FILE` (a JSON file the plugin keeps up
   to date, mode 600), then `SBK_MS365_TOKEN_<LABEL>` as a read-only seed, both exported in your shell. The lines are in
-  `.env.example`, section "Microsoft 365 / Outlook".
+  `.env.example`, section "Microsoft 365 / Outlook". In container mode (`SBK_CONTAINERIZED=1`) the seed is
+  read first, because it stands in for the Keychain (`tools/secrets_adapter.py`): set it for the first run,
+  then unset it so the newer token in `SBK_MS365_TOKEN_FILE` is used.
 **sbk.config.json** section `microsoft365` (every field with its `_help` in `sbk.config.example.json`):
 `client_id`, `tenant`, `accounts` (labels for `--all`, which the scheduled download uses),
 `default_account`, `timezone`, `mail_history_days` (365), `mail_headers` (true),
@@ -89,7 +93,7 @@ changed and removed, calendar window, contacts read, `errors`), and the slot fil
   use the browser sign-in.
 - Only your own mailbox, calendars and contacts. Calendars other people share with you are
   skipped (the plugin asks for `Calendars.Read`, which covers your own calendars), and so are
-  other mailboxes, the Exchange online archive and Teams chats.
+  other mailboxes, the Exchange online archive and Teams chats (those are the [teams](../../docs/CONNECTING.md#teams) plugin's).
 - A mail folder or calendar that answers 403 or 404 is skipped for that run and named in the
   summary (`folders_skipped`, `calendars_skipped`); its rows stay as they are.
 - Attachments are not listed: `has_attachments` is set, `attachment_count` stays 0.
@@ -105,7 +109,9 @@ changed and removed, calendar window, contacts read, `errors`), and the slot fil
 - Whether Graph accepts the Internet headers inside a mail delta query is not stated in Microsoft's
   docs; if a mailbox refuses them, the plugin goes on without (and the kernel then has fewer
   bulk-mail signals for that mailbox).
-- The contacts step (`xs-l1-contacts-enrich.py`) is not run by `xs-pipeline-run.py`: run it yourself.
+- The contacts step (`xs-l1-contacts-enrich.py`) runs inside `xs-pipeline-run.py` only through the
+  [contacts](../../docs/CONNECTING.md#contacts) plugin's step, after an export or a Google Contacts download: with Outlook
+  contacts alone, run it yourself.
   Two downloads writing `contacts/contacts.parquet` at the same time are not coordinated: run one at
   a time.
 - If `contacts/contacts.parquet` does not exist yet, or holds only rows this plugin wrote, the

@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-""
+"""Enriches the entity review queue (enriched/entity-review.json) for the merge decisions.
 
+For each candidate pair it gathers what every source knows about the two people, computes match signals
+(name similarity, diminutives, email patterns, shared channels), a match score, a recommendation and an
+automatic decision when the evidence is clear. Writes enriched/entity-review-enriched.json.
+"""
 
-
-
-
-
-
-
-
-
-
+import argparse
 import json
 import os
 import re
@@ -1899,6 +1895,10 @@ def enrich_all(review_items, entity_map, lookups):
 
 
 def main():
+    argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter).parse_args()
+    if not INPUT_FILE.exists():
+        print(f"No review queue yet ({INPUT_FILE}). Run xs-l2-entity-resolve.py first.", file=sys.stderr)
+        sys.exit(1)
     print("=" * 60)
     print("ENTITY REVIEW ENRICHMENT V2 (with auto-decision)")
     print("=" * 60)

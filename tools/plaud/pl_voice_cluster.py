@@ -1,28 +1,13 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Clusters the voice embeddings of the speaker slots across recordings: the same voice in different recordings ends
+up in one cluster, anchored by the slots already named.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from collections import defaultdict
@@ -30,9 +15,23 @@ from pathlib import Path
 
 import numpy as np
 
-RAW_DIR = Path.home() / ".sbk-data" / "plaud" / "raw"
-EMB_PATH = Path.home() / ".sbk-data" / "plaud" / "embeddings" / "speaker-embeddings.json"
-OUT_PATH = Path.home() / ".sbk-data" / "plaud" / "embeddings" / "voice-clusters.json"
+RAW_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "raw"
+)
+EMB_PATH = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "embeddings"
+    / "speaker-embeddings.json"
+)
+OUT_PATH = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "embeddings"
+    / "voice-clusters.json"
+)
 
 GENERIC_RE = re.compile(r"^\s*(speaker|relatore|persona)\s*\d+\s*$", re.I)
 SAME_VOICE = 0.80

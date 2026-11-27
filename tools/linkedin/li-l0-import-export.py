@@ -233,7 +233,11 @@ def main():
         default="export-part1",
         help="Source directory name (default: export-part1)",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Show stats without writing")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show the row counts only: writes nothing (no parquet, no last-runs.json, no pipeline metrics)",
+    )
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -247,7 +251,8 @@ def main():
         log.error(f"Source directory not found: {source_dir}")
         sys.exit(1)
 
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if not args.dry_run:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
     log.info("=" * 60)
     log.info(f"LINKEDIN EXPORT IMPORT — {args.source}")
@@ -314,6 +319,9 @@ def main():
     total_rows = sum(c for c in totals.values() if c >= 0)
     log.info(f"  {'TOTAL':25s}: {total_rows} rows in {elapsed:.1f}s")
 
+    if args.dry_run:
+        log.info("Dry run: nothing written.")
+        return
     mark_last_run("linkedin-export")
 
 
@@ -326,4 +334,8 @@ def run():
 
 
 if __name__ == "__main__":
-    run()
+    # A dry run skips the pipeline wrapper too: it would log a metrics row (and a failure row) in the data root.
+    if "--dry-run" in sys.argv[1:]:
+        main()
+    else:
+        run()

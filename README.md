@@ -10,8 +10,8 @@ Website: **[superbrainkernel.com](https://superbrainkernel.com)**
 > a CLI and an app on top. Then it acts on what it knows: tasks, messages and
 > email drafts, each one weighed against the full context and approved by you.
 >
-> **No SBK cloud.** Data, index and graph stay on your disk; model calls go to
-> the provider you choose, with your key.
+> **No SBK cloud.** Data, index and graph stay on your disk. A model is called
+> only when you ask or allow it, with your own key or your own `claude` login.
 
 SBK is a **kernel + plugins**. The kernel is the engine (L0→L3 pipeline, entity
 resolution, knowledge layer). The plugins are the **sources** you connect: yours,
@@ -66,8 +66,11 @@ dashboard, CLI or app.
   interactions, facts and similar past emails). Email is never sent on its own;
   Slack messages leave the dashboard only when you send them.
 - **Dashboard** (`dashboard/`) — FastAPI + HTMX, status and search over your data.
-- **CLI** (`tools/sbk_cli.py`, `sbk` command) — search, brief, lookup, pipeline.
-- **App** (`tools/secondbrain/app/`) — native macOS app (SwiftUI).
+- **CLI** (`tools/sbk_cli.py`, `sbk` command) — search, brief, lookup, pipeline. Search prints
+  raw results and brief prints today's stories; a written answer or digest from Claude only with
+  `--synthesize`.
+- **App** (`tools/secondbrain/app/`) — native macOS app (SwiftUI). Its AI features run with your
+  own Claude Code login and stay off until you allow them in `sbk.config.json`.
 
 ## The plugins
 
@@ -83,31 +86,52 @@ it works in part, or was tested only against mocked services.
   used. On request; nothing goes to a model without your consent.
 - `analytics` (`ga-`): your Google Analytics 4 properties, with your own Google app.
 - `apple-health` (`ah-`): the export of the Health app (partial).
+- `atlassian` (`as-`): Jira issues and Confluence pages that involve you, with your own
+  Atlassian API token (partial).
 - `attio` (`at-`): Attio CRM: companies, people, deals, notes, calls.
 - `calendar` (`ca-`): your Google calendars, with your own Google app.
 - `chatgpt` (`cg-`): only if you used ChatGPT: its export is read by `ai-history`.
 - `clickup` (`cu-`): tasks, comments and docs; tasks become commitments.
 - `clinical` (`cl-`): clinical documents you add yourself; the parsing step sends them
   to a model API (partial).
+- `contacts` (`ct-`): your address book, from an export you make or from Google Contacts
+  with your own Google app (partial).
 - `databases` (`db-`): people and events from a SQLite, PostgreSQL or MySQL database
   you own, through read-only queries you write (partial).
 - `docusign` (`ds-`): envelopes, signers and signed documents.
 - `email` (`em-`): your Gmail, with your own Google app.
+- `fathom` (`fa-`): the meetings you recorded with Fathom, with your personal API key
+  (partial).
+- `fireflies` (`ff-`): your Fireflies meetings, transcripts and action items, with your
+  personal API key (partial).
 - `gdrive` (`gd-`): your Google Drive documents, with your own Google app.
 - `github` (`gh-`): your repositories, collaborators, issues, pull requests and
   reviews, with your personal access token (partial).
+- `granola` (`gr-`): your Granola meeting notes, with a personal API key or the CSV
+  export (partial).
 - `gsc` (`gs-`): your Search Console properties, with your own Google app.
+- `hubspot` (`hs-`): contacts, deals, notes and tasks you own, with your own user-level
+  HubSpot app, which needs HubSpot permissions on your user (partial).
 - `imap-caldav` (`ic-`): any mailbox over IMAP and any calendar over CalDAV or a
   calendar link, with your app password (partial).
+- `linear` (`ln-`): your Linear issues, with your personal API key (partial).
 - `linkedin` (`li-`): the data export of your LinkedIn account.
 - `microsoft365` (`ms-`): your Outlook mail, calendars and contacts, with your own app
   registration (partial).
 - `notion` (`no-`): pages and databases you share with your integration.
 - `personio` (`pe-`): HR tool. Your organisation's employees, absences and contracts: an
   organisation source whose API credentials need admin rights in Personio.
-- `plaud` (`pl-`): recordings and transcripts of your Plaud recorder.
-- `slack` (`sl-`): channels, threads and your DMs, with your own Slack app and user token.
-- `tactiq` (`tq-`): your meeting transcripts.
+- `pipedrive` (`pd-`): organizations, persons, deals, activities and notes, with your
+  personal API token (partial).
+- `plaud` (`pl-`): recordings and transcripts of your Plaud recorder, through your Plaud desktop
+  app's session; the scheduled download runs it only when you list it in `enabled_sources`.
+- `slack` (`sl-`): the channels you are a member of, their threads and your DMs, with your own
+  Slack app and user token.
+- `tactiq` (`tq-`): your meeting transcripts, through your Tactiq session in Chrome; the scheduled
+  download runs it only when you list it in `enabled_sources`.
+- `teams` (`tm-`): your Microsoft Teams chats, with the `microsoft365` app registration;
+  work or school accounts (partial).
+- `telegram` (`tg-`): the chats you export from Telegram Desktop, then import (partial).
 - `voice-memos` (`vm-`): voice memos, transcribed on your machine.
 - `whatsapp` (`wa-`): the chats you export from your phone, then import. Live reading
   of WhatsApp is not set up.
@@ -156,8 +180,8 @@ uv run python dashboard/run.py
 - **Secrets are never hard-coded.** Keys in `.env` / Keychain, never in code.
 - **Config points to how to verify, not to hard facts.** Prefer generated or
   queried state over hand-written values, which drift out of date.
-- **The pipeline is viewed whole.** A run that skips a stage isn't complete even
-  if it exits OK.
+- **The pipeline is viewed whole.** A run that skips a stage isn't complete, except
+  for the harmless skips its outcome line counts (such as nothing to read yet).
 
 ## Requirements
 

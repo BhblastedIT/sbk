@@ -1,30 +1,15 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Extracts the conversational text of the Claude Code sessions of this repo (~/.claude/projects/<repo path>), block
+by block following manual-ingestion/extraction-plan.json, into manual-ingestion/session-text/ for a later fact
+extraction.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 from pathlib import Path
@@ -36,8 +21,16 @@ log = logging.getLogger(__name__)
 # replacing every "/" with "-". Derive it from the repo root.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 SESSIONS_DIR = Path.home() / ".claude/projects" / str(_REPO_ROOT).replace("/", "-")
-PLAN_FILE = Path.home() / ".sbk-data/manual-ingestion/extraction-plan.json"
-OUTPUT_DIR = Path.home() / ".sbk-data/manual-ingestion/session-text"
+PLAN_FILE = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "manual-ingestion"
+    / "extraction-plan.json"
+)
+OUTPUT_DIR = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "manual-ingestion"
+    / "session-text"
+)
 
 
 def load_plan() -> dict:

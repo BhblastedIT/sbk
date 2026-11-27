@@ -97,7 +97,7 @@ import sys
 from datetime import datetime  # noqa: UP017
 from pathlib import Path
 
-try:  # noqa: UP017  — `UTC` esiste solo da 3.11, il gate gira sulla 3.9
+try:  # noqa: UP017  — `UTC` exists only from 3.11, the gate runs on 3.9
     from datetime import UTC
 except ImportError:  # pragma: no cover - Python 3.9
     from datetime import timezone

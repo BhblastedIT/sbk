@@ -69,13 +69,15 @@ if str(_TOOLS_DIR) not in sys.path:
 
 from secrets_adapter import get_secret  # noqa: E402
 
-from sbk_config import DOCUSIGN_RAW_DIR, mark_last_run, safe_write_json  # noqa: E402
+from sbk_config import DATA_ROOT, DOCUSIGN_RAW_DIR, mark_last_run, safe_write_json  # noqa: E402
 
 log = logging.getLogger("ds-l0-api")
 
 SERVICE = "sbk-docusign"
+# Default: <data root>/secrets/docusign-private.key (follows SBK_DATA_ROOT).
 KEY_FILE = Path(
-    os.environ.get("DOCUSIGN_PRIVATE_KEY_PATH") or "~/.sbk-data/secrets/docusign-private.key"
+    os.environ.get("DOCUSIGN_PRIVATE_KEY_PATH")
+    or str(DATA_ROOT / "secrets" / "docusign-private.key")
 ).expanduser()
 
 AUTH_HOST = os.environ.get("DOCUSIGN_AUTH_HOST") or "account.docusign.com"  # empty = default

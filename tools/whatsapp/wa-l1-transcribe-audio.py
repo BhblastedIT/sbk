@@ -6,8 +6,8 @@ the chat export plus the import (wa-l0l3-full.py, wa-l0-import-history.py, then
 wa-l1-enrich.py). Live reading of WhatsApp is not set up.
 
 Needs whisper-cli and the model file ~/whisper-models/ggml-large-v3-turbo.bin, language detected
-automatically. Pass --attachments-dir with the folder of your exported attachments (the default,
-~/Downloads/whatsapp attachments, is a folder name of the author's setup). Nothing is sent anywhere.
+automatically. --attachments-dir is required: the folder of your exported attachments (one sub-folder
+per chat, as for wa-l0-import-history.py); there is no default folder. Nothing is sent anywhere.
 Output: <data root>/whatsapp/transcriptions/. Then wa-l1-inject-transcripts.py puts the text into the chats.
 It transcribes only the voice notes of your --top contacts (default 75), ranked by the relationship
 scores of a later pipeline stage (<data root>/rq/composite-scores-v3.parquet): without that file it
@@ -914,8 +914,9 @@ def main():
     parser.add_argument(
         "--attachments-dir",
         type=str,
-        default=str(Path.home() / "Downloads" / "whatsapp attachments"),
-        help="Path to WhatsApp attachments directory",
+        default=None,
+        help="The folder of your exported WhatsApp attachments, one sub-folder per chat "
+        "(required, except with --resume)",
     )
     parser.add_argument(
         "--top",
@@ -952,6 +953,8 @@ def main():
         help="Transcribe only a specific block ID",
     )
     args = parser.parse_args()
+    if not args.resume and not args.attachments_dir:
+        parser.error("--attachments-dir is required: the folder of your exported WhatsApp attachments")
 
     logging.basicConfig(
         level=logging.INFO,

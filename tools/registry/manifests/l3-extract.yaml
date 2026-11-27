@@ -1,5 +1,5 @@
-# Manifest job registro — l3-extract
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: l3-extract
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: l3-extract
 cmd: python3
 args:
@@ -16,5 +16,5 @@ backend: subprocess
 fragile: false
 artifact_refs: []
 forbidden_adapter_types: []
-perimeter: null  # gate paid gestito da paid:true (fix validatori A+C: anthropic-api e credenziale egress, non sorgente-ingest)
-description: 'L3 extract. PAID: chiama Claude.'
+perimeter: null  # the paid gate is paid:true (the API call is an outgoing credential, not an ingest source)
+description: 'L3 extract. PAID: calls Claude.'

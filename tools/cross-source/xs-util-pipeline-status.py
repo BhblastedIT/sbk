@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
+"""Pipeline status: for every source and stage, the last run, size, row counts and state, saved as
+pipeline-status.json and, with --push, written to the Google Sheet set in pipeline_status.spreadsheet_id
+(your own OAuth client).
+"""
 
 import argparse
 import json
@@ -18,7 +12,15 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from sbk_config import DATA_ROOT, calendar_labels, get_last_run, mail_labels, safe_write_json, user_cfg
+from sbk_config import (
+    DATA_ROOT,
+    calendar_labels,
+    get_last_run,
+    mail_labels,
+    safe_write_json,
+    source_listed,
+    user_cfg,
+)
 
 
 
@@ -536,9 +538,9 @@ def build_table() -> list[list[str]]:
             f"Plaud ({pl_count // 2} recordings)",
             "pl-l0-download.py",
             "uv run python3 tools/plaud/pl-l0-download.py",
-            "Browser",
+            "App",
             "API download",
-            "Browser session (cookie)",
+            "Plaud desktop app session",
             "https://app.plaud.ai",
             "on-demand",
             "0",
@@ -551,7 +553,7 @@ def build_table() -> list[list[str]]:
             _status(pl_mt, 168),
             _fmt_dt(pl_mt),
             _hours_ago(pl_mt),
-            "Requires Plaud browser login",
+            "Requires the Plaud desktop app, logged in",
         )
     )
 
@@ -568,7 +570,7 @@ def build_table() -> list[list[str]]:
             "uv run python3 tools/tactiq/tq-l0-download.py",
             "Browser",
             "API Tactiq",
-            "Permanent API Key",
+            "Chrome session (Tactiq web app)",
             "https://app.tactiq.io",
             "on-demand",
             "0",
@@ -586,8 +588,12 @@ def build_table() -> list[list[str]]:
     )
 
 
-    LI_RAW = TOOLS_DIR.parent / "sbk/raw/linkedin"
-    LI_INV_RAW = TOOLS_DIR.parent / "sbk/raw/linkedin-investors"
+    # The next LinkedIn rows (up to the data export) read LinkedIn with your browser cookies
+    # (li_at + JSESSIONID) through the scripts in tools/linkedin/scripts/, which the guide does
+    # not set up. They are listed only when "linkedin" is in enabled_sources (sbk.config.json).
+    _li_cookie_rows_from = len(rows)
+    # Under the data root, the same folder li-l0-import-export.py and li-l1-enrich.py use.
+    LI_RAW = SBK_DATA / "linkedin" / "raw"
 
 
     li_threads = LI_RAW / "linkedin-threads-complete.json"
@@ -608,7 +614,7 @@ def build_table() -> list[list[str]]:
             "L0.22a",
             f"LinkedIn Connections ({li_threads_cnt or '?'} conv)",
             "li-l0-scraper.js",
-            "node sbk/raw/linkedin/scripts/fetch-all-threads-complete.js",
+            "node tools/linkedin/scripts/fetch-all-threads-complete.js",
             "Browser",
             "LinkedIn Voyager API",
             "Cookie li_at + JSESSIONID",
@@ -693,7 +699,7 @@ def build_table() -> list[list[str]]:
             "L0.22c",
             f"LinkedIn Sales Navigator ({li_sn_cnt or '?'} conv, {li_sn_msg or '?'} msg)",
             "fetch-sales-navigator-inbox.js",
-            "node sbk/raw/linkedin/scripts/fetch-sales-navigator-inbox.js",
+            "node tools/linkedin/scripts/fetch-sales-navigator-inbox.js",
             "Browser",
             "Sales Navigator API",
             "Cookie li_at + JSESSIONID",
@@ -734,7 +740,7 @@ def build_table() -> list[list[str]]:
             "L0.22d",
             f"LinkedIn Sent Notes ({li_notes_cnt or '?'} notes)",
             "li-l0-scraper.js",
-            "node sbk/raw/linkedin/scripts/fetch-sent-notes.js",
+            "node tools/linkedin/scripts/fetch-all-messages.js",
             "Browser",
             "LinkedIn Voyager API",
             "Cookie li_at + JSESSIONID",
@@ -755,42 +761,9 @@ def build_table() -> list[list[str]]:
     )
 
 
-    li_inv = LI_INV_RAW / "external-contacts.json"
-    li_inv_mt = _best_time(_mtime(li_inv), "linkedin-external")
-    li_inv_sz = _size_mb(LI_INV_RAW) if LI_INV_RAW.exists() else 0
-    li_inv_cnt = None
-    if li_inv.exists():
-        try:
-            with open(li_inv) as _f:
-                _d = _json.load(_f)
-            li_inv_cnt = len(_d.get("records", []))
-        except Exception:
-            pass
-    rows.append(
-        _row(
-            "L0.22e",
-            f"External contacts ({li_inv_cnt or '?'} profiles)",
-            "(optional external source)",
-            "—",
-            "Browser",
-            "External API",
-            "Cookie session",
-            "https://example.com",
-            "on-demand",
-            "0",
-            li_inv_cnt,
-            li_inv_sz,
-            "Full (bio, company, role, location)",
-            "No",
-            "No",
-            "100%",
-            _status(li_inv_mt, 720),
-            _fmt_dt(li_inv_mt),
-            _hours_ago(li_inv_mt),
-            "",
-        )
-    )
 
+    if not source_listed("linkedin"):
+        del rows[_li_cookie_rows_from:]
 
     LI_EXPORT_RAW = SBK_DATA / "linkedin/raw"
     li_exp_conn = LI_EXPORT_RAW / "export-connections.parquet"
@@ -985,7 +958,7 @@ def build_table() -> list[list[str]]:
             "Rare",
             "Local (Whisper CLI)",
             "Local (no auth)",
-            "~/.sbk-data/voice-memos/",
+            "<data root>/voice-memos/",
             "on-demand",
             "0",
             m4a_count,
@@ -1267,14 +1240,6 @@ def build_table() -> list[list[str]]:
             "FULL — Timestamp, from/to, type, body_length + message_text (max 5K char)",
         ),
         (
-            "L1.10c",
-            "LinkedIn Investors enrich",
-            "li-l1-enrich.py",
-            "uv run python3 tools/linkedin/li-l1-enrich.py",
-            "linkedin/processed/investors-linkedin.parquet",
-            "FULL — Bio, company, role, investment prefs, location, tier, thesis_fit",
-        ),
-        (
             "L1.10d",
             "LinkedIn Profile enrich",
             "li-util-profile-update.py",
@@ -1319,7 +1284,7 @@ def build_table() -> list[list[str]]:
             "L1.15",
             "iPhone VCF match",
             "xs-l1-match-vcf.py",
-            "uv run python3 tools/cross-source/xs-l1-match-vcf.py",
+            "uv run python3 tools/cross-source/xs-l1-match-vcf.py --csv <your contacts CSV>",
             "enriched/contacts.parquet",
             "STRUCT — Contact matching by phone/email",
         ),

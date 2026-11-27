@@ -1,38 +1,9 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Birthdays, birth dates and name days on the knowledge-base profiles: collects the dates found in your sources,
+decides which are reliable, adds the name day from the saints calendar, and writes them as facts (--apply; dry
+run by default). --check is the guard that the stage is registered and deletes nothing; --test-rules and
+--self-test test the rules and the guard.
+"""
 
 from __future__ import annotations
 
@@ -258,33 +229,33 @@ def decidi(
         if not md:
             continue
         if md in rifiutate:
-            scarti["rifiutata"] += 1
+            scarti["rejected"] += 1
             continue
         if f["cat"] == "onomastico" or _ONOQ.search(f.get("q") or ""):
-            scarti["onomastico dichiarato"] += 1
+            scarti["declared name day"] += 1
             continue
         if md in DATE_DI_OWNER and not scheda_di_owner:
-            scarti["data di owner"] += 1
+            scarti["the owner's own date"] += 1
             continue
         if (
             md in date_onomastico
             and f["cat"] != "data_nascita"
             and f["a"] == "relationship.birthday"
         ):
-            scarti["onomastico del nome"] += 1
+            scarti["name day of the first name"] += 1
             continue
         vf = (f.get("vf") or "")[:10]
         if vf and EXCLUDED_DATE_WINDOW[0] <= vf <= EXCLUDED_DATE_WINDOW[1] and f["cat"] != "data_nascita":
-            scarti["finestra esclusa"] += 1
+            scarti["excluded window"] += 1
             continue
         if (md, f.get("anno")) in condivise and f["cat"] == "data_nascita":
-            scarti["data di nascita su piu' persone"] += 1
+            scarti["birth date shared by several people"] += 1
             continue
         if md == "01-01" or (md in FESTE and f["cat"] != "data_nascita"):
-            scarti["festa"] += 1
+            scarti["public holiday"] += 1
             continue
         if scheda_di_owner and f["s"] not in ("manual_input", "personio", "gdrive", "docusign"):
-            scarti["chat sulla scheda di owner"] += 1
+            scarti["chat on the owner's own card"] += 1
             continue
         tipo, w = peso(f)
         if not tipo:

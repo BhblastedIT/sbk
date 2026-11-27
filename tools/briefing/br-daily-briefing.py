@@ -1,22 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Daily briefing: today's calendar, the emails waiting for your reply, the follow-ups and the focus items, sent to
+you on Slack once a day (--preview or --dry-run to only look at it).
+"""
 
 from __future__ import annotations
 

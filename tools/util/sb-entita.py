@@ -1,41 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Looks for pathologies across the entity folders of the knowledge base (empty folders, group names, company
+duplicates...) and prints the worst cases.
+"""
 
 from __future__ import annotations
 

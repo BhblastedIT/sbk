@@ -1,31 +1,13 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Speaker resolver for Plaud transcripts: combines the evidence (Plaud label, voice, calendar, what is said, the
+knowledge base) into a probability per candidate name and proposes a name, or none, for each speaker. Run as a
+script it shows the resolution of one transcript.
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from collections import defaultdict
 from math import exp, log
@@ -827,7 +809,11 @@ def _main() -> int:
 
             raw_dir = PLAUD_DIR
         except Exception:
-            raw_dir = Path.home() / ".sbk-data" / "plaud" / "raw"
+            raw_dir = (
+                Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+                / "plaud"
+                / "raw"
+            )
 
         candidates = sorted(raw_dir.glob("*.json"))
 

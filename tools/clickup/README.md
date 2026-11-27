@@ -12,7 +12,11 @@ loads `.env` from the repo root).
 **sbk.config.json** nothing needed: without `clickup.teams` the backup asks ClickUp which workspaces
 your token sees and backs up each one. To limit it, list them in `clickup.teams`
 (`{"<workspace id>": "<name>"}`; the id is the number in your ClickUp web addresses). `--team <id>`
-runs one.
+runs one. For the macOS app (optional, nothing built in): `clickup.tasks_list`, the list its Tasks page
+imports your open tasks from; `clickup.user_id`, your ClickUp user id, the assignee of the tasks it
+creates from Inspiration; `inspiration.clickup_lists.main`, where Inspiration's *Start* and triage put
+an idea's task. Empty = that part is off and the app says so
+([The macOS app's Claude Code sessions](../../docs/CONNECTING.md#the-macos-apps-claude-code-sessions-optional)).
 **Download**
 ```bash
 uv run python tools/clickup/cu-l0-backup.py --dry-run

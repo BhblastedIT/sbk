@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
+"""Supplement tracking: add, stop and list the supplements you take (dose, unit, frequency, dates), kept in
+supplements.parquet and shown as interventions next to the lab values.
+"""
 
 import argparse
 import logging

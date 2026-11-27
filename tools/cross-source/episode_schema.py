@@ -153,7 +153,7 @@ def make_episode(
     ""
     etype = EPISODE_SOURCE_TYPES.get(source_type)
     if etype is None:
-        raise ValueError(f"source_type '{source_type}' non è conversazionale — non genera episodi")
+        raise ValueError(f"source_type '{source_type}' is not conversational, it makes no episodes")
     return Episode(
         episode_id=episode_id_for(source_type, record_id),
         episode_type=etype,

@@ -33,8 +33,7 @@ const SESSION_CAP = 15;            // max profiles per run (below the global cap
 const WORK_HOUR_START = 8;         // local working-hours window (inclusive)
 const WORK_HOUR_END = 22;          // (exclusive)
 const CONCURRENCY_LOCK = path.join(
-  os.homedir(),
-  '.sbk-data',
+  process.env.SBK_DATA_ROOT || path.join(os.homedir(), '.sbk-data'),
   'linkedin',
   '.linkedin-worker.lock'
 );

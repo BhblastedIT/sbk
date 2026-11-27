@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""iPhone contacts L1: reads the contacts exported from the phone, tells business contacts from personal ones,
+validates birthdays and writes contacts parquet files with a summary.
+"""
 
 from __future__ import annotations
 
@@ -39,14 +27,9 @@ from sbk_config import CONTACTS_DIR, IPHONE_DIR, safe_write_parquet
 
 
 CONTACTS_PARQUET = CONTACTS_DIR / "contacts.parquet"
-CONTACTS_JSON = (
-    Path(__file__).resolve().parent.parent.parent
-    / "sbk"
-    / "raw"
-    / "contacts"
-    / "iphone-contacts.json"
-)
-CONTACTS_JSON_ALT = CONTACTS_DIR / "iphone-contacts.json"
+# Your JSON address book lives under the data root (never in the repo).
+CONTACTS_JSON = CONTACTS_DIR / "iphone-contacts.json"
+CONTACTS_JSON_ALT = CONTACTS_JSON
 PROCESSED_DIR = IPHONE_DIR
 
 log = logging.getLogger("contacts-enrich")
@@ -64,8 +47,23 @@ _BUSINESS_PATTERNS = re.compile(
 )
 
 
-def is_business_contact(name: str, organization: str = "") -> bool:
-    ""
+# The card kinds that are not a person (tools/contacts/ct_book.py NON_PERSON_KINDS): "org" for a
+# company card (vCard KIND:org, Apple X-ABShowAs:COMPANY), "group", "location".
+NON_PERSON_KINDS = ("org", "group", "location")
+
+
+def card_kind(value) -> str:
+    """The "kind" of a slot row: "org" / "group" / "location", "" for a person (or unknown)."""
+    k = str(value or "").strip().lower()
+    if k in ("organization", "company"):
+        k = "org"
+    return k if k in NON_PERSON_KINDS else ""
+
+
+def is_business_contact(name: str, organization: str = "", kind: str = "") -> bool:
+    """True for a company card (its kind) or a name that reads like a business."""
+    if card_kind(kind):
+        return True
     text = f"{name} {organization}".strip()
     return bool(_BUSINESS_PATTERNS.search(text))
 
@@ -155,6 +153,7 @@ def load_contacts() -> list[dict]:
             title = str(row.get("title", "")).strip()
             all_phones_str = str(row.get("all_phones", "")).strip()
             all_emails_str = str(row.get("all_emails", "")).strip()
+            kind = card_kind(row.get("kind"))
 
 
             json_contact = json_data.get(full_name, {})
@@ -180,7 +179,7 @@ def load_contacts() -> list[dict]:
             birthday = validate_birthday(birthday_raw)
 
 
-            is_biz = is_business_contact(full_name, organization)
+            is_biz = is_business_contact(full_name, organization, kind)
 
             contacts.append(
                 {
@@ -196,6 +195,7 @@ def load_contacts() -> list[dict]:
                     "last_updated": last_updated,
                     "birthday": birthday,
                     "is_business": is_biz,
+                    "kind": kind,
                 }
             )
     else:
@@ -229,7 +229,8 @@ def load_contacts() -> list[dict]:
                     "emails_list": emails,
                     "last_updated": c.get("last_updated", ""),
                     "birthday": validate_birthday(c.get("birthday", "")),
-                    "is_business": is_business_contact(name, org),
+                    "is_business": is_business_contact(name, org, c.get("kind", "")),
+                    "kind": card_kind(c.get("kind")),
                 }
             )
 
@@ -240,6 +241,22 @@ def load_contacts() -> list[dict]:
 
 
 
+
+
+CONTACTS_IPHONE_COLUMNS = (
+    "name",
+    "organization",
+    "phone_numbers",
+    "email",
+    "phone_primary",
+    "name_normalized",
+    "first_name",
+    "last_name",
+    "last_updated",
+    "birthday",
+    "is_business",
+    "kind",
+)
 
 
 def build_contacts_parquet(contacts: list[dict]) -> pd.DataFrame:
@@ -276,11 +293,17 @@ def build_contacts_parquet(contacts: list[dict]) -> pd.DataFrame:
                 "last_updated": c["last_updated"],
                 "birthday": c.get("birthday") or "",
                 "is_business": c.get("is_business", False),
+                "kind": c.get("kind", ""),
             }
         )
 
-    df = pd.DataFrame(rows)
+    # Explicit columns: when no contact has a name (an address book of e-mail-only entries),
+    # the frame is empty but keeps its schema, so sorting and the summary still work.
+    df = pd.DataFrame(rows, columns=list(CONTACTS_IPHONE_COLUMNS))
     df.sort_values("name", inplace=True)
+    skipped = len(contacts) - len(df)
+    if skipped:
+        log.info(f"  {skipped} contacts without a name left out")
     log.info(f"Contacts parquet: {len(df)} records")
     return df
 

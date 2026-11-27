@@ -624,7 +624,7 @@ struct TurnoVoce: View {
                 }
                 .controlSize(.small)
             }
-        case "non_riuscita", "aspetta_abbonamento":
+        case "non_riuscita":
             if r.finita == true, let m = r.motivo, !m.isEmpty {
                 Text(m).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
             }

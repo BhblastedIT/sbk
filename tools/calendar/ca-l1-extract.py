@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
+"""Calendar L1: contacts and interactions from the downloaded events, leaving out your own addresses, system
+calendars and the shared addresses listed in calendar.exclude_addresses.
+"""
 
 import argparse
 import json

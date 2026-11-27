@@ -1,0 +1,21 @@
+{
+  "uid": "sbk_hubspot_reader",
+  "type": "app",
+  "config": {
+    "name": "SBK personal reader",
+    "description": "Reads, for your own SBK data folder, the contacts, companies, deals, notes and tasks you can see in HubSpot. Read-only. Installed by you, for you.",
+    "distribution": "private",
+    "isUserLevel": true,
+    "auth": {
+      "type": "oauth",
+      "redirectUrls": ["http://localhost:8723/oauth-callback"],
+      "requiredScopes": [
+        "crm.objects.contacts.read",
+        "crm.objects.companies.read",
+        "crm.objects.deals.read"
+      ],
+      "optionalScopes": ["crm.objects.owners.read"],
+      "conditionallyRequiredScopes": []
+    }
+  }
+}

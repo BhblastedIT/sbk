@@ -1,64 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Who is the same person, and with what proof: for a name, even partial, the candidate entities ranked by the
+strength of the evidence (HR record, email, phone, initials, WhatsApp...).
+"""
 
 from __future__ import annotations
 
@@ -72,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from text_utils import normalize_phone  # noqa: E402
 
 import sbk_config as cfg  # noqa: E402
 
@@ -295,16 +240,10 @@ def _carica_entita() -> list[dict]:
 
 
 def norm_tel(t: object) -> str:
-    ""
-
-
-
-
-
-    d = re.sub(r"\D", "", str(t or ""))
-    if d.startswith("00"):
-        d = d[2:]
-    return "+" + d if 8 <= len(d) <= 13 else ""
+    """The shared normaliser (text_utils.normalize_phone, phone_country_code applied),
+    kept only for plausible lengths (8-13 digits after the "+")."""
+    n = normalize_phone(str(t or ""))
+    return n if 8 <= len(n) - 1 <= 13 else ""
 
 
 _RUBRICA: dict[str, set[str]] | None = None

@@ -1,31 +1,9 @@
-""
+"""One Anthropic client for every paid stage.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+The key is ANTHROPIC_API_KEY, read from the environment (the pipeline loads .env into it).
+There is one key and one client per process. A key that is rejected or out of credit stops
+the stage with a clear error.
+"""
 
 from __future__ import annotations
 
@@ -51,77 +29,9 @@ _client_pid = None
 _client_timeout = None
 _lock = threading.Lock()
 
-_chiave_nome: str | None = None
-_chiave_pid: int | None = None
-
-
-def _chiave_dalla_coda() -> tuple[str | None, str | None]:
-    ""
-    global _chiave_nome, _chiave_pid
-
-    if os.environ.get("SBK_CHIAVI_ANTHROPIC") == "spente":
-        return None, None
-    try:
-        import xs_chiavi
-    except Exception:  # noqa: BLE001, without a queue the previous behavior remains
-        return None, None
-    preferita = os.environ.get("SBK_CHIAVE_ANTHROPIC") or (
-        _chiave_nome if _chiave_pid == os.getpid() else None
-    )
-    try:
-        scelta = xs_chiavi.scegli(preferita=preferita)
-    except Exception:  # noqa: BLE001, the Keychain doesn't answer: fall back to the environment
-        return None, None
-    if not scelta:
-        return None, None
-    _chiave_nome, _chiave_pid = scelta[0], os.getpid()
-    return scelta
-
-
-def chiave_in_uso() -> str | None:
-    ""
-    return _chiave_nome if _chiave_pid == os.getpid() else None
-
-
-def usa_chiave(nome: str) -> None:
-    ""
-    global _chiave_nome, _chiave_pid
-    if chiave_in_uso() == nome:
-        return
-    os.environ["SBK_CHIAVE_ANTHROPIC"] = nome
-    _chiave_nome, _chiave_pid = nome, os.getpid()
-    reset_client()
-
-
-def passa_alla_riserva() -> bool:
-    ""
-
-
-
-    global _chiave_nome, _chiave_pid
-    attuale = chiave_in_uso()
-    if not attuale:
-        return False
-    try:
-        import xs_chiavi
-
-        riserva = xs_chiavi.prossima_dopo(attuale)
-    except Exception:  # noqa: BLE001
-        return False
-    if not riserva:
-        return False
-    os.environ["SBK_CHIAVE_ANTHROPIC"] = riserva[0]
-    _chiave_nome, _chiave_pid = riserva[0], os.getpid()
-    reset_client()
-    return True
-
 
 def get_client(timeout: float | None = None) -> anthropic.Anthropic:
-    ""
-
-
-
-
+    """The shared client, built from ANTHROPIC_API_KEY (one per process and timeout)."""
     global _client, _client_pid, _client_timeout
 
     effective_timeout = timeout if timeout is not None else DEFAULT_TIMEOUT
@@ -129,10 +39,11 @@ def get_client(timeout: float | None = None) -> anthropic.Anthropic:
 
     with _lock:
         if _client is None or _client_pid != current_pid or _client_timeout != effective_timeout:
-            _, api_key = _chiave_dalla_coda()
-            api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+            api_key = os.environ.get("ANTHROPIC_API_KEY")
             if not api_key:
-                raise RuntimeError("ANTHROPIC_API_KEY not set in environment")
+                raise RuntimeError(
+                    "ANTHROPIC_API_KEY not set: put it in .env or in the environment"
+                )
             _client = anthropic.Anthropic(
                 api_key=api_key,
                 timeout=effective_timeout,
@@ -144,7 +55,7 @@ def get_client(timeout: float | None = None) -> anthropic.Anthropic:
 
 
 def reset_client() -> None:
-    ""
+    """Forget the cached client (the next get_client builds a new one)."""
     global _client, _client_pid, _client_timeout
     with _lock:
         _client = None
@@ -153,10 +64,7 @@ def reset_client() -> None:
 
 
 def _is_quota_exhausted(exc: BaseException) -> bool:
-    ""
-
-
-
+    """True when the error says the account has no credit or quota left."""
     body = getattr(exc, "body", None)
     if isinstance(body, dict):
         err = body.get("error", {})
@@ -181,49 +89,24 @@ def _is_quota_exhausted(exc: BaseException) -> bool:
 
 
 def classify_error(exc: BaseException) -> PermanentAPIError | None:
-    ""
-
-
-
-
-
+    """A PermanentAPIError for errors a retry cannot fix (bad key, no credit, unknown model), else None."""
     if isinstance(exc, anthropic.AuthenticationError):
-        _segna("non autorizzata")
-        return PermanentAPIError(f"Authentication failed (401): {exc}")
+        return PermanentAPIError(f"Authentication failed (401), check ANTHROPIC_API_KEY: {exc}")
     if isinstance(exc, anthropic.PermissionDeniedError):
-        _segna("non autorizzata")
-        return PermanentAPIError(f"Permission denied (403): {exc}")
+        return PermanentAPIError(f"Permission denied (403), check ANTHROPIC_API_KEY: {exc}")
     if isinstance(exc, anthropic.NotFoundError):
         return PermanentAPIError(f"Resource not found (model deprecated?): {exc}")
     if isinstance(exc, anthropic.RateLimitError):
         if _is_quota_exhausted(exc):
-            _segna("quota finita")
             return PermanentAPIError(f"Quota exhausted (429+insufficient_quota): {exc}")
     if isinstance(exc, anthropic.BadRequestError):
         if _is_quota_exhausted(exc):
-            _segna("quota finita")
             return PermanentAPIError(f"Quota exhausted (400): {exc}")
     return None
 
 
-def _segna(tipo: str) -> None:
-    ""
-    nome = chiave_in_uso()
-    if not nome:
-        return
-    try:
-        import xs_chiavi
-
-        xs_chiavi.segna_errore(nome, tipo)
-    except Exception:  # noqa: BLE001, marking must never mask the real error
-        pass
-
-
 def safe_call(fn, *args, **kwargs):
-    ""
-
-
-
+    """Call fn and turn permanent API errors into PermanentAPIError."""
     try:
         return fn(*args, **kwargs)
     except Exception as e:

@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""RQ-01: applies the time decay to the weighted interactions, so recent contact counts more than old contact,
+and accounts for people who left their company.
+"""
 
 from __future__ import annotations
 
@@ -94,10 +83,13 @@ def main():
     from rq_temporal_decay import compute_relationship_decay
 
     interactions = _load_weighted_interactions()
+    if interactions.empty and not (RQ_DIR / "decay-state.parquet").exists():
+        # A first install: RQ-00 had no interactions to weigh and there is no earlier state to
+        # protect. The decay comes once there are interactions.
+        log.info("No weighted interactions yet (RQ-00 wrote none): nothing to compute yet")
+        return
     if interactions.empty:
-
-
-
+        # A decay state from an earlier run exists: an empty input now means it went missing.
         log.error(
             "No weighted interactions available (%s): nothing to compute, exiting with error.",
             RQ_DIR / "interaction-weights.parquet",

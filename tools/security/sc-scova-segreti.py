@@ -243,7 +243,7 @@ def main() -> int:
     caveau = [v for v in e["trovati"] if v["tipi_nelle_intestazioni"]]
     for v in caveau[:25]:
         log.info(
-            "    %-46s %5s righe  %s",
+            "    %-46s %5s rows  %s",
             v["nome"][:46],
             f"{v['righe']:,}",
             ", ".join(v["tipi_nelle_intestazioni"]),

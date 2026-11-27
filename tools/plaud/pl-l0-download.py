@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
+"""Plaud download: the transcripts of your Plaud recordings, through the Plaud desktop app session (--direct, the
+default path) or an open plaud.ai tab in Chrome (--chrome); keeps an index, a version ledger and the duplicates
+aside, and can ask Plaud to transcribe the recordings that have no transcript yet (--transcribe).
+"""
 
 import argparse
 import json
@@ -26,8 +20,7 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 from sbk_config import PLAUD_API_BASE, PLAUD_DIR, mark_last_run, safe_write_json
 
-OUTPUT_DIR = PLAUD_DIR
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR = PLAUD_DIR  # Created when the script runs, not at import, so --help writes nothing.
 INDEX_PATH = OUTPUT_DIR / "_file_index.json"
 
 
@@ -149,7 +142,9 @@ def get_token_direct():
             raise RuntimeError("npm not installed. Install Node.js to use --direct.")
         print(f"  Electron not installed. Installing in {ELECTRON_WRAPPER_DIR}...")
         subprocess.run(
-            ["npm", "install", "electron", "--no-audit", "--no-fund"],
+            # Pin the exact version declared in electron-decrypt/package.json instead of
+            # letting a bare name resolve electron@latest (supply-chain: avoid a silent jump).
+            ["npm", "install", "electron@42.2.0", "--no-audit", "--no-fund"],
             cwd=ELECTRON_WRAPPER_DIR,
             check=True,
             timeout=300,
@@ -784,6 +779,7 @@ def main(
     solo_trascrizioni=None,
 ):
     global _DIRECT_TOKEN
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     force_ids = set(re_download or [])
 
     print("=" * 60)

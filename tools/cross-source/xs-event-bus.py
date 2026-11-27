@@ -1,13 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
+"""Pipeline event bus: lists, processes and cleans the events stages emit when they finish, and starts the stages
+that depend on them (cascades); --emit sends an event by hand.
+"""
 
 from __future__ import annotations
 

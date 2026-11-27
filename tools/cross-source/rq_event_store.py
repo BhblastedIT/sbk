@@ -1,29 +1,7 @@
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Relationship event store (rq/events.db, SQLite): one row per interaction event with a person, plus the cached
+scores and daily snapshots. The script creates the database, prints its stats, marks scores stale or writes a
+snapshot.
+"""
 
 from __future__ import annotations
 

@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
+"""Entity resolution boost: fuzzy-matches the people and organizations named in the NLP entity table to known
+people and companies, incremental with a checkpoint.
+"""
 
 from __future__ import annotations
 

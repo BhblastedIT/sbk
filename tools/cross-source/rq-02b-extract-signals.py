@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
+"""RQ-02b: extracts the qualitative signals about each relationship (from relationship facts and the weighted
+interactions, with names resolved to people) into the signals table the scores read.
+"""
 
 from __future__ import annotations
 

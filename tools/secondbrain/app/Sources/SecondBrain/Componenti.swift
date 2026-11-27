@@ -177,7 +177,7 @@ struct SecondaConferma: ViewModifier {
 
     func body(content: Content) -> some View {
         content.alert(titolo, isPresented: $mostra) {
-            Button("Annulla", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
                 .keyboardShortcut(.defaultAction)
             Button(pulsante) { azione() }
         } message: {

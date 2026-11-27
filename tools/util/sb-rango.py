@@ -41,7 +41,11 @@ import knowledge_rango as kr  # noqa: E402
 import knowledge_taxonomy as kt  # noqa: E402
 from conteggio import Conteggio  # noqa: E402
 
-ENTITA = Path.home() / ".sbk-data" / "knowledge" / "entities"
+ENTITA = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "knowledge"
+    / "entities"
+)
 
 
 def _budget() -> str:

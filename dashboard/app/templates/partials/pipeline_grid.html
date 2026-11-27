@@ -5,20 +5,20 @@
 {% macro stato_cell(stato) %}
 {% if stato == "OK" %}<span class="pg-st pg-st-ok">OK</span>
 {% elif stato == "Stale" %}<span class="pg-st pg-st-stale">Stale</span>
-{% elif stato.startswith("Err") %}<span class="pg-st pg-st-err" title="{{ stato }}">Err</span>
+{% elif (stato or "").startswith("Err") %}<span class="pg-st pg-st-err" title="{{ stato }}">Err</span>
 {% else %}<span class="pg-st">{{ stato }}</span>
 {% endif %}
 {% endmacro %}
 
 {% macro yn(val) %}
-{% if val == "Si" or val == "Sì" %}<span class="pg-yn-yes">Si</span>{% else %}<span class="pg-dim">-</span>{% endif %}
+{% if val in ("Yes", "Si", "Sì") %}<span class="pg-yn-yes">Yes</span>{% else %}<span class="pg-dim">-</span>{% endif %}
 {% endmacro %}
 
 {% macro run_btn(row) %}
 {% if row._run_info %}
 <button class="pg-run-btn"
         onclick="event.stopPropagation(); runGridScript(this, '{{ row._run_info.script }}', '{{ row._run_info.args_str }}')"
-        title="Run: {{ row['Comando run'] or row.Script }}">&#9654;</button>
+        title="Run: {{ row['Run command'] or row.Script }}">&#9654;</button>
 {% endif %}
 {% endmacro %}
 
@@ -41,29 +41,29 @@
 {% macro data_row(row, layer_key, subgroup_key) %}
 <tr class="pg-data" data-layer="{{ layer_key }}"
     {% if subgroup_key %}data-subgroup="{{ layer_key }}-{{ subgroup_key }}"{% endif %}
-    data-status="{{ row.Stato }}" data-name="{{ row['Sorgente / Fase']|lower }}">
+    data-status="{{ row.Status }}" data-name="{{ (row['Source / Stage'] or '')|lower }}">
     <td class="pg-sticky pg-col-run pg-c">{{ run_btn(row) }}</td>
-    <td class="pg-sticky pg-col-stato">{{ stato_cell(row.Stato) }}</td>
+    <td class="pg-sticky pg-col-stato">{{ stato_cell(row.Status) }}</td>
     <td class="pg-sticky pg-col-id">{{ row.ID }}</td>
-    <td class="pg-sticky pg-col-fase" title="{{ row['Sorgente / Fase'] }}">{{ row["Sorgente / Fase"] }}</td>
-    <td data-cg="timing" class="pg-r pg-mono">{{ row["Età h"] or "" }}</td>
-    <td data-cg="timing" class="pg-date">{{ row["Ultimo run"] or "" }}</td>
+    <td class="pg-sticky pg-col-fase" title="{{ row['Source / Stage'] }}">{{ row["Source / Stage"] }}</td>
+    <td data-cg="timing" class="pg-r pg-mono">{{ row["Age h"] or "" }}</td>
+    <td data-cg="timing" class="pg-date">{{ row["Last run"] or "" }}</td>
     <td data-cg="dati" class="pg-r pg-mono">{{ "{:,}".format(row.Records|int) if row.Records else "" }}</td>
     <td data-cg="dati" class="pg-r pg-mono">{{ row["%"] or "" }}</td>
     <td data-cg="dati" class="pg-r pg-mono">{{ row["Size MB"] if row["Size MB"] else "" }}</td>
-    <td data-cg="conn">{{ row.Tipo or "" }}</td>
-    <td data-cg="conn" class="pg-trunc" title="{{ row.Connessione or '' }}">{{ row.Connessione or "" }}</td>
+    <td data-cg="conn">{{ row.Type or "" }}</td>
+    <td data-cg="conn" class="pg-trunc" title="{{ row.Connection or '' }}">{{ row.Connection or "" }}</td>
     <td data-cg="conn">{{ row.Auth or "" }}</td>
     <td data-cg="conn" class="pg-dim" title="{{ row['Freq target'] or '' }}">{{ row["Freq target"] or "" }}</td>
     <td data-cg="pipe" class="pg-c">{{ yn(row["In L3 NLP"]) }}</td>
     <td data-cg="pipe" class="pg-c">{{ yn(row["In L5 Vector"]) }}</td>
-    <td data-cg="pipe" class="pg-trunc" title="{{ row['Profondità'] or '' }}">{{ row["Profondità"] or "" }}</td>
+    <td data-cg="pipe" class="pg-trunc" title="{{ row['Depth'] or '' }}">{{ row["Depth"] or "" }}</td>
     <td data-cg="pipe" class="pg-trunc pg-dim" title="{{ row.Gap or '' }}">{{ row.Gap or "" }}</td>
     <td data-cg="exec" class="pg-mono pg-sm">{{ row.Script or "" }}</td>
-    <td data-cg="exec" class="pg-cmd" title="{{ row['Comando run'] or '' }}"
-        {% if row['Comando run'] %}onclick="event.stopPropagation(); navigator.clipboard.writeText(this.dataset.cmd); this.classList.add('pg-copied'); setTimeout(()=>this.classList.remove('pg-copied'),500)" data-cmd="{{ row['Comando run'] }}"{% endif %}>{{ (row["Comando run"] or "")[:40] }}{% if (row["Comando run"] or "")|length > 40 %}&hellip;{% endif %}</td>
-    <td data-cg="exec">{% if row["Link azione"] %}<a href="{{ row['Link azione'] }}" target="_blank" class="pg-link">&#8599;</a>{% endif %}</td>
-    <td data-cg="exec" class="pg-r pg-dim pg-mono">{{ row["Costo/run"] if row["Costo/run"] and row["Costo/run"] != "0" else "" }}</td>
+    <td data-cg="exec" class="pg-cmd" title="{{ row['Run command'] or '' }}"
+        {% if row['Run command'] %}onclick="event.stopPropagation(); navigator.clipboard.writeText(this.dataset.cmd); this.classList.add('pg-copied'); setTimeout(()=>this.classList.remove('pg-copied'),500)" data-cmd="{{ row['Run command'] }}"{% endif %}>{{ (row["Run command"] or "")[:40] }}{% if (row["Run command"] or "")|length > 40 %}&hellip;{% endif %}</td>
+    <td data-cg="exec">{% if row["Action link"] %}<a href="{{ row['Action link'] }}" target="_blank" class="pg-link">&#8599;</a>{% endif %}</td>
+    <td data-cg="exec" class="pg-r pg-dim pg-mono">{{ row["Cost/run"] if row["Cost/run"] and row["Cost/run"] != "0" else "" }}</td>
 </tr>
 {% endmacro %}
 
@@ -112,7 +112,7 @@
             <th class="pg-sticky pg-col-stato">Status</th>
             <th class="pg-sticky pg-col-id">ID</th>
             <th class="pg-sticky pg-col-fase">Stage</th>
-            <th data-cg="timing" class="pg-r">Eta h</th>
+            <th data-cg="timing" class="pg-r">Age h</th>
             <th data-cg="timing">Last run</th>
             <th data-cg="dati" class="pg-r">Records</th>
             <th data-cg="dati" class="pg-r">%</th>
@@ -123,7 +123,7 @@
             <th data-cg="conn">Freq</th>
             <th data-cg="pipe" class="pg-c">NLP</th>
             <th data-cg="pipe" class="pg-c">Vec</th>
-            <th data-cg="pipe">Prof.</th>
+            <th data-cg="pipe">Depth</th>
             <th data-cg="pipe">Gap</th>
             <th data-cg="exec">Script</th>
             <th data-cg="exec">Command</th>

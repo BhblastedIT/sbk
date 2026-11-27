@@ -444,7 +444,7 @@ def main() -> int:
         "--sample-out",
         type=Path,
         default=None,
-        help="File to write the samples to (default: scratchpad/compaction-sample.json).",
+        help="File to write the samples to (default: <data root>/samples/compaction-sample-<time>.json).",
     )
     ap.add_argument(
         "--etypes",
@@ -608,7 +608,7 @@ def main() -> int:
 
     if want_samples:
         sample_out = args.sample_out or (
-            _TOOLS_DIR.parent / "scratchpad" / f"compaction-sample-{ts}.json"
+            KNOWLEDGE_DIR.parent / "samples" / f"compaction-sample-{ts}.json"
         )
         sample_out.parent.mkdir(parents=True, exist_ok=True)
         sample_out.write_text(

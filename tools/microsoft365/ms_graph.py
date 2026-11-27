@@ -2,8 +2,8 @@
 """Microsoft 365 plugin: sign-in, token store and Microsoft Graph client.
 
 Personal access only. You register your own public-client app (no secret) and sign
-in as yourself; the plugin asks for delegated scopes that need no admin consent:
-User.Read, Mail.Read, Calendars.Read, Contacts.Read and offline_access.
+in as yourself; the plugin asks for per-user scopes (your own account) that need no
+admin consent: User.Read, Mail.Read, Calendars.Read, Contacts.Read and offline_access.
 
 Two sign-in flows of the Microsoft identity platform, both without a client secret:
 - authorization code + PKCE with a loopback redirect (http://localhost), the default;
@@ -11,9 +11,9 @@ Two sign-in flows of the Microsoft identity platform, both without a client secr
 
 The refresh token (a new one comes back at every use) is kept in the Keychain through
 tools/secrets_adapter.py: service "sbk-microsoft365", account = the mailbox label.
-Without a Keychain (container mode, Linux without a keyring): SBK_MS365_TOKEN_FILE, a JSON
-file (mode 600) the plugin reads and keeps up to date, then SBK_MS365_TOKEN_<LABEL> as a
-read-only seed. Nothing here prints or logs a token.
+Without a Keychain: SBK_MS365_TOKEN_FILE (JSON, mode 600, kept up to date), then the seed
+SBK_MS365_TOKEN_<LABEL>. In container mode (SBK_CONTAINERIZED=1) the seed is read FIRST, as the
+Keychain step (secrets_adapter): unset it after the first run. Nothing here logs a token.
 
 Vendor references (checked 2026-11-25):
 - https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow
@@ -66,8 +66,9 @@ LOGIN_BASE = "https://login.microsoftonline.com"
 GRAPH_HOST = "graph.microsoft.com"
 GRAPH_BASE = f"https://{GRAPH_HOST}/v1.0"
 
-# Delegated scopes. Each one is "AdminConsentRequired: No" for Delegated and available
-# for personal Microsoft accounts on the Graph permissions reference (2026-11-25).
+# Per-user scopes (your own account). On the Graph permissions reference (checked
+# 2026-11-25) each one needs no admin consent when you sign in as yourself, and each
+# one is available for personal Microsoft accounts.
 SCOPES = ("offline_access", "User.Read", "Mail.Read", "Calendars.Read", "Contacts.Read")
 
 # Data under DATA_ROOT. Looked up at call time so tests can point DATA_ROOT elsewhere.
@@ -135,12 +136,8 @@ def contacts_slot() -> Path:
 
 
 def iphone_json_paths() -> list[Path]:
-    """The two JSON address books tools/cross-source/xs-l1-contacts-enrich.py reads."""
-    repo = _TOOLS_DIR.parent
-    return [
-        repo / "sbk" / "raw" / "contacts" / "iphone-contacts.json",
-        data_root() / "contacts" / "iphone-contacts.json",
-    ]
+    """The JSON address book tools/cross-source/xs-l1-contacts-enrich.py reads (data root only)."""
+    return [data_root() / "contacts" / "iphone-contacts.json"]
 
 
 def check_label(label: str) -> str:
@@ -231,7 +228,7 @@ def _read_token_file(path: Path) -> dict:
 
 
 def load_token_record(label: str) -> dict | None:
-    """The saved sign-in of a mailbox: Keychain, then SBK_MS365_TOKEN_FILE, then env seed."""
+    """Saved sign-in: Keychain (container mode: the env seed), SBK_MS365_TOKEN_FILE, env seed."""
     try:
         rec = _parse_record(get_secret(SECRET_SERVICE, label))
     except Exception:  # noqa: BLE001 - a broken keyring must not hide the other places
@@ -341,13 +338,20 @@ def pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 
-def authorize_url(cid: str, tenant: str, redirect_uri: str, challenge: str, state: str) -> str:
+def authorize_url(
+    cid: str,
+    tenant: str,
+    redirect_uri: str,
+    challenge: str,
+    state: str,
+    scopes: tuple[str, ...] | None = None,
+) -> str:
     q = {
         "client_id": cid,
         "response_type": "code",
         "redirect_uri": redirect_uri,
         "response_mode": "query",
-        "scope": " ".join(SCOPES),
+        "scope": " ".join(scopes or SCOPES),
         "state": state,
         "code_challenge": challenge,
         "code_challenge_method": "S256",
@@ -356,7 +360,15 @@ def authorize_url(cid: str, tenant: str, redirect_uri: str, challenge: str, stat
     return _endpoint(tenant, "authorize") + "?" + urllib.parse.urlencode(q)
 
 
-def exchange_code(http, cid: str, tenant: str, code: str, redirect_uri: str, verifier: str) -> dict:
+def exchange_code(
+    http,
+    cid: str,
+    tenant: str,
+    code: str,
+    redirect_uri: str,
+    verifier: str,
+    scopes: tuple[str, ...] | None = None,
+) -> dict:
     return _token_request(
         http,
         tenant,
@@ -366,7 +378,7 @@ def exchange_code(http, cid: str, tenant: str, code: str, redirect_uri: str, ver
             "code": code,
             "redirect_uri": redirect_uri,
             "code_verifier": verifier,
-            "scope": " ".join(SCOPES),
+            "scope": " ".join(scopes or SCOPES),
         },
     )
 
@@ -377,6 +389,7 @@ def browser_login(
     http,
     open_browser: Callable[[str], object] | None = None,
     timeout_s: int = 300,
+    scopes: tuple[str, ...] | None = None,
 ) -> dict:
     """Authorization code + PKCE on a loopback server (http://localhost:<free port>).
 
@@ -422,7 +435,7 @@ def browser_login(
         while not result and time.monotonic() < deadline:
             server.handle_request()
 
-    url = authorize_url(cid, tenant, redirect_uri, challenge, state)
+    url = authorize_url(cid, tenant, redirect_uri, challenge, state, scopes)
     t = threading.Thread(target=serve, daemon=True)
     t.start()
     print(f"Opening the Microsoft sign-in page. If it does not open, visit:\n{url}")
@@ -433,12 +446,21 @@ def browser_login(
         raise TokenError(f"{result['error']}: {result.get('error_description', '')[:300]}")
     if result.get("state") != state or "code" not in result:
         raise TokenError("no authorization code came back (timeout or state mismatch)")
-    return exchange_code(http, cid, tenant, result["code"], redirect_uri, verifier)
+    return exchange_code(http, cid, tenant, result["code"], redirect_uri, verifier, scopes)
 
 
-def device_code_login(cid: str, tenant: str, http, sleep=time.sleep, out=print) -> dict:
+def device_code_login(
+    cid: str,
+    tenant: str,
+    http,
+    sleep=time.sleep,
+    out=print,
+    scopes: tuple[str, ...] | None = None,
+) -> dict:
     status, _h, body = http.request(
-        "POST", _endpoint(tenant, "devicecode"), data={"client_id": cid, "scope": " ".join(SCOPES)}
+        "POST",
+        _endpoint(tenant, "devicecode"),
+        data={"client_id": cid, "scope": " ".join(scopes or SCOPES)},
     )
     if status != 200 or "device_code" not in body:
         raise TokenError(
@@ -476,9 +498,13 @@ def device_code_login(cid: str, tenant: str, http, sleep=time.sleep, out=print) 
 class TokenProvider:
     """Access tokens for one mailbox label, refreshed from the stored refresh token."""
 
-    def __init__(self, label: str, http, record: dict | None = None):
+    def __init__(
+        self, label: str, http, record: dict | None = None, scopes: tuple[str, ...] | None = None
+    ):
         self.label = label
         self.http = http
+        # None = SCOPES read at refresh time (what this plugin asks for)
+        self.scopes = tuple(scopes) if scopes else None
         self.record = record if record is not None else load_token_record(label)
         if not self.record:
             raise SetupError(
@@ -506,7 +532,7 @@ class TokenProvider:
                 "client_id": self.cid,
                 "grant_type": "refresh_token",
                 "refresh_token": self.record["refresh_token"],
-                "scope": " ".join(SCOPES),
+                "scope": " ".join(self.scopes or SCOPES),
             },
         )
         self._access = body["access_token"]

@@ -1,20 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Correlation engine: lines up your daily health data (Whoop, Apple Health, lab values) with your daily activity
+(email, calendar, Slack, relationship scores, NLP, HR) and looks for significant correlations, with Granger and
+VAR models once there is enough history.
+"""
 
 import argparse
 import json

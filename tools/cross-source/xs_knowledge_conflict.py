@@ -726,7 +726,7 @@ MARGINE_NETTO = 0.15
 
 from knowledge_taxonomy import (  # noqa: E402
     AGGREGATO,
-    FUNZIONALI,  # noqa: F401  — re-export: chi la importava da qui continua
+    FUNZIONALI,  # noqa: F401  — re-export: whoever imported it from here keeps working
     MULTI_VALORE,  # noqa: F401  — idem
     NON_CLASSIFICATO,
     ammette_chiusura,

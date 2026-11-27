@@ -22,8 +22,11 @@
   "nickname_aliases": {},
   "_help_nickname_aliases": "{\"<nickname or handle>\": \"<full name>\"}, lower case, for people you call by a short name in messages, transcripts and Slack group-DM names, e.g. {\"sammy\": \"sam demo\", \"samd\": \"sam demo\"}. Name matching, the shadow-contact filter and the dashboard's Shadows page use them; aliases you add on that page are kept in shadow-filters.json. Built in are only generic rules that name nobody (bob -> robert, bill -> william, beppe -> giuseppe...), so \"bob smith\" can match a known \"robert smith\". Empty = no personal aliases.",
 
+  "phone_country_code": "",
+  "_help_phone_country_code": "The country calling code your own phone numbers use, digits only (e.g. \"39\" or \"1\"). A number written without it (\"202 555 0123\" with \"1\") gets it in every step that reads phones (the address book, WhatsApp, Telegram, databases and the other plugins, the merge); a national leading 0 is dropped (\"07700 900123\" with \"44\" is +44 7700 900123) except for the countries that keep it (Italy, San Marino, Vatican City, Ivory Coast), so a WhatsApp chat, a Telegram contact and an address-book card with the same number become one person. Empty = no country is assumed, and only numbers written in full (+44...) match across sources. The SBK_PHONE_CC environment variable wins over this key.",
+
   "enabled_sources": [],
-  "_help_enabled_sources": "The plugins you connected, e.g. [\"whatsapp\", \"email\", \"slack\"]. The pipeline (xs-pipeline-run.py --ingest) runs the L1 step only for these. Empty = every source that has data. Plugins that write the generic intake are filtered by their folder name under the data root (e.g. \"github\", \"zoom\", \"databases\"); listing \"microsoft365\" or \"imap-caldav\" also keeps the email and calendar steps that read their files.",
+  "_help_enabled_sources": "The plugins you connected, e.g. [\"whatsapp\", \"email\", \"slack\"]. When the list is not empty, the download (xs-l0-refresh.py, also with --only) plans only these and the pipeline (xs-pipeline-run.py --ingest) runs the L1 step and reports the download age only for these. Empty = every source: the download plans every source with a download script, and one you have not connected fails in it, so list the sources you connected. Either way --ingest skips at once, with no retry and no failure, the L1 step of a source that has no folder under the data root yet (not downloaded yet). Plugins that write the generic intake are filtered by their folder name under the data root (e.g. \"github\", \"zoom\", \"databases\"); listing \"microsoft365\" or \"imap-caldav\" also keeps the email and calendar steps that read their files. Some sources run only when they are written here, an empty list does not switch them on: \"plaud\" and \"tactiq\" (their download reads the session of the Plaud desktop app, or of the Tactiq web app in Chrome), \"linkedin\" for the status rows of the browser-cookie scripts, and \"chatgpt\" (closed, for an old ChatGPT export).",
 
   "slack": {
     "_help": "Nothing is needed to connect: SBK reads the workspace your personal Slack app is installed in (the token's own workspace). These fields only leave things out or fix names.",
@@ -45,7 +48,11 @@
 
   "clickup": {
     "teams": {},
-    "_help_teams": "{\"<workspace id>\": \"<name>\"}. Empty = every workspace your CLICKUP_API_KEY can see. The first is stored in clickup/backup/, the others in clickup/backup-<id>/."
+    "_help_teams": "{\"<workspace id>\": \"<name>\"}. Empty = every workspace your CLICKUP_API_KEY can see. The first is stored in clickup/backup/, the others in clickup/backup-<id>/.",
+    "tasks_list": "",
+    "_help_tasks_list": "Optional. Id of the ClickUp list the app's Tasks page imports your open tasks from (one-time import into the local tasks engine). Empty = no import: the page says the list is not set.",
+    "user_id": "",
+    "_help_user_id": "Optional. Your ClickUp user id (a number), set as the assignee of the tasks the app creates from Inspiration. Empty = those tasks have no assignee."
   },
 
   "plaud": {
@@ -87,7 +94,7 @@
   },
 
   "network_profiles": {
-    "_help": "People that tools/cross-source/xs-l2-network-profiles.py writes a profile for (sbk/network/<tier>/<id>.md). Empty = nothing is profiled. Copy the entry of _example_people into people and change it. Only name is needed; tier is tier_1, tier_2 or tier_3 (default tier_3); search_names and known_emails find the person in your data; the other fields are your own notes.",
+    "_help": "People that tools/cross-source/xs-l2-network-profiles.py writes a profile for (<data root>/network/<tier>/<id>.md). Empty = nothing is profiled. Copy the entry of _example_people into people and change it. Only name is needed; tier is tier_1, tier_2 or tier_3 (default tier_3); search_names and known_emails find the person in your data; the other fields are your own notes.",
     "people": {},
     "_example_people": {
       "sam-demo": {
@@ -126,10 +133,40 @@
   },
 
   "inspiration": {
+    "archive_dir": "",
+    "_help_archive_dir": "Optional. The folder of your Inspiration archive of saved ideas (the one that holds archivio/ and scomponi/, with their own scripts such as archivio.py, leggi-dm.py and giro.py). SBK does not ship that archive or its scripts. A relative path is read under your data root. Empty = Inspiration is off and the app says so.",
     "projects": [],
     "_help_projects": "Projects the Inspiration triage can tag a saved idea with, e.g. [\"Acme\", \"Side project\"]. Empty = your organisations' names. SBK, personal and other are always there.",
     "clickup_lists": {},
-    "_help_clickup_lists": "Optional. Where the triage creates a ClickUp task, by list id: {\"main\": \"<list id of your backlog>\", \"groups\": {\"deal\": \"<id>\", \"fondi\": \"<id>\"}, \"projects\": {\"<Project>\": {\"*\": \"<id>\", \"marketing\": \"<id>\", \"roadmap\": \"<id>\"}}}. Activity keys are the codes the triage writes (marketing, vendite, prodotto...); \"*\" is the project's default list. Empty = no list, and the triage tells you the list is missing instead of creating a task."
+    "_help_clickup_lists": "Optional. Where the triage creates a ClickUp task, by list id (\"main\" is also where Start puts an idea's task): {\"main\": \"<list id of your backlog>\", \"groups\": {\"deal\": \"<id>\", \"funds\": \"<id>\"}, \"projects\": {\"<Project>\": {\"*\": \"<id>\", \"marketing\": \"<id>\", \"roadmap\": \"<id>\"}}}. Activity keys are the codes the triage writes (marketing, vendite, prodotto...); \"*\" is the project's default list. Empty = no list, and the triage tells you the list is missing instead of creating a task."
+  },
+
+  "app": {
+    "_help": "The macOS app (tools/secondbrain/). Settings for the features that hand work to Claude Code.",
+    "claude_sessions": false,
+    "_help_claude_sessions": "true = you allow the app to start Claude Code sessions in the background with your own `claude` login (your Claude plan or your ANTHROPIC_API_KEY): a request you dictate or write on the Tasks page (sent: the request and your task list), and in Inspiration the understanding of a saved idea, the re-read after your answer, the background sorting and the backlog re-read (sent: the idea, its files and your notes and answers). false or missing = none of them starts and the app says how to turn them on. An SBK_APP_CLAUDE=1 or 0 in the environment the app starts with wins (the app does not read .env). Check with: uv run python tools/secondbrain/sb_own_claude.py status.",
+    "claude_model": "",
+    "_help_claude_model": "Optional. One model for every app session, as `claude --model` takes it (e.g. \"sonnet\"), when your plan lacks the ones the features ask for (opus for Tasks requests and for understanding an idea, haiku for the backlog re-read). Empty = each feature's own."
+  },
+
+  "search": {
+    "synthesis": false,
+    "_help_synthesis": "true = `sbk search` (tools/sbk_cli.py search, tools/cross-source/xs-l3-search.py) also sends your question and the retrieved results (the text of the matching chunks of your mail, chats and transcripts) to Claude with your own `claude` login (`claude -p`) and prints its answer above the sources; the log says so each time. false or missing = raw results only, nothing is sent to a model. The --synthesize flag does the same for one search, --no-synthesis forces raw results."
+  },
+
+  "brief": {
+    "synthesis": false,
+    "_help_synthesis": "true = `sbk brief` (tools/sbk_cli.py brief, tools/cross-source/xs-l3-digest-v2.py) and the dashboard's digest refresh also send today's stories (up to 15: titles, the people with organisation and role, up to 5 items per story with the text of the messages, emails and chats they come from, the context the search index found, knowledge changes) to Claude through the Anthropic API with your ANTHROPIC_API_KEY and write the digest it returns; the log says so first. false or missing = the stories only, nothing is sent to a model, and the output says how much would be sent. The --synthesize flag does the same for one brief, --no-synthesis forces the stories only. The monitor's morning digest asks for it only with your monitor consent (SBK_MONITOR_MODEL=1 or --with-model)."
+  },
+
+  "insights": {
+    "synthesis": false,
+    "_help_synthesis": "true = tools/cross-source/xs-temporal-analysis.py (the weekly insights the dashboard shows) also sends a summary of your week (your name, e-mail/Slack/meeting counts, peak hours and day, the e-mail addresses of up to 5 top and 5 dormant contacts, up to 5 deal names with stage and days in stage) to Claude through the Anthropic API with your ANTHROPIC_API_KEY and saves the insights it returns; the log says so first, with the size. false or missing = the local analysis only, nothing is sent to a model. The --ai flag does the same for one run, --no-ai forces the local analysis."
+  },
+
+  "signals": {
+    "synthesis": false,
+    "_help_synthesis": "true = tools/monitoring/signal-detector.py --scan also sends each new signal (at most 10 per scan: the topic, its sources and dates, up to 8 facts of up to 200 characters about the people involved, your name) to Claude through the Anthropic API with your ANTHROPIC_API_KEY for a written summary; the log says so first, with the size. false or missing = a one-line local summary, nothing is sent to a model. The --synthesize flag does the same for one scan, --no-synthesize forces the local summary. The dashboard's scan button and the monitor never send."
   },
 
   "pipeline_status": {
@@ -274,6 +311,184 @@
         "key": "id"
       }
     ]
+  },
+
+  "hubspot": {
+    "_help": "Your HubSpot contacts, companies, deals, notes and tasks, read with your own user-level app. The client secret and the login live in the Keychain (sbk-hubspot/client-secret, sbk-hubspot/default), never here. Guide: docs/CONNECTING.md#hubspot.",
+    "client_id": "",
+    "_help_client_id": "Client ID of your own app (Auth tab of the app in HubSpot). Not a secret; env HUBSPOT_CLIENT_ID wins if both are set.",
+    "only_mine": true,
+    "_help_only_mine": "true = only the records you own (hubspot_owner_id is you). false = everything your HubSpot user can see. Due dates go to the intake only for items you own either way.",
+    "redirect_port": 8723,
+    "_help_redirect_port": "Local port of the login redirect http://localhost:<port>/oauth-callback. It must match a redirect URL of your app (app-hsmeta.json).",
+    "overlap_hours": 24,
+    "_help_overlap_hours": "Each later run re-reads the records modified in this many hours before the previous run.",
+    "history_days": 0,
+    "_help_history_days": "First download only: 0 = every record; a number = only records modified in the last N days.",
+    "max_details": 2000,
+    "_help_max_details": "At most this many single-record reads per run (the links of deals, notes and tasks to contacts and companies). The rest is read on the next run.",
+    "app_host": "app.hubspot.com",
+    "_help_app_host": "Host of the links written in the intake files, used only when HubSpot's answer has no link. Set it to the address your browser shows when you are in HubSpot if it differs."
+  },
+
+  "pipedrive": {
+    "_help": "Your own Pipedrive user, read with your personal API token (Keychain sbk-pipedrive/api-token or PIPEDRIVE_API_TOKEN in .env) or with an OAuth app you registered yourself. Guide: docs/CONNECTING.md#pipedrive.",
+    "auth": "auto",
+    "_help_auth": "auto = the API token if there is one, else the OAuth sign-in; api_token or oauth to force one.",
+    "scope": "mine",
+    "_help_scope": "mine = deals you own or created, activities you own, created or attend, notes you wrote, and the persons you own or who appear in those; all = everything you can see in Pipedrive (colleagues' deals and activities never become your commitments either way).",
+    "since_days": null,
+    "_help_since_days": "First download only: how many days back to read, by last update. Empty = everything you can see. Later runs continue from the last run minus one hour; --full ignores both.",
+    "include_archived_deals": true,
+    "_help_include_archived_deals": "Pipedrive lists archived deals separately; true reads them too (one more list per run, 20 tokens a page).",
+    "max_requests_per_run": 2000,
+    "_help_max_requests_per_run": "At most this many API calls per run. Each call spends tokens of your company's daily API budget, shared with your colleagues (a page of up to 500 records costs 10 tokens, 20 for archived deals and for notes). A run that reaches the cap stops and the next run continues.",
+    "client_id": "",
+    "_help_client_id": "OAuth route only: the client ID of your private app (Developer Hub, OAuth & access scopes). The client secret goes in the Keychain sbk-pipedrive/client-secret or PIPEDRIVE_CLIENT_SECRET.",
+    "oauth_redirect_port": 8765,
+    "_help_oauth_redirect_port": "OAuth route only: the port of the callback URL registered in your app, http://127.0.0.1:<port>/callback."
+  },
+
+  "fireflies": {
+    "_help": "Your own Fireflies meetings: transcripts, participants, summaries, action items. The API key lives in the Keychain (sbk-fireflies/api-key) or in FIREFLIES_API_KEY; nothing secret goes here. Guide: docs/CONNECTING.md#fireflies.",
+    "history_days": 90,
+    "_help_history_days": "First download only: how many days back to read. Later runs continue from the last completed run.",
+    "overlap_days": 3,
+    "_help_overlap_days": "Each later run re-reads this many days before the last completed run, because Fireflies writes summaries and action items after the meeting.",
+    "only_organized": false,
+    "_help_only_organized": "true = only the meetings you organized (transcripts with mine: true). false = every meeting where you are organizer or participant.",
+    "include_sentences": true,
+    "_help_include_sentences": "true = also download the full transcript of each new meeting (one request per meeting, once). It is used as the meeting text when Fireflies has no summary.",
+    "include_contacts": true,
+    "_help_include_contacts": "true = also read your Fireflies contact list (people who were in meetings with you); it names emails that the meetings list without a name.",
+    "action_items": "all",
+    "_help_action_items": "all = every action item (yours become open commitments, the others are kept as records); mine = only yours; none = no action items.",
+    "max_requests": 400,
+    "_help_max_requests": "Cap on API requests per run. Free allows 500 a day and Pro 5,000; what is left is asked on the next run.",
+    "request_delay_seconds": 2.1,
+    "_help_request_delay_seconds": "Pause between requests. 2.1 s stays under Free's 30 a minute; 1.0 fits Pro and above."
+  },
+
+  "fathom": {
+    "_help": "Your Fathom meetings: invitees, summaries, transcripts and action items, read with your own API key (Keychain sbk-fathom/api-key or FATHOM_API_KEY; nothing secret goes here). Guide: docs/CONNECTING.md#fathom.",
+    "recorded_by": [],
+    "_help_recorded_by": "The email(s) you sign in to Fathom with. The download asks only for meetings recorded by these addresses. Empty = own_emails of this file. If both are empty, every meeting your key can see is read.",
+    "all_visible": false,
+    "_help_all_visible": "true = also read meetings shared with you or your team, not only the ones you recorded (same as --all-visible).",
+    "history_days": 365,
+    "_help_history_days": "First download only: how many days back to read. Later runs continue from the last completed run.",
+    "overlap_days": 14,
+    "_help_overlap_days": "Each later run re-reads this many days before the last completed run, so summaries finished late and action items ticked off in Fathom are picked up."
+  },
+
+  "granola": {
+    "_help": "Your own Granola meeting notes. The personal API key lives in the Keychain (sbk-granola/api-key) or in GRANOLA_API_KEY; nothing secret goes here. Guide: docs/CONNECTING.md#granola.",
+    "history_days": 365,
+    "_help_history_days": "First API download only: how many days of notes to read (by creation date). --all reads every note. Later runs continue from the last complete run.",
+    "overlap_days": 3,
+    "_help_overlap_days": "Each later API run asks again for notes updated this many days before the start of the last complete run, so late summaries and transcripts are not missed.",
+    "own_email": "",
+    "_help_own_email": "The address of your Granola login, if it is not already in own_emails. It keeps you out of the contacts. Empty and no own_emails: the owner of most notes is taken as you (gr-l1-enrich.py prints it).",
+    "text_include_transcript": true,
+    "_help_text_include_transcript": "true = the note text written for the kernel also carries the transcript after the summary and your private notes. false = summary and private notes only.",
+    "csv_columns": {},
+    "_help_csv_columns": "Only for the CSV export, and only if the importer does not recognise a column: field -> header of your file, for example {\"title\": \"Meeting name\", \"date\": \"When\"}. Fields: id, title, date, summary, transcript, attendees, url."
+  },
+
+  "telegram": {
+    "_help": "Your Telegram chats from the Telegram Desktop data export (Settings > Advanced > Export Telegram data, format Machine-readable JSON). No credential. Guide: docs/CONNECTING.md#telegram.",
+    "chat_types": ["personal_chat", "private_group", "private_supergroup"],
+    "_help_chat_types": "Which chats of the export are read. Other values Telegram writes: public_supergroup, bot_chat, private_channel, public_channel, saved_messages, replies, verification_codes.",
+    "exclude_chats": [],
+    "_help_exclude_chats": "Chat names or chat ids to leave out, for example [\"Family\", \"4815162342\"].",
+    "group_contacts_max_senders": 30,
+    "_help_group_contacts_max_senders": "In a group where more people than this wrote, the members are named in that day's interactions but get no contact row of their own (unless you chat with them elsewhere).",
+    "detect_promises": true,
+    "_help_detect_promises": "true = a message with a promise (\"I'll send you the deck tomorrow\", \"ti mando il file domani\") also becomes its own interaction; yours can become a commitment.",
+    "promise_patterns": [],
+    "_help_promise_patterns": "Your own regular expressions (case-insensitive) for a promise; empty = the built-in English and Italian ones (tools/telegram/tg_export.py, DEFAULT_PROMISE_PATTERNS). A list here replaces them.",
+    "promise_open_days": 30,
+    "_help_promise_open_days": "A promise stays open this many days after its message, then it is written as closed (no longer tracked, not known whether kept).",
+    "max_text_chars": 20000,
+    "_help_max_text_chars": "Longest text kept for one chat-day; longer days are cut with a note. 0 = no limit.",
+    "timezone": "",
+    "_help_timezone": "Only for exports made before Telegram wrote date_unixtime: the IANA zone of the computer that made the export, for example \"Europe/Rome\". Empty = this computer's zone.",
+    "own_user_id": "",
+    "_help_own_user_id": "Your Telegram user id, only if the export has no Account information and the plugin says you = unknown."
+  },
+
+  "teams": {
+    "_help": "Your own Microsoft Teams 1:1 and group chats (work or school account), written into the generic intake files. Uses the microsoft365 app (microsoft365.client_id) and its stored sign-in; sign in once with tools/teams/tm-l0-auth.py --account <label>. Guide: docs/CONNECTING.md#teams.",
+    "account": "",
+    "_help_account": "Label used when tm-l0-download.py and tm-l0-auth.py run without --account. Empty = microsoft365.default_account, else outlook. Use the same label as that account in microsoft365, so the sign-in is shared.",
+    "accounts": [],
+    "_help_accounts": "Labels for tm-l0-download.py --all (the scheduled download), e.g. [\"work\"].",
+    "chat_types": ["oneOnOne", "group"],
+    "_help_chat_types": "Which chats to read: oneOnOne, group, meeting (chats attached to online meetings). --include-meeting-chats adds meeting for one run.",
+    "history_days": 365,
+    "_help_history_days": "First download of each chat (or --full): read messages created or changed in the last N days. Later runs read only the changes.",
+    "overlap_minutes": 10,
+    "_help_overlap_minutes": "Later runs re-read each chat from its newest change minus this many minutes.",
+    "page_size": 50,
+    "_help_page_size": "Items per Graph page for chats and messages (Microsoft's maximum is 50).",
+    "timezone": "",
+    "_help_timezone": "IANA zone (e.g. Europe/Rome) that decides where a chat-day starts and ends, and the times written in the text. Empty = SBK_DISPLAY_TZ (UTC if that is unset).",
+    "text_max_chars": 20000,
+    "_help_text_max_chars": "Longest text kept for one chat-day in plugin-interactions.parquet; longer days are cut with a '[... N more messages]' line."
+  },
+
+  "atlassian": {
+    "_help": "Your own Jira and Confluence Cloud account, read with your API token (Keychain sbk-atlassian/api-token or ATLASSIAN_API_TOKEN in .env). Guide: docs/CONNECTING.md#atlassian.",
+    "site": "",
+    "_help_site": "Your Atlassian Cloud site, for example https://your-site.atlassian.net (or set ATLASSIAN_SITE in .env).",
+    "email": "",
+    "_help_email": "The email of your Atlassian account, the user name of basic auth (or ATLASSIAN_EMAIL in .env).",
+    "token_kind": "auto",
+    "_help_token_kind": "auto (default): tries your site, then the api.atlassian.com route a token with scopes needs. unscoped: only your site. scoped: only api.atlassian.com.",
+    "cloud_id": "",
+    "_help_cloud_id": "Only for a token with scopes, optional: the cloud id of your site. Empty = read from https://<site>/_edge/tenant_info.",
+    "products": ["jira", "confluence"],
+    "_help_products": "What to read: jira, confluence or both.",
+    "jira_projects": [],
+    "_help_jira_projects": "Project keys to restrict Jira to, for example [\"DEMO\"]. Empty = every project you can see.",
+    "confluence_spaces": [],
+    "_help_confluence_spaces": "Space keys to restrict Confluence to, for example [\"ENG\"]. Empty = every space you can see.",
+    "since_days": 365,
+    "_help_since_days": "First Jira download only: how many days back (by last update). Later runs continue from the last run plus one hour of overlap. --full ignores it.",
+    "confluence_since_days": 180,
+    "_help_confluence_since_days": "First Confluence download only: how many days back (by last modification). Later runs continue from the day before the last run.",
+    "max_watcher_calls_per_run": 200,
+    "_help_max_watcher_calls_per_run": "At most this many watcher lists are read per run (only issues with more than one watcher that changed); the rest wait for the next run."
+  },
+
+  "linear": {
+    "_help": "Your Linear issues (assigned, created, subscribed) and their comments, read with your own personal API key. The key lives in the Keychain (sbk-linear/api-key) or in .env (LINEAR_API_KEY), never here. Guide: docs/CONNECTING.md#linear.",
+    "history_days": 365,
+    "_help_history_days": "First download only: how many days back to read. 0 = your whole history. --since-days overrides it.",
+    "overlap_hours": 24,
+    "_help_overlap_hours": "Each later run re-reads what changed in this many hours before the previous run.",
+    "include_subscribed": true,
+    "_help_include_subscribed": "true = also issues you only follow (kept as context, never commitments). false = only issues assigned to you or created by you. Turning it on later reads the first-run window again.",
+    "comments": true,
+    "_help_comments": "true = read the comments on your issues (yours and other people's). Turning it on later reads the first-run window again."
+  },
+
+  "contacts": {
+    "_help": "Your address book: exports you import with tools/contacts/ct-l0-import.py, and Google Contacts read with your own Google app. Logins live in the Keychain (sbk-gcontacts/<label>) after tools/contacts/ct-l0-auth.py; nothing secret goes here. Guide: docs/CONNECTING.md#contacts.",
+    "google_accounts": [],
+    "_help_google_accounts": "Labels of the Google accounts signed in with ct-l0-auth.py --account <label>, read by ct-l0-download.py --all (the scheduled download). Empty = no Google download; imported exports are not affected."
+  },
+
+  "linkedin": {
+    "_help": "Only for the browser-cookie scripts in tools/linkedin/scripts/ (outside the guided LinkedIn path, which is the data export). Guide: docs/CONNECTING.md#linkedin.",
+    "own_urn": "",
+    "_help_own_urn": "Optional. Your own LinkedIn member id, the ACoA... at the end of your profile URN (urn:li:fsd_profile:ACoA...), so the scripts can tell your messages from the other person's. Empty = the scripts read it from LinkedIn for your own login. SBK_LINKEDIN_OWN_URN overrides it."
+  },
+
+  "backup": {
+    "_help": "The encrypted backup (tools/infrastructure/sb-backup.py, skill .claude/skills/backup). It always covers your data root, the repo's sbk/ folder and your Claude Code files (this project's sessions and memory, your Claude rules and prompt history), and layer 1 carries a git bundle of this repo; nothing else unless you ask here.",
+    "include_downloads": false,
+    "_help_include_downloads": "true = your whole ~/Downloads folder goes into layer 3 of the backup, encrypted, to an external disk only (never to cloud storage). false or empty = it stays out."
   },
 
   "_help_data_root": "To move the data folder (and the key files kept in its secrets/ folder) use the SBK_DATA_ROOT environment variable (default ~/.sbk-data)."

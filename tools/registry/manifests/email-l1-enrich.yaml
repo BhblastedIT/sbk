@@ -1,5 +1,5 @@
-# Manifest job registro — email-l1-enrich
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: email-l1-enrich
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: email-l1-enrich
 cmd: python3
 args:
@@ -17,4 +17,4 @@ fragile: false
 artifact_refs: []
 forbidden_adapter_types:
 - reverse-eng
-description: Enrichment L1 email (arricchimento contatti/thread da L0 email).
+description: Enrichment L1 email (contacts and threads from the L0 email).

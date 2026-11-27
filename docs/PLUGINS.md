@@ -37,8 +37,14 @@ not have: the registry says so instead of leaving it implicit.
 **The guide for every plugin is [CONNECTING.md](CONNECTING.md)**: what it reads, which credential,
 where you create it, the exact env variable or Keychain entry, the first command, how to check.
 
-1. List it in `enabled_sources` in `sbk.config.json`, by folder name: the pipeline runs the L1 step
-   only for the listed sources (an empty list runs every source that has data).
+1. List it in `enabled_sources` in `sbk.config.json`, by folder name: the download plans and the
+   pipeline runs the L1 step only for the listed sources (an empty list plans every download, and one
+   you never connected fails there, so list yours; `--ingest` skips a source with no folder under the
+   data root yet, `not downloaded yet`).
+   Four run only when
+   they are listed, never with an empty list: `plaud` and `tactiq` (their download reads a login
+   session on your Mac), `linkedin` (only the status rows of its browser-cookie scripts) and
+   `chatgpt` (closed).
 2. Create your own access on the vendor's side (an export, a personal token, or your own app) and
    put the secret in `.env` or the Keychain, as its section says. No step asks you to edit code.
 3. Download with its L0 command.
@@ -56,7 +62,8 @@ works in part, or was tested against mocked services only: its section in CONNEC
   Claude.ai or Manus exports of the tools you used. Builds the identity files the drafts read. On
   request; nothing goes to a model without your consent
 - `chatgpt` (cg-): only if you used ChatGPT; its export is read by `ai-history`. The older
-  `cg-l1-enrich.py` stays for a `conversations.json` you already have
+  `cg-l1-enrich.py` stays for a `conversations.json` you already have, and runs only when
+  `enabled_sources` lists `chatgpt`
 
 **Code**
 - `github` (gh-): repositories, collaborators, issues, pull requests and reviews, with your
@@ -69,14 +76,28 @@ works in part, or was tested against mocked services only: its section in CONNEC
   app password (partial: tested against mocked servers only)
 - `microsoft365` (ms-): your Outlook mail, calendars and contacts, with your own app registration
   (partial: tested against a mocked Microsoft Graph only)
-- `slack` (sl-): channels, threads and your DMs, with your own Slack app and user token
+- `slack` (sl-): the channels you are a member of, their threads and your DMs, with your own Slack app
+  and user token
+- `teams` (tm-): your Microsoft Teams one-to-one and group chats, with the `microsoft365` app
+  registration and a sign-in with `Chat.Read`; work or school accounts only (partial: tested against a
+  mocked Microsoft Graph only)
+- `telegram` (tg-): chats you export from Telegram Desktop, then import; on request (partial: tested
+  with hand-made exports only)
 - `whatsapp` (wa-): chats you export from your phone, then import; on request. Live reading is not
   set up
 
 **CRM**
 - `attio` (at-): Attio CRM (companies, people, notes, calls)
+- `contacts` (ct-): your address book, from a vCard or CSV export you make or from Google Contacts with
+  your own Google app; it adds phones and companies to people SBK already knows (partial: tested with
+  synthetic files and a mocked Google API only)
 - `databases` (db-): people and events from a SQLite, PostgreSQL or MySQL database you own, through
   read-only queries you write (partial: PostgreSQL and MySQL tested against fake drivers only)
+- `hubspot` (hs-): contacts, companies, deals, notes and tasks you own, with your own user-level HubSpot
+  app; installing it needs HubSpot permissions on your user (partial: tested against a mocked HubSpot
+  only)
+- `pipedrive` (pd-): organizations, persons, deals, activities and notes, with your personal API token
+  (partial: tested against a mocked Pipedrive API only)
 
 **Documents**
 - `gdrive` (gd-): Google Drive documents, with your own Google app
@@ -92,8 +113,16 @@ works in part, or was tested against mocked services only: its section in CONNEC
   own. An organisation source: its API credentials need admin rights in Personio
 
 **Meetings & audio**
-- `plaud` (pl-): recordings and transcripts of a Plaud recorder
-- `tactiq` (tq-): meeting transcripts
+- `fathom` (fa-): the meetings you recorded with Fathom, with your personal API key (partial: tested
+  against a mocked Fathom API only)
+- `fireflies` (ff-): your Fireflies meetings, transcripts and action items, with your personal API key
+  (partial: tested against a mocked Fireflies API only)
+- `granola` (gr-): your Granola meeting notes, with a personal API key on the Business plan or the CSV
+  export on the free plan (partial: tested against a mocked API and a hand-made CSV only)
+- `plaud` (pl-): recordings and transcripts of a Plaud recorder, through your Plaud desktop app's
+  session; the scheduled download runs it only when `enabled_sources` lists it
+- `tactiq` (tq-): meeting transcripts, through your Tactiq session in Chrome; the scheduled download
+  runs it only when `enabled_sources` lists it
 - `voice-memos` (vm-): voice memos, transcribed on your machine
 - `zoom` (zm-): your Zoom meetings, participants and cloud-recording transcripts (partial: tested
   against a mocked Zoom API only)
@@ -106,7 +135,11 @@ works in part, or was tested against mocked services only: its section in CONNEC
 - `linkedin` (li-): your LinkedIn data export
 
 **Tasks**
+- `atlassian` (as-): Jira issues and Confluence pages that involve you, with your own Atlassian API
+  token (partial: tested against a mocked Jira and Confluence only)
 - `clickup` (cu-): tasks, comments, docs; tasks become commitments
+- `linear` (ln-): Linear issues assigned to you, created by you or that you follow, with your personal
+  API key (partial: tested against a mocked Linear API only)
 
 **Web**
 - `analytics` (ga-): GA4 properties, with your own Google app
@@ -127,7 +160,8 @@ A service with no folder here has nothing to configure: see
 2. Register it in `tools/sorgenti.py` with its nature and rhythm, and its L1 script as `l1`.
 3. Have L0 write to `<data root>/<name>/raw/`. For L1, write into a slot the kernel already reads
    (mail, calendar, address book, as `imap-caldav` and `microsoft365` do), or use the
-   [generic intake](#generic-intake), as `github`, `zoom` and `databases` do.
+   [generic intake](#generic-intake), as `github`, `zoom`, `databases` and the new CRM, meeting, chat and
+   task plugins do.
 4. Add a `README.md` in the folder: what it needs and how it connects. Only your own access: an
    export, a personal token, or an app in your own account.
 5. Add its L1 script to `L1_SCRIPTS_BASE` in `tools/cross-source/xs-pipeline-run.py` and turn it on
@@ -138,12 +172,14 @@ adapting it is the shortest path.
 
 ### Generic intake
 
-A kernel feature, tested on synthetic files with the network blocked; the `github`, `zoom` and
-`databases` plugins write it, and their tests load their output through the same loader. No real
+A kernel feature, tested on synthetic files with the network blocked. Twelve plugins write it
+(`atlassian`, `databases`, `fathom`, `fireflies`, `github`, `granola`, `hubspot`, `linear`, `pipedrive`,
+`teams`, `telegram`, `zoom`), and their tests load their output through the same loader. No real
 account's data has gone through the merge and the knowledge extraction yet. It needs no registry entry
 of its own: each plugin that writes it keeps its own entry in `tools/sorgenti.py` with its L1 script as
 `l1` (or as an extra L1 step), and its L1 script in the `--ingest` list of
-`tools/cross-source/xs-pipeline-run.py` (today `zoom`, `github_intake`, `databases`).
+`tools/cross-source/xs-pipeline-run.py` (today `zoom`, `github_intake`, `databases`, `hubspot`, `pipedrive`,
+`fireflies`, `fathom`, `granola`, `telegram`, `teams`, `atlassian`, `linear`).
 
 **The two files**, one folder per plugin under your data root:
 
@@ -166,8 +202,10 @@ every column, is the docstring of `tools/cross-source/plugin_intake.py`.
 
 **Who reads them** `tools/cross-source/plugin_intake.py` (the loader), used by
 `tools/cross-source/xs-l2-merge.py` (contacts: matched by email, then phone, then name; an unmatched
-contact with an email becomes a new contact, one without email is counted and left out; uncertain name
-matches go to the same verification list as the other sources) and by
+contact with an email becomes a new contact, one with a phone and no email becomes a contact keyed by
+the normalised phone (matched again by phone with the other sources once they are all in), one with
+neither is counted and left out; uncertain name matches go to the same verification list as the other
+sources) and by
 `tools/cross-source/xs-l2-knowledge-extract.py` (source `plugins`: person facts; an open event where you
 are the assignee, or one with a due date, becomes a commitment). In an incremental run
 (`xs-pipeline-run.py --propagate`) the newest intake file is watched: when any plugin rewrites its
@@ -187,7 +225,10 @@ uv run python tools/cross-source/xs-l2-knowledge-extract.py --source plugins --d
 prints `Plugins: N people, N commitments, N facts`, or
 `Plugins: no plugin-contacts / plugin-interactions files — skipping`. After a merge,
 `enriched/contacts-merged.parquet` has `has_plugin`, `plugin_sources`, `plugin_interactions`,
-`plugin_first_seen`, `plugin_last_seen`, `plugin_title`, `plugin_url`, `plugin_email`.
+`plugin_first_seen`, `plugin_last_seen`, `plugin_title`, `plugin_url`, `plugin_email`; a contact your
+plugin started without an email has `contact_key` `tel:<phone>` and `started_by` `<plugin id>`. A plugin
+row's phone is compared with the shared normaliser (`tools/text_utils.py` `normalize_phone`, which applies
+`phone_country_code`); a plugin that keys or de-duplicates its own rows by phone should use it too.
 
 **Limits** A bare participant (a name inside an event, no contact row) never creates a new person in
 the knowledge layer; it only enriches someone already known. Company and title from a plugin are kept

@@ -133,7 +133,9 @@ def briefing_partial(request: Request):
     ""
     from fastapi.templating import Jinja2Templates
 
-    templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
+    templates = getattr(request.app.state, "templates", None) or Jinja2Templates(
+        directory=str(Path(__file__).resolve().parent.parent / "templates")
+    )
 
 
     path = _briefing_log_path()

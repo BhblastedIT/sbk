@@ -1,5 +1,5 @@
-# Manifest job registro — l2-knowledge-extract
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: l2-knowledge-extract
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: l2-knowledge-extract
 cmd: python3
 args:
@@ -16,4 +16,4 @@ backend: subprocess
 fragile: false
 artifact_refs: []
 forbidden_adapter_types: []
-description: Estrazione knowledge L2 (fatti da entita).
+description: L2 knowledge extraction (facts per entity).

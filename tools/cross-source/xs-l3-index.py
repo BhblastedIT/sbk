@@ -1,48 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Vector index builder: splits every source (email threads, transcripts, Slack, WhatsApp, documents, attachments,
+CRM notes, ClickUp, DocuSign, ChatGPT, voice memos...) into chunks, embeds them locally and stores them in the
+LanceDB table the search uses; --incremental indexes only what changed.
+"""
 
 from __future__ import annotations
 
@@ -69,7 +29,6 @@ if str(_THIS_DIR) not in sys.path:
     sys.path.insert(0, str(_THIS_DIR))
 
 from xs_l3_common import (
-    PROJECT_ROOT,
     SBKData,
     build_transcript_selection_index,
     setup_logging,
@@ -84,8 +43,9 @@ from sbk_config import (
     DATA_ROOT,
     EMAILS_DIR,
     ENRICHED_DIR,
-    FUNDRAISING_DIR,
     KNOWLEDGE_ENTITIES_DIR,
+    NETWORK_DIR,
+    NOTES_DIR,
     NOTION_DIR,
     PLAUD_DIR,
     SBK_ANALYSES_DIR,
@@ -191,15 +151,15 @@ SOURCE_DIRS: dict[str, list[Path]] = {
 
 
     "gdrive": [DATA_ROOT / "gdrive" / "processed"],
-    "domain": [FUNDRAISING_DIR, SBK_ANALYSES_DIR],
+    "domain": [SBK_ANALYSES_DIR],
     "calendar": [CALENDARS_DIR],
     "knowledge": [KNOWLEDGE_ENTITIES_DIR],
     "session": [SESSIONS_TEXT_DIR],
 }
 
 
-SOURCE_DIRS["network"] = [PROJECT_ROOT / "sbk" / "network"]
-SOURCE_DIRS["raw"] = [PROJECT_ROOT / "sbk" / "raw"]
+SOURCE_DIRS["network"] = [NETWORK_DIR]
+SOURCE_DIRS["raw"] = [NOTES_DIR]
 
 
 def get_source_mtime(source: str) -> float:
@@ -741,7 +701,8 @@ def chunk_slack_interactions() -> list[Chunk]:
 
     from slack_esclusi import e_escluso, esclusi
 
-    fuori = esclusi()
+    # Slack never downloaded: no files to chunk, so the channel index is not needed.
+    fuori = esclusi() if json_files else frozenset()
 
     for fpath in json_files:
         try:
@@ -1107,9 +1068,9 @@ def chunk_network_profiles() -> list[Chunk]:
     ""
     chunks = []
 
-    network_dir = PROJECT_ROOT / "sbk" / "network"
+    network_dir = NETWORK_DIR
     if not network_dir.exists():
-        log.warning(f"Network directory not found: {network_dir}")
+        log.info(f"No network profiles yet in {network_dir}: nothing to index")
         return chunks
 
 
@@ -1203,9 +1164,9 @@ def chunk_raw_analysis() -> list[Chunk]:
     ""
     chunks = []
 
-    raw_dir = PROJECT_ROOT / "sbk" / "raw"
+    raw_dir = NOTES_DIR
     if not raw_dir.exists():
-        log.warning(f"Raw directory not found: {raw_dir}")
+        log.info(f"No notes yet in {raw_dir}: nothing to index")
         return chunks
 
 
@@ -1244,7 +1205,7 @@ def chunk_raw_analysis() -> list[Chunk]:
             section_label = f", section '{heading}'" if heading else ""
             context = (
                 f"This chunk is from a raw analysis document '{doc_name}'{section_label}. "
-                f"File: sbk/raw/{rel_path}. "
+                f"File: notes/{rel_path}. "
                 f"Part of {OWNER_LABEL}'s SBK knowledge base."
             )
 
@@ -2471,7 +2432,7 @@ def chunk_domain_documents() -> list[Chunk]:
 
 
     all_files = []
-    for src_dir in [FUNDRAISING_DIR, SBK_ANALYSES_DIR]:
+    for src_dir in [SBK_ANALYSES_DIR]:
         if src_dir and src_dir.exists():
             all_files.extend(sorted(src_dir.rglob("*.md")))
 
@@ -2489,11 +2450,7 @@ def chunk_domain_documents() -> list[Chunk]:
 
         doc_name = fpath.stem.replace("-", " ").replace("_", " ").strip()
 
-        domain_label = (
-            "fundraising"
-            if FUNDRAISING_DIR and fpath.is_relative_to(FUNDRAISING_DIR)
-            else "analysis"
-        )
+        domain_label = "analysis"
 
         sections = _split_markdown_sections(content)
 
@@ -3948,9 +3905,19 @@ def _main_inner(args):
 
 
     log.info("\n=== Loading Embedding Model ===")
-    model, model_name, dim = load_embedding_model(
-        args.model, device_override=args.device, use_fp16=args.fp16
-    )
+    try:
+        model, model_name, dim = load_embedding_model(
+            args.model, device_override=args.device, use_fp16=args.fp16
+        )
+    except RuntimeError as e:
+        # Usually a first run without network: the local model is downloaded once from Hugging Face.
+        log.error(
+            "%s. The search index needs a local embedding model: the first run downloads it from "
+            "Hugging Face, so it needs the network once (or a model already in your Hugging Face cache).",
+            e,
+        )
+        # EX_CONFIG: a setup problem, the pipeline does not retry it (xs-pipeline-run EXIT_CONFIGURAZIONE)
+        sys.exit(78)
 
 
 

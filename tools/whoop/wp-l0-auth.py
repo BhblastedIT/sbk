@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
+"""WHOOP sign-in: opens the browser for the OAuth authorization of your WHOOP developer app (WHOOP_CLIENT_ID and
+secret), receives the callback on localhost and keeps the tokens in the Keychain; --check and --refresh.
+"""
 
 import argparse
 import os

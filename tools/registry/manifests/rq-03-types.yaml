@@ -1,5 +1,5 @@
-# Manifest job registro — rq-03-types
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: rq-03-types
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: rq-03-types
 cmd: python3
 args:

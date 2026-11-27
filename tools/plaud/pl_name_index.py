@@ -1,40 +1,12 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Name index of the knowledge base for Plaud: looks up a name or first name and returns the matching entity id,
+from a cached index of names and aliases (rebuilt daily or with --rebuild).
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 import unicodedata
@@ -52,8 +24,17 @@ try:
     _PERSON_DIR = KNOWLEDGE_ENTITIES_DIR / "person"
     _DEFAULT_CACHE = PLAUD_DIR.parent / "pl-name-index.json"
 except Exception:  # pragma: no cover - fallback when sbk_config is not on path
-    _PERSON_DIR = Path.home() / ".sbk-data" / "knowledge" / "entities" / "person"
-    _DEFAULT_CACHE = Path.home() / ".sbk-data" / "plaud" / "pl-name-index.json"
+    _PERSON_DIR = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "knowledge"
+        / "entities"
+        / "person"
+    )
+    _DEFAULT_CACHE = (
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "plaud"
+        / "pl-name-index.json"
+    )
 
 CACHE_TTL_SECS = 86400
 

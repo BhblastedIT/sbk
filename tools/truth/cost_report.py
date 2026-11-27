@@ -1,14 +1,6 @@
-""
-
-
-
-
-
-
-
-
-
-
+"""Cost report from the ledger of model and API calls: spend per service in the last hours and drift from the
+expected cost; --strict exits non-zero when something is flagged.
+"""
 
 from __future__ import annotations
 

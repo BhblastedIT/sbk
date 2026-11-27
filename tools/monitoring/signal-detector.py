@@ -1,33 +1,20 @@
 #!/usr/bin/env python3
-""
+"""Signal detector: finds topics or entities that show up in several sources within a short window, scores them and
+notifies you of the relevant ones, each with a one-line local summary.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Nothing is sent to a model by default. A summary written by Claude is your choice: --scan --synthesize for one
+run, or "signals": {"synthesis": true} in sbk.config.json. For each new signal (at most 10 per scan) it then
+sends the topic, its sources and dates, up to 8 facts of up to 200 characters about the people involved and your
+name to Claude through the Anthropic API with your ANTHROPIC_API_KEY, and the log says so first, with the size.
+--no-synthesize is still accepted: it forces the local summary even when the config turns synthesis on.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import logging
+import os
 import re
 import sys
 from collections import defaultdict
@@ -469,18 +456,30 @@ def filter_new_signals(
 
 
 
-def synthesize_signal(cluster: dict) -> str:
-    ""
-    try:
-        import anthropic  # noqa: F401 — probe installation; actual client via factory
-    except ImportError:
-        return _fallback_synthesis(cluster)
+WHAT_IS_SENT = (
+    "the topic, its sources and dates, up to 8 facts of up to 200 characters about the people "
+    "involved, your name"
+)
 
+
+def synthesis_wanted(synthesize_flag: bool = False, no_synthesize_flag: bool = False) -> bool:
+    """True only when you asked for model summaries: --synthesize, or signals.synthesis true in sbk.config.json.
+
+    Off by default, so a plain --scan sends nothing to a model. --no-synthesize always wins.
+    """
+    if no_synthesize_flag:
+        return False
+    if synthesize_flag:
+        return True
+    import sbk_config
+
+    return sbk_config.user_cfg("signals.synthesis", False) is True
+
+
+def build_signal_prompt(cluster: dict) -> str:
+    """The exact text that --synthesize sends to the model for one signal."""
     contexts = cluster.get("contexts", [])
-    if not contexts:
-        return _fallback_synthesis(cluster)
-
-    prompt = f"""You are an intelligence analyst working for the user. These facts come from
+    return f"""You are an intelligence analyst working for the user. These facts come from
 independent sources (email, Slack, meetings, CRM) and concern the same topic/entity.
 
 Generate a summary in English (max 120 words) structured as follows:
@@ -495,6 +494,28 @@ Grouped topic/entity: {cluster["theme"]}
 Grouped facts ({len(cluster["source_types"])} sources, {cluster["first_seen"]} - {cluster["last_seen"]}):
 {chr(10).join(f"- [{c[:200]}]" for c in contexts[:8])}"""
 
+
+def synthesize_signal(cluster: dict) -> str:
+    """Claude's summary of one signal (Anthropic API, ANTHROPIC_API_KEY), else the local one.
+
+    Called only when synthesis_wanted() said yes; the log line before the call says what is sent.
+    """
+    try:
+        import anthropic  # noqa: F401 — probe installation; actual client via factory
+    except ImportError:
+        return _fallback_synthesis(cluster)
+
+    if not cluster.get("contexts", []):
+        return _fallback_synthesis(cluster)
+
+    prompt = build_signal_prompt(cluster)
+    log.info(
+        "Sending signal '%s' (%d characters: %s) to Claude through the Anthropic API with your "
+        "ANTHROPIC_API_KEY for its summary",
+        cluster.get("theme", "?"),
+        len(prompt),
+        WHAT_IS_SENT,
+    )
     try:
         _CROSS_SOURCE_DIR = Path(__file__).resolve().parent.parent / "cross-source"
         if str(_CROSS_SOURCE_DIR) not in sys.path:
@@ -561,9 +582,9 @@ def notify_signal(signal: dict, dry_run: bool = False) -> bool:
 def run_signal_scan(
     config: dict | None = None,
     dry_run: bool = False,
-    synthesize: bool = True,
+    synthesize: bool = False,
 ) -> dict:
-    ""
+    """One scan. Claude's summaries only with synthesize=True (--synthesize or signals.synthesis), never on dry_run."""
 
 
 
@@ -614,6 +635,24 @@ def run_signal_scan(
     log.info("New signals above threshold: %d (of %d clusters)", len(new_signals), len(clusters))
 
 
+    to_send = [c for c in new_signals[:10] if c.get("contexts")]
+    send = bool(synthesize and to_send and not dry_run)
+    if synthesize and to_send and not dry_run and not os.environ.get("ANTHROPIC_API_KEY"):
+        log.info(
+            "No model summaries: ANTHROPIC_API_KEY is not set (put it in .env or in the environment), "
+            "so nothing was sent"
+        )
+        send = False
+    elif to_send and not send:
+        log.info(
+            'Nothing was sent to a model. Model summaries off: --synthesize (or "signals": '
+            '{"synthesis": true} in sbk.config.json) sends %d signal(s) (%d characters: %s) to Claude '
+            "through the Anthropic API with your ANTHROPIC_API_KEY",
+            len(to_send),
+            sum(len(build_signal_prompt(c)) for c in to_send),
+            WHAT_IS_SENT,
+        )
+
     created_signals = []
     for cluster in new_signals[:10]:
 
@@ -636,7 +675,7 @@ def run_signal_scan(
         }
 
 
-        if synthesize and cluster.get("contexts"):
+        if send and cluster.get("contexts"):
             signal["summary"] = synthesize_signal(cluster)
         else:
             signal["summary"] = _fallback_synthesis(cluster)
@@ -710,7 +749,10 @@ def show_stats() -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="SBK Signal Detector")
+    parser = argparse.ArgumentParser(
+        description="SBK signal detector: topics that show up in several sources. Nothing is sent to a "
+        "model unless you ask (--scan --synthesize, or signals.synthesis true in sbk.config.json)."
+    )
     parser.add_argument("--scan", action="store_true", help="Run full signal detection scan")
     parser.add_argument("--stats", action="store_true", help="Show signal statistics")
     parser.add_argument(
@@ -729,13 +771,25 @@ def main():
         help="Override combined score threshold (default: from config)",
     )
     parser.add_argument(
-        "--no-synthesize", action="store_true", help="Skip Claude synthesis (use fallback)"
+        "--synthesize",
+        action="store_true",
+        help="With --scan: also send each new signal (the topic, its sources and dates, up to 8 facts "
+        "of up to 200 characters about the people involved, your name) to Claude through the "
+        "Anthropic API with your ANTHROPIC_API_KEY for a written summary. Off by default; "
+        "signals.synthesis true in sbk.config.json turns it on for every scan",
+    )
+    parser.add_argument(
+        "--no-synthesize",
+        action="store_true",
+        help="Local summaries only (the default); overrides signals.synthesis true in sbk.config.json",
     )
     parser.add_argument(
         "--init-config", action="store_true", help="Create default signal-config.json"
     )
     parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
     args = parser.parse_args()
+    if args.synthesize and args.no_synthesize:
+        parser.error("--synthesize and --no-synthesize together: choose one")
 
     logging.basicConfig(
         level=logging.DEBUG if args.verbose else logging.INFO,
@@ -761,7 +815,7 @@ def main():
         result = run_signal_scan(
             config=config,
             dry_run=args.dry_run,
-            synthesize=not args.no_synthesize,
+            synthesize=synthesis_wanted(args.synthesize, args.no_synthesize),
         )
 
         print("\nSignal Scan Summary:")

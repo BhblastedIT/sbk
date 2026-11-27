@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
+"""Clinical L1: reads the documents waiting in clinical/incoming/ and extracts the lab values with a model
+(DeepSeek for text, Anthropic for images), normalising markers and units, into records.parquet and values.parquet.
+The document text leaves your machine during this step.
+"""
 
 import argparse
 import json
@@ -479,12 +473,23 @@ def call_llm_for_blood_test(
     if use_anthropic:
         if not os.environ.get("ANTHROPIC_API_KEY"):
             raise RuntimeError("ANTHROPIC_API_KEY not set — required for image-based extraction")
+        log.info(
+            "Sending this document (%d characters of text%s) to Claude through the Anthropic API with "
+            "your ANTHROPIC_API_KEY to read the lab values",
+            len(raw_text),
+            ", 1 image" if image_b64 else "",
+        )
         raw_response = call_llm_with_retry(
             _call_anthropic_multimodal, raw_text, image_b64, media_type
         )
     else:
         if not os.environ.get("DEEPSEEK_API_KEY"):
             raise RuntimeError("DEEPSEEK_API_KEY not set — required for text-based extraction")
+        log.info(
+            "Sending this document (%d characters of text) to DeepSeek (api.deepseek.com) with your "
+            "DEEPSEEK_API_KEY to read the lab values",
+            min(len(raw_text), 8000),
+        )
         raw_response = call_llm_with_retry(_call_deepseek_text, raw_text)
 
     return parse_llm_response(raw_response)

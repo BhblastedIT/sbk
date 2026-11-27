@@ -1,24 +1,11 @@
 #!/usr/bin/env python3
-""
+"""Inspiration section of the SecondBrain app: the things you save to look at later (reels, posts, sites, links,
+screenshots, notes, audio), read from <archive folder>/archivio/archivio.jsonl and grouped for the app
+(the folder is inspiration.archive_dir in sbk.config.json; unset = Inspiration is off, sb_inspiration_root.py),
+with their state (not seen yet, seen, understood) and the groups that wait on you.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/secondbrain/sb_inspiration.py json   (prints the state the app shows)
+"""
 
 from __future__ import annotations
 
@@ -34,9 +21,13 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 HOME = os.path.expanduser("~")
-RADICE = os.environ.get("SB_INSPIRATION_RADICE") or os.path.join(
-    HOME, ".sbk-data", "inspiration"
-)
+if os.path.dirname(os.path.abspath(__file__)) not in sys.path:
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sb_inspiration_root  # noqa: E402
+
+# The archive folder: inspiration.archive_dir in sbk.config.json (or SB_INSPIRATION_RADICE).
+# Unset = Inspiration is off and stato() says so instead of reading anything.
+RADICE = str(sb_inspiration_root.root())
 ARCHIVIO = os.path.join(RADICE, "archivio", "archivio.jsonl")
 ESPORTAZIONE = os.path.join(RADICE, "archivio", "pagina", "inspiration.json")
 
@@ -1847,7 +1838,7 @@ def _conta_domande(n: int) -> str:
 
 
 
-_ORDINALI = {2: "seconda", 3: "terza", 4: "quarta", 5: "quinta"}
+_ORDINALI = {2: "2nd", 3: "3rd", 4: "4th", 5: "5th"}
 
 
 
@@ -1856,7 +1847,6 @@ _SOSTITUZIONI_PRIMA = (
         r"la sessione si è chiusa senza scrivere l'esito",
         "la comprensione si è interrotta prima di finire",
     ),
-    (r"il gestore degli account non ha un abbonamento da dare( adesso)?", "nessun abbonamento è libero adesso"),
     (r"session[ei] di comprensione", "comprensione"),
     (r"sessione di rilettura", "rilettura"),
 
@@ -1891,7 +1881,6 @@ _SOSTITUZIONI = (
     (r"sottofondo", ""),
     (r"tentativi", "volte"),
     (r"tentativo", "volta"),
-    (r"AccountPool", "gli abbonamenti"),
     (r"giri", "controlli"),
     (r"giro", "controllo"),
     (r"dalla coda", "dal percorso"),
@@ -1942,7 +1931,8 @@ _RE_FILE = re.compile(
 )
 _RE_ISO = re.compile(r"\b(?:(il|del|dal|al) )?(\d{4}-\d\d-\d\d)(?:[ T](\d\d:\d\d)(?::\d\d)?)?\b")
 
-_ARTICOLI = {"il": "l'", "del": "dell'", "dal": "dall'", "al": "all'"}
+# The Italian preposition in front of a date in the internal text, said in English.
+_ARTICOLI = {"il": "on", "del": "of", "dal": "since", "al": "to"}
 
 
 def _giorno_parole(data: str) -> str:
@@ -1952,11 +1942,10 @@ def _giorno_parole(data: str) -> str:
         return data
     oggi = datetime.date.today()
     if d.date() == oggi:
-        return "oggi"
+        return "today"
     if d.date() == oggi - datetime.timedelta(days=1):
-        return "ieri"
-    art = "l'" if d.day in (8, 11) else "il "
-    testo = f"{art}{d.day}{'°' if d.day == 1 else ''} {MESI[d.month - 1]}"
+        return "yesterday"
+    testo = f"{MESI[d.month - 1]} {d.day}"
     return testo if d.year == oggi.year else f"{testo} {d.year}"
 
 
@@ -1968,15 +1957,9 @@ def _date_parole(testo: str) -> str:
         detta = _quando(f"{data}T{ora}") if ora else _giorno_parole(data)
         if not prima:
             return detta
-        if detta.startswith(("oggi", "ieri")):
+        if detta.startswith(("today", "yesterday")):
             return detta
-
-        nuda = re.sub(r"^(il |l')", "", detta)
-        return (
-            f"{_ARTICOLI[prima]}{nuda}"
-            if nuda[:1] in ("8",) or nuda.startswith("11 ")
-            else f"{prima} {nuda}"
-        )
+        return f"{_ARTICOLI[prima]} {detta}"
 
     return _RE_ISO.sub(una, testo)
 
@@ -2056,11 +2039,11 @@ def _parole_semplici(testo: str) -> str:
 
 
 def _n_domande(n: int) -> str:
-    return "una domanda" if n == 1 else f"{n} domande"
+    return "one question" if n == 1 else f"{n} questions"
 
 
 def _ordinale_volta(n: int) -> str:
-    return f"per la {_ORDINALI.get(n, f'{n}ª')} volta"
+    return f"for the {_ORDINALI.get(n, f'{n}th')} time"
 
 
 
@@ -2096,104 +2079,104 @@ def _storia_parole_di_oggi(cosa: str) -> str:
         return detta
     m = _P(r"^buttato dentro \(DM Slack, messaggio del (\d{4}-\d\d-\d\d) (\d\d:\d\d)\)$").match(c)
     if m:
-        return f"Arrivato dal tuo DM, me l'hai mandato {_quando(f'{m.group(1)}T{m.group(2)}')}"
+        return f"Came in from your DM, you sent it {_quando(f'{m.group(1)}T{m.group(2)}')}"
     m = _P(r"^mandato di nuovo nel DM \((\d{4}-\d\d-\d\d) (\d\d:\d\d)\)$").match(c)
     if m:
-        return f"Me l'hai mandato di nuovo nel DM {_quando(f'{m.group(1)}T{m.group(2)}')}"
+        return f"You sent it again in the DM {_quando(f'{m.group(1)}T{m.group(2)}')}"
     if _P(rf"^parere di {_OWN_RX} \(testo col link\)$").match(c):
-        return "Le tue parole, scritte accanto al link"
+        return "Your words, written next to the link"
     m = _P(rf"^parere di {_OWN_RX}(?: \((.*)\))?$").match(c)
     if m:
 
-        return "Le tue parole" + (f", {m.group(1)}" if m.group(1) else "")
+        return "Your words" + (f", {m.group(1)}" if m.group(1) else "")
     m = _P(r"^mandato da te nel DM \((\d{4}-\d\d-\d\d) (\d\d:\d\d)\)").match(c)
     if m:
-        return f"Me l'hai mandato tu nel DM {_quando(f'{m.group(1)}T{m.group(2)}')}"
+        return f"You sent it in the DM {_quando(f'{m.group(1)}T{m.group(2)}')}"
     if c == f"ritorno letto da {_OWN_NAME}":
-        return "Hai letto il ritorno"
+        return "You read the reply"
     if c.startswith(f"dettaglio di {_OWN_NAME} nell'app"):
-        return "Hai aggiunto un dettaglio" + (
-            ", a voce, da trascrivere" if "a voce, da trascrivere" in c else ""
+        return "You added a detail" + (
+            ", by voice, to transcribe" if "a voce, da trascrivere" in c else ""
         )
     m = _P(rf"^smistamento rimesso da {_OWN_RX}, era (.*)$").match(c)
     if m:
-        return f"Hai riaperto dove va, prima era {m.group(1)}"
+        return f"You reopened where it goes, it was {m.group(1)}"
     if c.startswith(f"perché corretto a voce da {_OWN_NAME}"):
-        return "Hai raddrizzato a voce cosa ho capito, vale quando il tuo audio è trascritto"
+        return "You corrected by voice what I understood, it counts once your audio is transcribed"
     m = _P(rf"^{_OWN_RX} conferma le parole sentite nell'audio per «[^»]*»: («.*»)$").match(c)
     if m:
-        return f"Hai confermato le parole del tuo audio, {m.group(1)}"
+        return f"You confirmed the words of your audio, {m.group(1)}"
     m = _P(rf"^{_OWN_RX} ha tolto la risposta a ([^,]+(?:, [ds]\d+)*), la domanda torna aperta").match(c)
     if m:
         quante = len([x for x in m.group(1).split(",") if x.strip()])
         if quante == 1:
-            return "Hai tolto la risposta a una domanda, torna aperta"
-        return f"Hai tolto la risposta a {quante} domande, tornano aperte"
+            return "You removed the answer to a question, it is open again"
+        return f"You removed the answers to {quante} questions, they are open again"
     if c.startswith(f"avviata da {_OWN_NAME}"):
-        return "Hai premuto Avvia, il lavoro è partito nel terminale"
+        return "You pressed Start, the work started in the terminal"
     m = _P(r"^trascrizione dell'audio non riuscita .*tentativo (\d+) su (\d+)$").match(c)
     if m:
         return (
-            f"La trascrizione del tuo audio non è riuscita, ci ho provato {m.group(1)} volte"
-            f" su {m.group(2)}"
+            f"The transcription of your audio failed, I tried {m.group(1)} times"
+            f" out of {m.group(2)}"
         )
     if _P(rf"^audio di {_OWN_RX} non riuscit[ao]").match(c):
-        return "Il tuo audio non si è trascritto"
+        return "Your audio did not transcribe"
     if c == "registrata, il contenuto non è ancora stato capito":
-        return "Entrato, il contenuto lo devo ancora vedere e capire"
+        return "In, I still have to see and understand the content"
     if c == "registrata, contenuto visto, da capire":
-        return "Entrato, il contenuto l'ho visto e lo devo ancora capire"
+        return "In, I have seen the content and still have to understand it"
     if c.startswith("parlato → senza parlato"):
-        return "Nel video non c'è una voce che parla"
+        return "No one speaks in the video"
     m = _P(r"^contenuto visto, (.*)$").match(c)
     if m:
-        return f"Contenuto visto, {_parole_semplici(m.group(1))}"
+        return f"Content seen, {_parole_semplici(m.group(1))}"
     m = _P(r"^da «da capire» a «capito», dossier rifatto dal contenuto visto \((.*)\)$").match(c)
     if m:
-        return f"Capito dal contenuto visto, {_parole_semplici(m.group(1))}"
+        return f"Understood from the content seen, {_parole_semplici(m.group(1))}"
     if c == "da «capito» a «da decidere», c'è un tuo parere":
-        return "Capito, adesso decidi tu"
+        return "Understood, now you decide"
     m = _P(r"^da «capito» a «da decidere», il dossier dice («.*»)$").match(c)
     if m:
-        return f"Capito, adesso decidi tu. Per me è {m.group(1)}"
+        return f"Understood, now you decide. For me it is {m.group(1)}"
     if c.startswith("comprensione presa dal dossier rifatto"):
 
-        return "Ho capito il contenuto"
+        return "I understood the content"
     if _P(r"^(?:re)?importato da ").match(c):
-        return "Ripreso dall'archivio di prima"
+        return "Taken from the earlier archive"
     if _P(r"^archivio v\d+, campi nuovi aggiunti").match(c):
-        return "Archivio aggiornato, niente tolto"
+        return "Archive updated, nothing removed"
     if c.startswith("passaggio una tantum da «") and "a «da capire»" in c:
-        return "Rimesso fra quelli da capire, il contenuto non l'avevo visto"
+        return "Put back among those to understand, I had not seen the content"
     m = _P(r"^comprensione partita in sottofondo \((.*)\)$").match(c)
     if m and "premuto Fallo adesso" in m.group(1):
-        return "Hai premuto Fallo adesso, ho cominciato a capirlo"
+        return "You pressed Do it now, I started to understand it"
     if m:
         dentro = m.group(1)
         t = re.search(r"tentativo (\d+)", dentro)
         n = int(t.group(1)) if t else 1
-        frase = "Ho cominciato a capirlo" + (" da solo" if "da sola" in dentro else "")
+        frase = "I started to understand it" + (" on my own" if "da sola" in dentro else "")
         return frase + (f", {_ordinale_volta(n)}" if n > 1 else "")
     if _P(r"^sessione di comprensione aperta nel terminale").match(c):
-        return "Ho cominciato a capirlo nel terminale"
+        return "I started to understand it in the terminal"
     if c in ("comprensione fatto", "sessione di comprensione fatto"):
-        return "Ho finito di capirlo"
+        return "I finished understanding it"
     m = _P(r"^(?:sessione di )?comprensione ferm[ao],? (.*)$").match(c)
     if m:
 
         motivo = _motivo_normale(m.group(1))
-        if motivo.lower().startswith("la comprensione"):
+        if motivo.lower().startswith(("la comprensione", "understanding")):
             return motivo
-        return f"La comprensione si è fermata. {motivo}"
+        return f"Understanding stopped. {motivo}"
     m = _P(r"^rilettura ferm[ao],? (.*)$").match(c)
     if m:
         motivo = _maiuscola(_parole_semplici(m.group(1)))
         if motivo.lower().startswith("la rilettura"):
             return motivo
-        return f"La rilettura si è fermata. {motivo}"
+        return f"The re-read stopped. {motivo}"
     m = _P(r"^smistamento proposto, (.*)$").match(c)
     if m:
-        return f"Ti ho proposto dove va, {_parole_semplici(m.group(1))}"
+        return f"I proposed where it goes, {_parole_semplici(m.group(1))}"
 
 
     m = _P(r"^perché proposto, (.+?), (\d+) cose che mi mancano$").match(c)
@@ -2201,62 +2184,62 @@ def _storia_parole_di_oggi(cosa: str) -> str:
 
         esito = _esito_a_scope(m.group(1))
         esito = f"{esito}, " if esito else ""
-        return f"Ti ho detto cosa ho capito, {esito}{_n_domande(int(m.group(2)))}"
+        return f"I told you what I understood, {esito}{_n_domande(int(m.group(2)))}"
     m = _P(r"^perché proposto, (.*)$").match(c)
     if m:
-        return _con_resto("Ti ho detto cosa ho capito", m.group(1))
+        return _con_resto("I told you what I understood", m.group(1))
     m = _P(rf"^perché corretto da {_OWN_RX},? ?(.*)$").match(c)
     if m:
-        return _con_resto("Hai raddrizzato cosa ho capito", m.group(1))
+        return _con_resto("You corrected what I understood", m.group(1))
     m = _P(rf"^perché confermato da {_OWN_RX},? ?(.*)$").match(c)
     if m:
-        return _con_resto("Hai confermato cosa ho capito", m.group(1))
+        return _con_resto("You confirmed what I understood", m.group(1))
     m = _P(r"^perché riscritto, (.*)$").match(c)
     if m:
-        return _con_resto("Ho riscritto cosa ho capito", m.group(1))
+        return _con_resto("I rewrote what I understood", m.group(1))
     m = _P(rf"^audio di {_OWN_RX} trascritto \((.*)\)$").match(c)
     if m:
         s = re.search(r"(\d+(?:\.\d+)?) s\b", m.group(1))
         durata = _durata_audio(s.group(1)) if s else ""
-        return "Il tuo audio è trascritto" + (f", {durata}" if durata else "")
+        return "Your audio is transcribed" + (f", {durata}" if durata else "")
     m = _P(rf"^audio di {_OWN_RX} senza parlato \((.*)\)$").match(c)
     if m:
         s = re.search(r"(\d+(?:\.\d+)?) s\b", m.group(1))
         durata = _durata_audio(s.group(1)) if s else ""
-        return "Nel tuo audio" + (f" di {durata}" if durata else "") + " non ho sentito parole"
+        return "In your audio" + (f" of {durata}" if durata else "") + " I heard no words"
     m = _P(rf"^audio di {_OWN_RX} da verificare, ho sentito («.*?»)").match(c)
     if m:
-        return f"Nel tuo audio ho sentito {m.group(1)}, da verificare"
+        return f"In your audio I heard {m.group(1)}, to be checked"
     if _P(rf"^la domanda [ds]\d+ è chiusa con le parole di {_OWN_RX}$").match(c):
-        return "Hai risposto a una domanda"
+        return "You answered a question"
     m = _P(r"^la domanda [ds]\d+ resta aperta, (.*)$").match(c)
     if m:
         motivo = {
-            "audio senza parlato": "nel tuo audio non ho sentito parole",
-            "audio da verificare": "il tuo audio è da verificare",
+            "audio senza parlato": "I heard no words in your audio",
+            "audio da verificare": "your audio needs checking",
         }.get(m.group(1), _parole_semplici(m.group(1)))
-        return f"Una domanda resta aperta, {motivo}"
+        return f"A question stays open, {motivo}"
 
 
     if _P(r"^la domanda [ds]\d+ non serve più, l'agente nel terminale te la chiede lì$", re.I).match(c):
-        return "L'agente nel terminale ha tolto una domanda dall'app, te la chiede lì"
+        return "The agent in the terminal took a question off the app, it asks you there"
     m = _P(r"^la domanda [ds]\d+ non serve più, (.*)$", re.S).match(c)
     if m:
-        return f"Una domanda non serve più. {_parole_semplici(m.group(1))}"
+        return f"A question is no longer needed. {_parole_semplici(m.group(1))}"
     m = _P(rf"^risposta di {_OWN_RX} alla domanda [ds]\d+(?: \((.*)\))?$").match(c)
     if m:
 
-        return "Hai risposto a una domanda" + (f", {m.group(1)}" if m.group(1) else "")
+        return "You answered a question" + (f", {m.group(1)}" if m.group(1) else "")
     m = _P(rf"^risposta di {_OWN_RX} a (\d+) domande insieme \([^)]*\)(?: \((.*)\))?$").match(c)
     if m:
         dentro = f", {m.group(2)}" if m.group(2) else ""
-        return f"Hai risposto a {m.group(1)} domande insieme{dentro}"
+        return f"You answered {m.group(1)} questions together{dentro}"
     m = _P(r"^l'audio per «[ds]\d+» torna a whisper.*?ho sentito prima («.*?»)").match(c)
     if m:
-        return f"Il tuo audio lo trascrivo di nuovo, prima avevo sentito {m.group(1)}"
+        return f"I am transcribing your audio again, before I had heard {m.group(1)}"
     m = _P(r"^rilettura partita in sottofondo con la sua risposta delle (\d\d:\d\d)").match(c)
     if m:
-        return f"Ho cominciato a rileggere tutto con la tua risposta delle {m.group(1)}"
+        return f"I started re-reading everything with your answer from {m.group(1)}"
     m = _P(r"^rilettura fatto,? ?(.*)$").match(c)
     if m:
         resto = (
@@ -2264,43 +2247,43 @@ def _storia_parole_di_oggi(cosa: str) -> str:
             .replace("dove vuole", "dove vuoi")
             .replace("sue parole", "tue parole")
         )
-        return "Ho riletto tutto" + (f", {resto}" if resto else "")
+        return "I re-read everything" + (f", {resto}" if resto else "")
 
     m = _P(
         r"^la sessione dello spunto è di nuovo aperta nel terminale, era segnata chiusa dalle (\d\d:\d\d)"
     ).match(c)
     if m:
         return (
-            f"L'agente dello spunto è di nuovo aperto nel terminale, risultava chiuso dalle {m.group(1)}"
+            f"The idea's agent is open again in the terminal, it showed as closed since {m.group(1)}"
         )
     if c == "la sessione di lavoro è di nuovo aperta nel terminale":
-        return "Il lavoro è di nuovo aperto nel terminale"
+        return "The work is open again in the terminal"
     if _P(r"^sessione dello spunto aperta nel terminale").match(c):
 
-        return "Si è aperto un agente nel terminale" + (", col tuo clic" if "Ci lavoriamo" in c else "")
+        return "An agent opened in the terminal" + (", on your click" if "Ci lavoriamo" in c else "")
     if c == "sessione dello spunto chiusa":
-        return "L'agente nel terminale si è chiuso"
+        return "The agent in the terminal closed"
     if _P(
         r"^la sessione (?:dello spunto|di lavoro|di comprensione) non è più aperta nel terminale"
     ).match(c):
-        return "L'agente nel terminale non c'è più"
+        return "The agent in the terminal is gone"
     m = _P(r"^domanda (?:di )?(.+?) chiusa da sola, (.*)$").match(c)
     if m:
 
         resto = _parole_semplici(re.sub(r"\s*\(.*$", "", m.group(2)))
-        return f"La domanda di {m.group(1)} non serve più, {resto}"
+        return f"The question from {m.group(1)} is no longer needed, {resto}"
     if c.startswith("il link /p/ è un video solo"):
-        return "È un video, non un post"
+        return "It is a video, not a post"
     m = _P(r"^disponibilità da «(.+?)» a «(.+?)»").match(c)
     if m:
-        return f"Adesso è «{m.group(2)}», prima era «{m.group(1)}»"
+        return f"Now it is «{m.group(2)}», before it was «{m.group(1)}»"
     m = _P(r"^comprensione superata, il dossier diceva «(.+?)» ma la pagina dice «(.+?)»").match(c)
     if m:
-        return f"Riletto da capo, prima risultava «{m.group(1)}» ma la pagina dice «{m.group(2)}»"
+        return f"Re-read from the start, before it said «{m.group(1)}» but the page says «{m.group(2)}»"
     m = _P(r"^da «(.+?)» a «(.+?)»,? ?(.*)$").match(c)
     if m:
         resto = _parole_semplici(m.group(3))
-        return f"Passato da «{m.group(1)}» a «{m.group(2)}»" + (f", {resto}" if resto else "")
+        return f"Moved from «{m.group(1)}» to «{m.group(2)}»" + (f", {resto}" if resto else "")
     return _maiuscola(_parole_semplici(c))
 
 
@@ -2337,10 +2320,10 @@ def _riga_di_scope(s: dict) -> bool:
 
 def _storia_scope(c: str) -> str:
     ""
-    a_voce = ", a voce, da trascrivere" if c.endswith(" (a voce, da trascrivere)") else ""
+    a_voce = ", by voice, to transcribe" if c.endswith(" (a voce, da trascrivere)") else ""
     m = _P(rf"^scope confermato da {_OWN_RX}, versione \d+, (.+)$").match(c)
     if m:
-        return "Hai confermato lo scope" + (
+        return "You confirmed the scope" + (
             f", {_strada_storia(m.group(1))}" if _strada_storia(m.group(1)) else ""
         )
     m = _P(r"^scope, versione \d+(.*)$").match(c)
@@ -2353,61 +2336,61 @@ def _storia_scope(c: str) -> str:
             if _strada_storia(x):
                 detto.append(_strada_storia(x))
             elif x.startswith("progetto "):
-                detto.append(f"per {x[len('progetto ') :]}")
+                detto.append(f"for {x[len('progetto ') :]}")
             elif _P(r"^(\d+) domande nuove$").match(x):
-                detto.append(f"{x}")
+                detto.append(x.replace("domande nuove", "new questions"))
             elif x == "1 domanda nuova":
-                detto.append("una domanda nuova")
-        testa = "Hai cambiato lo scope" if di_owner else "Ho riscritto lo scope"
+                detto.append("one new question")
+        testa = "You changed the scope" if di_owner else "I rewrote the scope"
         return ", ".join([testa, *detto])
     if c.startswith(f"domanda di {_OWN_NAME} sullo scope"):
-        return "Hai fatto una domanda sullo scope" + a_voce
+        return "You asked a question about the scope" + a_voce
     if c.startswith(f"scope raddrizzato da {_OWN_NAME}"):
-        return "Hai raddrizzato lo scope" + a_voce
+        return "You corrected the scope" + a_voce
     m = _P(rf"^riaperto da {_OWN_RX}, torna allo scope \(era (.+?)\)(, la task .* resta dov'è)?$").match(c)
     if m:
-        return f"Hai riaperto lo spunto, era {m.group(1)}" + (
-            ", la task resta dov'è" if m.group(2) else ""
+        return f"You reopened the idea, it was {m.group(1)}" + (
+            ", the task stays where it is" if m.group(2) else ""
         )
     if c == f"studio letto da {_OWN_NAME}":
-        return "Hai letto lo studio"
+        return "You read the study"
     m = _P(r"^scope cambiato, rifaccio (.+), versione \d+$").match(c)
     if m:
-        return f"Hai scelto di rifare {m.group(1)} con lo scope nuovo"
+        return f"You chose to redo {m.group(1)} with the new scope"
     m = _P(r"^scope cambiato, (.+) (resta com'è|restano come sono), versione \d+$").match(c)
     if m:
-        come = "com'è" if m.group(2) == "resta com'è" else "come sono"
-        return f"Hai tenuto {m.group(1)} {come}"
+        come = "as it is" if m.group(2) == "resta com'è" else "as they are"
+        return f"You kept {m.group(1)} {come}"
     m = _P(r"^proposta di scope nuova dopo la tua conferma, cambia (.+), aspetta te$").match(c)
     if m:
-        return f"Ti ho proposto un altro scope, cambia {m.group(1)}"
+        return f"I proposed another scope, it changes {m.group(1)}"
     m = _P(r"^(\d+) domande nuove per lo scope$").match(c)
     if m:
-        return f"Ti ho fatto {m.group(1)} domande nuove sullo scope"
+        return f"I asked you {m.group(1)} new questions about the scope"
     if c == "1 domanda nuova per lo scope":
-        return "Ti ho fatto una domanda nuova sullo scope"
+        return "I asked you a new question about the scope"
     m = _P(r"^progetto in testa allo spunto da «(.+?)» a «(.+?)», come nello scope$").match(c)
     if m:
-        return f"Il progetto è passato da «{m.group(1)}» a «{m.group(2)}», come nello scope"
+        return f"The project moved from «{m.group(1)}» to «{m.group(2)}», as in the scope"
     m = _P(r"^le tue parole («.*») erano una domanda e restano una domanda").match(c)
     if m:
-        return f"Le tue parole {m.group(1)} restano una domanda"
+        return f"Your words {m.group(1)} stay a question"
     m = _P(r"^le tue parole («.*») erano una correzione e valgono come correzione").match(c)
     if m:
-        return f"Le tue parole {m.group(1)} valgono come correzione"
+        return f"Your words {m.group(1)} count as a correction"
     m = _P(r"^perché, l'etichetta diventa (.+) come lo scope$").match(c)
     if m:
-        return "Il perché segue lo scope"
+        return "The why follows the scope"
     return ""
 
 
 
 ESITO_A_SCOPE = {
-    "una funzione da aggiungere": "una funzione",
-    "un contenuto da fare": "un contenuto",
+    "una funzione da aggiungere": "a feature",
+    "un contenuto da fare": "a piece of content",
     "un flusso da creare": "",
-    "da tenere da parte": "da tenere come riferimento",
-    "un'ispirazione tua": "da tenere come riferimento",
+    "da tenere da parte": "to keep as a reference",
+    "un'ispirazione tua": "to keep as a reference",
     "altro": "",
 }
 
@@ -6531,6 +6514,8 @@ def _campi_filtri_bacheca() -> dict:
 def stato() -> dict:
     ""
     global _CFG_DELLA_BACHECA, _ATTIVITA_DELLA_BACHECA
+    if not sb_inspiration_root.is_on():
+        return {"ok": False, "spenta": True, "messaggio": sb_inspiration_root.OFF_MESSAGE}
     try:
         return _stato()
     finally:
@@ -7146,9 +7131,9 @@ def _motivo_normale(motivo: str) -> str:
 
     m = _parole_semplici(str(motivo or "")).strip().rstrip(".")
     if not m:
-        return "La comprensione si è interrotta prima di finire"
+        return "Understanding stopped before it finished"
     if re.match(r"^si è interrott[ao] prima di finire$", m, re.I):
-        return "La comprensione si è interrotta prima di finire"
+        return "Understanding stopped before it finished"
     if _MOTIVI_SENZA_SOGGETTO.match(m):
 
         m = "la comprensione " + m[:1].lower() + m[1:]
@@ -8427,6 +8412,10 @@ DUBBI_IN_PIU = (
     r"\bnon sono sicur",
     r"\bnon ne sono sicur",
     r"\bboh\b",
+    # English
+    r"\bi don'?t know\b",
+    r"\bnot sure\b",
+    r"\bno idea\b",
 )
 
 
@@ -8439,6 +8428,14 @@ PERSONA_FORME = (
     r"\b(il|al|del|col|con il|dal|per il) team\b",
     r"\bseguit[oaie] da\b",
     r"\bse ne (occupa|occupano)\b",
+    # English
+    r"\b(he|she|they|someone) (could|should|can|must) (do|follow|handle|take care of|own)\b",
+    r"\b(have|let|get) \w+ (do|handle|take care of) it\b",
+    r"\bask \w+ to\b",
+    r"\btogether with\b",
+    r"\b(the|with the|for the|to the) team\b",
+    r"\b(handled|followed|owned) by\b",
+    r"\btakes? care of it\b",
 )
 
 
@@ -9119,6 +9116,9 @@ def per_app() -> dict:
 
 
 def main(argv: list[str]) -> int:
+    if argv[1:2] in (["-h"], ["--help"]):
+        print(__doc__)
+        return 0
     if argv[1:2] == ["json"]:
         print(json.dumps(stato(), ensure_ascii=False))
         return 0

@@ -132,6 +132,15 @@ def source_enabled(name: str) -> bool:
     return not ENABLED_SOURCES or _norm_source(name) in ENABLED_SOURCES
 
 
+def source_listed(name: str) -> bool:
+    """True only if `name` is written in enabled_sources (an empty list does not count).
+
+    For the sources that read a login session of an app or a browser on this Mac (Plaud,
+    Tactiq, LinkedIn) and for closed sources (chatgpt): they run only when you list them.
+    """
+    return _norm_source(name) in ENABLED_SOURCES
+
+
 # --- Google ----------------------------------------------------------------
 # Google plugins sign in with your own OAuth client (Desktop app), one browser
 # login per account, refresh token in the Keychain: see tools/google_oauth.py.
@@ -341,11 +350,16 @@ ATTIO_TRANSCRIPTS_DIR = ATTIO_DIR / "transcripts"
 
 
 
-# Attio workspaces. The primary one (internal label "acme", data in attio/)
-# plus the extra ones of sbk.config.json "attio.extra_workspaces".
+# Attio workspaces. The primary one (label "primary", key ATTIO_API_KEY, data in attio/)
+# plus the extra ones of sbk.config.json "attio.extra_workspaces" (data in attio-<label>/).
+ATTIO_PRIMARY_WORKSPACE = "primary"
 ATTIO_WORKSPACE_DIRS: dict[str, Path] = {
-    "acme": ATTIO_DIR,
-    **{label: DATA_ROOT / f"attio-{label}" for label in ATTIO_EXTRA_WORKSPACES if label != "acme"},
+    ATTIO_PRIMARY_WORKSPACE: ATTIO_DIR,
+    **{
+        label: DATA_ROOT / f"attio-{label}"
+        for label in ATTIO_EXTRA_WORKSPACES
+        if label != ATTIO_PRIMARY_WORKSPACE
+    },
 }
 ATTIO_TRANSCRIPTS_DIRS: list[Path] = [d / "transcripts" for d in ATTIO_WORKSPACE_DIRS.values()]
 
@@ -384,6 +398,13 @@ SESSIONS_TEXT_DIR = DATA_ROOT / "manual-ingestion" / "session-text"
 
 
 CALENDARS_DIR = DATA_ROOT / "calendars"
+# The JSON copy of a full calendar download (tools/calendar/ca-l0-download.py).
+CALENDAR_RAW_DIR = CALENDARS_DIR / "raw"
+# People profiles written by tools/cross-source/xs-l2-network-profiles.py (<tier>/<id>.md),
+# plus your optional _index.md and investors.json; read by the search index and the drafts.
+NETWORK_DIR = DATA_ROOT / "network"
+# Your own markdown notes and analyses, indexed by tools/cross-source/xs-l3-index.py (source "raw").
+NOTES_DIR = DATA_ROOT / "notes"
 
 
 
@@ -427,7 +448,6 @@ TOPICS_FILE = NLP_DIR / "topics.json"
 
 
 
-FUNDRAISING_DIR = DATA_ROOT / "fundraising"
 HR_POLICY_DIR = DATA_ROOT / "hr-policy"
 EMAIL_PDFS_DIR = DATA_ROOT / "email-pdfs"
 SBK_ANALYSES_DIR = DATA_ROOT / "sbk-analyses"
@@ -659,6 +679,18 @@ def get_relationship_score(entity_id: str) -> dict | None:
 
 EVENTS_DIR = DATA_ROOT / "events"
 L1_CHECKPOINT_DIR = DATA_ROOT / "l1-checkpoints"
+
+# Automatic cascades (the event bus and the dashboard scheduler start the next step on their
+# own): on, unless this file exists. `tools/util/sb-pipeline-ctl.py off` writes it, `on` removes it.
+CASCADES_OFF_FLAG = DATA_ROOT / "CASCADES_OFF"
+
+
+def automatic_cascades_on() -> bool:
+    """False when automatic cascades are switched off (CASCADES_OFF_FLAG exists)."""
+    try:
+        return not CASCADES_OFF_FLAG.exists()
+    except OSError:
+        return True
 
 
 
@@ -1413,14 +1445,14 @@ SOURCE_REGISTRY: dict[str, dict] = {
     "tactiq": {
         "category": "meeting",
         "update_freq": "weekly",
-        "download_method": "browser_scrape",
+        "download_method": "browser_session",
         "scripts": {"l0": "tactiq/tq-l0-download.py", "l1": "tactiq/tq-l1-enrich.py"},
         "dependencies": [],
     },
     "plaud": {
         "category": "meeting",
         "update_freq": "on_demand",
-        "download_method": "api",
+        "download_method": "app_session",
         "scripts": {"l0": "plaud/pl-l0-download.py", "l1": "plaud/pl-l1-enrich.py"},
         "dependencies": [],
     },
@@ -1428,7 +1460,7 @@ SOURCE_REGISTRY: dict[str, dict] = {
         "category": "spot",
         "update_freq": "on_demand",
         "download_method": "file_drop",
-        "scripts": {"l0": "linkedin/li-l0-extract-urls.py", "l1": "linkedin/li-l1-enrich.py"},
+        "scripts": {"l0": "linkedin/li-l0-import-export.py", "l1": "linkedin/li-l1-enrich.py"},
         "dependencies": [],
     },
     "docusign": {
@@ -2864,181 +2896,8 @@ def release_pid_lock(name: str) -> None:
 
 
 
-LIVESTATE_MAX_LINES = 400
-LIVESTATE_MAX_BYTES = 25_600
-
-
-
-LIVESTATE_WARN_RATIO = 0.8
-
-
-
-LIVESTATE_MAX_AGE_DAYS = 14
-
-
-
-
-
-LIVESTATE_ROTATE_AGE_DAYS = 7
-
-
-
-LIVESTATE_KEEP_MAX_AGE_DAYS = 90
-
-
-
-
-SB_NOW_START = "<!-- SB-NOW:START -->"
-SB_NOW_END = "<!-- SB-NOW:END -->"
-SB_WAIT_START = "<!-- SB-WAIT:START -->"
-SB_WAIT_END = "<!-- SB-WAIT:END -->"
-SB_KEEP_START = "<!-- SB-KEEP:START -->"
-SB_KEEP_END = "<!-- SB-KEEP:END -->"
-SB_STUB_MARK = "<!-- SB-STUB"
-
-
-SB_MARCATORI = (
-    SB_NOW_START,
-    SB_NOW_END,
-    SB_WAIT_START,
-    SB_WAIT_END,
-    SB_KEEP_START,
-    SB_KEEP_END,
-    SB_STUB_MARK,
-)
-
-
-def livestate_max_kb() -> int:
-    ""
-
-
-
-
-    return LIVESTATE_MAX_BYTES // 1024
-
-
-def livestate_misura(path=None):
-    ""
-
-
-
-
-
-
-
-
-
-
-
-
-
-    from pathlib import Path as _P
-
-    p = _P(path) if path else livestate_path()
-    raw = p.read_bytes()
-    righe = len(raw.decode("utf-8", errors="replace").splitlines())
-    quota = max(righe / LIVESTATE_MAX_LINES, len(raw) / LIVESTATE_MAX_BYTES)
-    stato = "fuori" if quota > 1 else ("avviso" if quota > LIVESTATE_WARN_RATIO else "ok")
-    return righe, len(raw), quota, stato
-
-
-
+# The repository root (the folder that holds tools/).
 REPO_ROOT = Path(__file__).resolve().parent.parent
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def livestate_path() -> Path:
-    ""
-    return Path(
-        os.environ.get("SB_LIVE_STATE") or REPO_ROOT / "sbk" / "context" / "live-state.md"
-    )
-
-
-def sessionlog_path() -> Path:
-    ""
-    return Path(
-        os.environ.get("SB_SESSION_LOG")
-        or REPO_ROOT / "sbk" / "context" / "sessions" / "SESSION-LOG.md"
-    )
-
-
-
-
-LIVESTATE_PATH = livestate_path()
-SESSIONLOG_PATH = sessionlog_path()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-LIVESTATE_ABBONATI = (
-    "tools/util/sb-doc-check.py",
-    "tools/infrastructure/sb-state-rotate.py",
-    "tools/util/sb-wait.py",
-    "tools/util/sb-decision-scan.py",
-)
-
-LIVESTATE_CONCETTI = (
-    "LIVESTATE_MAX_LINES",
-    "LIVESTATE_MAX_BYTES",
-    "LIVESTATE_MAX_AGE_DAYS",
-    "LIVESTATE_ROTATE_AGE_DAYS",
-    "LIVESTATE_KEEP_MAX_AGE_DAYS",
-    "LIVESTATE_WARN_RATIO",
-    "LS_MAX_RIGHE",
-    "LS_MAX_BYTE",
-    "MAX_RIGHE",
-    "MAX_LINES",
-    "MAX_BYTES",
-    "MAX_KB",
-    "KEEP_MAX_AGE_DAYS",
-    "NOW_START",
-    "NOW_END",
-    "WAIT_START",
-    "WAIT_END",
-    "KEEP_START",
-    "KEEP_END",
-    "STUB_MARK",
-    "MARK_START",
-    "MARK_END",
-)
-
-LIVESTATE_DOMINIO = (
-    "live-state",
-    "SESSION-LOG",
-    "SB-NOW",
-    "SB-WAIT",
-    "SB-KEEP",
-    "SB-STUB",
-)
-
-
-assert LIVESTATE_ROTATE_AGE_DAYS <= LIVESTATE_MAX_AGE_DAYS, (
-    "rotate BEFORE turning red, otherwise the gate shouts about something the fix does not touch"
-)
-assert 0 < LIVESTATE_WARN_RATIO < 1, "LIVESTATE_WARN_RATIO is a fraction between 0 and 1"
-assert livestate_max_kb() * 1024 == LIVESTATE_MAX_BYTES, "the cap must be a multiple of KB"
 
 
 def scrivi_atomico(percorso, testo: str) -> None:

@@ -1,31 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Quality metrics of the people in the knowledge base: duplicate, composite and skeleton rates, facts per entity,
+confidence distribution, multi-source rate, review queue; saves a snapshot, shows the trend and raises alerts
+above the thresholds.
+"""
 
 from __future__ import annotations
 

@@ -52,7 +52,9 @@ from tools.plaud.regole.nomi import (  # noqa: E402
     norm,
 )
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 RAW = DATA / "plaud" / "raw"
 QUADRO = DATA / "plaud" / "quadro"
 SEGNALI = QUADRO / "segnali" / "r2.jsonl"
@@ -657,7 +659,9 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=((__doc__ or "").strip().splitlines() or ["Plaud rules R2, transcript text"])[0]
     )
-    ap.add_argument("--da-zero", action="store_true", help="ignore the cache")
+    ap.add_argument("--from-scratch", dest="da_zero", action="store_true", help="ignore the cache")
+    # Older Italian name, kept as a hidden alias.
+    ap.add_argument("--da-zero", dest="da_zero", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
     CACHE.mkdir(parents=True, exist_ok=True)
     SEGNALI.parent.mkdir(parents=True, exist_ok=True)

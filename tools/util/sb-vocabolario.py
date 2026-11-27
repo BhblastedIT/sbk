@@ -1,54 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Learns the company abbreviations used in your data (from organization names in the knowledge base and the CRM)
+and keeps the vocabulary in knowledge/meta/vocabolario-sigle.json (--scrivi).
+"""
 
 from __future__ import annotations
 

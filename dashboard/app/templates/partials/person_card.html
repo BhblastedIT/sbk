@@ -61,61 +61,6 @@
         </div>
         {% endif %}
 
-        <!-- Investor Momentum (F5) -->
-        {% if momentum %}
-        <div class="bg-base-200/50 rounded-lg p-3 mb-4">
-            <div class="flex items-center justify-between mb-2">
-                <h3 class="font-semibold text-sm">Investor Momentum</h3>
-                <div class="flex items-center gap-1.5">
-                    <span class="font-mono text-lg font-bold
-                        {% if momentum.score >= 70 %}text-success
-                        {% elif momentum.score >= 40 %}text-warning
-                        {% else %}text-error{% endif %}">
-                        {{ momentum.score }}
-                    </span>
-                    {% if momentum.trend == 'increasing' %}
-                        <svg class="w-4 h-4 text-success" fill="currentColor" viewBox="0 0 20 20"><path d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"/></svg>
-                    {% elif momentum.trend == 'decreasing' %}
-                        <svg class="w-4 h-4 text-error" fill="currentColor" viewBox="0 0 20 20"><path d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z"/></svg>
-                    {% elif momentum.trend == 'stable' %}
-                        <svg class="w-4 h-4 text-base-content/40" fill="currentColor" viewBox="0 0 20 20"><path d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/></svg>
-                    {% endif %}
-                </div>
-            </div>
-            {% if momentum.factors %}
-            <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                <div class="flex justify-between">
-                    <span class="text-base-content/60">Frequency</span>
-                    <span class="font-mono">{{ "%.0f"|format(momentum.factors.response_frequency * 100) }}%</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-base-content/60">Velocity</span>
-                    <span class="font-mono">{{ "%.0f"|format(momentum.factors.response_speed * 100) }}%</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-base-content/60">Sentiment</span>
-                    <span class="font-mono">{{ "%.0f"|format(momentum.factors.sentiment * 100) }}%</span>
-                </div>
-                <div class="flex justify-between">
-                    <span class="text-base-content/60">Depth</span>
-                    <span class="font-mono">{{ "%.0f"|format(momentum.factors.question_depth * 100) }}%</span>
-                </div>
-            </div>
-            {% endif %}
-            {% if momentum.history %}
-            <div class="flex items-center gap-2 mt-2 text-xs text-base-content/50">
-                <span>History:</span>
-                {% for h in momentum.history[-3:] %}
-                <span class="font-mono">{{ h.score }}</span>{% if not loop.last %}<span>→</span>{% endif %}
-                {% endfor %}
-            </div>
-            {% endif %}
-            {% if momentum.stage %}
-            <div class="text-xs text-base-content/40 mt-1">Stage: {{ momentum.stage }} | {{ momentum.emails_analyzed or 0 }} emails analyzed</div>
-            {% endif %}
-        </div>
-        {% endif %}
-
         <!-- Relationship Quality (RQ-06) -->
         {% include "partials/rq_profile_section.html" %}
 

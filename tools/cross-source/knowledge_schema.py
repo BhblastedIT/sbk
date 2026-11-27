@@ -304,6 +304,8 @@ class Fact:
 
 
     ritiro: dict | None = None
+    # the entity a merge moved this fact from (kept so the merge can be undone)
+    source_entity_id: str | None = None
 
 
 @dataclass
@@ -432,6 +434,7 @@ def fact_to_dict(f: Fact) -> dict:
 
 
         **({"ritiro": f.ritiro} if f.ritiro else {}),
+        **({"source_entity_id": f.source_entity_id} if f.source_entity_id else {}),
     }
 
 
@@ -454,6 +457,7 @@ def dict_to_fact(d: dict) -> Fact:
         observations=[dict_to_fact_observation(o) for o in d.get("observations", [])],
         rank=d.get("rank"),
         ritiro=d.get("ritiro"),
+        source_entity_id=d.get("source_entity_id"),
     )
 
 

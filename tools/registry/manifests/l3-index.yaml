@@ -1,5 +1,5 @@
-# Manifest job registro — l3-index
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: l3-index
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: l3-index
 cmd: python3
 args:
@@ -16,4 +16,4 @@ backend: subprocess
 fragile: false
 artifact_refs: []
 forbidden_adapter_types: []
-description: L3 index (vector). Ricostruibile da L2.
+description: L3 index (vector). Rebuildable from L2.

@@ -4,8 +4,10 @@
 
 const fs = require('fs');
 
-const COMPLETE_FILE = process.argv[2] || require('path').join(__dirname, '..', '..', '..', 'sbk', 'raw', 'linkedin', 'linkedin-threads-complete.json');
-const RECENT_FILE = process.argv[3] || require('path').join(process.env.HOME, '.sbk-data', 'linkedin', 'raw', 'linkedin-threads-recent.json');
+// Both files live under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo.
+const LI_RAW = require('path').join(process.env.SBK_DATA_ROOT || require('path').join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw');
+const COMPLETE_FILE = process.argv[2] || require('path').join(LI_RAW, 'linkedin-threads-complete.json');
+const RECENT_FILE = process.argv[3] || require('path').join(LI_RAW, 'linkedin-threads-recent.json');
 
 const complete = JSON.parse(fs.readFileSync(COMPLETE_FILE, 'utf8'));
 const recent = JSON.parse(fs.readFileSync(RECENT_FILE, 'utf8'));

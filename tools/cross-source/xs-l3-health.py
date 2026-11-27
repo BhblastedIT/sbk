@@ -1,23 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""L3 health check, read-only: size and freshness of the vector index (sbk_chunks) per source against the expected
+freshness, and the state of the L3 files; --json for machines.
+"""
 
 from __future__ import annotations
 
@@ -237,19 +221,19 @@ def render(data: dict, ascii_mode: bool = False) -> None:
 
     t = data["table"]
     print("\n=== SBK L3 Health ===")
-    print(f"  generato, {data['generated_at'][:19]}")
-    print("\n[Tabella sbk_chunks]")
+    print(f"  generated, {data['generated_at'][:19]}")
+    print("\n[Table sbk_chunks]")
     if "error" in t:
-        print(f"  errore, {t['error']}")
+        print(f"  error, {t['error']}")
     else:
         sv = "v2" if t.get("has_schema_version") else "v1 (pre-migration)"
-        print(f"  righe, {t.get('rows'):,}  |  colonne, {t.get('columns')} ({sv})")
-        print(f"  versioni, {t.get('versions')}  |  indici, {t.get('indices')}")
+        print(f"  rows, {t.get('rows'):,}  |  columns, {t.get('columns')} ({sv})")
+        print(f"  versions, {t.get('versions')}  |  indices, {t.get('indices')}")
     print(
-        f"  dimensioni, data {t['size_data']}  _indices {t['size_indices']}  totale {t['size_total']}"
+        f"  size, data {t['size_data']}  _indices {t['size_indices']}  total {t['size_total']}"
     )
 
-    print("\n[Sorgenti, lag e freshness]")
+    print("\n[Sources, lag and freshness]")
     print(f"  {'src':<18} {'chunks':>9} {'lag':>9}  {'SLO':>6}  st")
     for s in data["sources"]:
         lag = f"{s['lag_hours']}h" if s["lag_hours"] is not None else "?"
@@ -258,19 +242,19 @@ def render(data: dict, ascii_mode: bool = False) -> None:
         )
     stale = [s["source"] for s in data["sources"] if s["status"] == "🔴"]
     if stale:
-        print(f"\n  {st('🔴')} STALE (oltre 2x SLO), {', '.join(stale)}")
+        print(f"\n  {st('🔴')} STALE (over 2x SLO), {', '.join(stale)}")
 
     j = data.get("jobs", {})
-    print("\n[Run pipeline, ultime 24h]")
+    print("\n[Pipeline runs, last 24h]")
     if "error" in j:
         print(f"  n/d ({j['error']})")
     else:
         print(
-            f"  totale {j.get('total_24h')}  |  per stato {j.get('by_status')}  |  durata media {j.get('avg_duration_s')}s"
+            f"  total {j.get('total_24h')}  |  by status {j.get('by_status')}  |  average duration {j.get('avg_duration_s')}s"
         )
         fails = j.get("recent_failures") or []
         if fails:
-            print(f"  {st('🔴')} fallimenti recenti, {len(fails)}")
+            print(f"  {st('🔴')} recent failures, {len(fails)}")
             for f in fails:
                 nm = f.get("name", f.get("script", "?"))
                 print(f"    - {nm} ({f.get('status', '?')})")
@@ -281,7 +265,7 @@ def render(data: dict, ascii_mode: bool = False) -> None:
         print(f"  n/d ({c['error']})")
     else:
         print(
-            f"  ultime 24h, ${c.get('window_24h_usd')} ({c.get('window_24h_calls')} calls)  |  "
+            f"  last 24h, ${c.get('window_24h_usd')} ({c.get('window_24h_calls')} calls)  |  "
             f"all-time, ${c.get('all_time_usd')} ({c.get('all_time_calls')} calls)"
         )
     print()
@@ -290,7 +274,7 @@ def render(data: dict, ascii_mode: bool = False) -> None:
 def main() -> None:
     p = argparse.ArgumentParser(description="SBK L3 health check (read-only)")
     p.add_argument("--json", action="store_true", help="output JSON")
-    p.add_argument("--ascii", action="store_true", help="status ascii invece di emoji (cron-safe)")
+    p.add_argument("--ascii", action="store_true", help="ASCII status instead of emoji (safe for cron logs)")
     args = p.parse_args()
     logging.basicConfig(level=logging.WARNING)
     data = gather()

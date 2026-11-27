@@ -1,5 +1,5 @@
-# Manifest job registro — attio-l1-enrich
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: attio-l1-enrich
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: attio-l1-enrich
 cmd: python3
 args:
@@ -16,4 +16,4 @@ backend: subprocess
 fragile: true
 artifact_refs: []
 forbidden_adapter_types: []
-description: 'Enrichment L1 Attio (CRM). fragile: timeout storicamente stretto.'
+description: 'Enrichment L1 Attio (CRM). fragile: the timeout has been tight before.'

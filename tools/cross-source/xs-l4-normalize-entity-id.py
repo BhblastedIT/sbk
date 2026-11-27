@@ -1,27 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Normalises the facts whose entity_id does not match the entity file they sit in. Dry run by default; --apply
+writes.
+"""
 
 from __future__ import annotations
 
@@ -90,9 +70,9 @@ def _process_file(path: Path, dry_run: bool) -> tuple[int, int, int]:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Normalizza foreign facts (entity_id -> file)")
-    ap.add_argument("--apply", action="store_true", help="Esegue (default: dry-run)")
-    ap.add_argument("--workers", type=int, default=8, help="Thread paralleli")
+    ap = argparse.ArgumentParser(description="Normalise foreign facts (entity_id -> file)")
+    ap.add_argument("--apply", action="store_true", help="Write for real (default: dry run)")
+    ap.add_argument("--workers", type=int, default=8, help="Parallel threads")
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -108,7 +88,7 @@ def main() -> None:
     log.info("=" * 60)
 
     files = _entity_files()
-    log.info("Scansiono %d file entità...", len(files))
+    log.info("Scanning %d entity files...", len(files))
 
     tot_found = tot_noprov = tot_files_changed = 0
     with ThreadPoolExecutor(max_workers=args.workers) as ex:
@@ -123,12 +103,12 @@ def main() -> None:
     log.info("")
     log.info("=" * 60)
     log.info("Summary (%s):", "DRY RUN" if dry_run else "APPLIED")
-    log.info("  Foreign facts trovati:        %d", tot_found)
-    log.info("  ...di cui senza provenienza:  %d (source_entity_id aggiunto)", tot_noprov)
-    log.info("  File con almeno 1 rewrite:    %d", tot_files_changed)
+    log.info("  Foreign facts found:          %d", tot_found)
+    log.info("  ...of which with no provenance: %d (source_entity_id added)", tot_noprov)
+    log.info("  Files with at least 1 rewrite: %d", tot_files_changed)
     if dry_run:
         log.info("")
-        log.info("  Esegui con --apply per normalizzare.")
+        log.info("  Run with --apply to normalise.")
     log.info("=" * 60)
 
 

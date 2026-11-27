@@ -22,7 +22,6 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from pathlib import Path
 
 log = logging.getLogger("sbk-routing")
 
@@ -136,8 +135,9 @@ class SmartRouter:
 
 
         try:
-            project_root = Path(__file__).resolve().parent.parent.parent
-            index_path = project_root / "sbk" / "network" / "_index.md"
+            from sbk_config import NETWORK_DIR
+
+            index_path = NETWORK_DIR / "_index.md"
             if index_path.exists():
                 self._parse_network_index(index_path.read_text())
                 log.debug(

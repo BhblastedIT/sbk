@@ -29,25 +29,13 @@
         </div>
     </div>
 
-    <!-- Row 1: Chord + Sankey -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Row 1: Chord -->
+    <div class="grid grid-cols-1 gap-6">
         <!-- Chord Diagram -->
         <div class="card bg-base-100 shadow-sm">
             <div class="card-body p-4">
                 <h2 class="card-title text-base">Who talks to whom</h2>
                 <div id="chord-container" style="height:480px">
-                    <div class="flex items-center justify-center h-full text-base-content/40">
-                        <span class="loading loading-spinner loading-md"></span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Investor Sankey -->
-        <div class="card bg-base-100 shadow-sm">
-            <div class="card-body p-4">
-                <h2 class="card-title text-base">Investor Funnel</h2>
-                <div id="sankey-chart" style="height:480px">
                     <div class="flex items-center justify-center h-full text-base-content/40">
                         <span class="loading loading-spinner loading-md"></span>
                     </div>
@@ -100,14 +88,13 @@
 
 <!-- D3.js for Chord -->
 <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
-<!-- ECharts for Sankey, Heatmap, Line -->
+<!-- ECharts for Heatmap, Line -->
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
 
 <script>
 (function() {
     var currentChannel = 'all';
     var currentTopN = 30;
-    var sankeyChart = null;
     var matrixChart = null;
     var trendChart = null;
 
@@ -227,55 +214,6 @@
             .text(function(d) {
                 return labels[d.source.index] + ' <> ' + labels[d.target.index] + ': ' + d.source.value;
             });
-    }
-
-    // --- Investor Sankey (ECharts) ---
-    function loadSankey() {
-        fetch('/api/flow/sankey')
-            .then(function(r) { return r.json(); })
-            .then(function(data) { renderSankey(data); })
-            .catch(function() {});
-    }
-
-    function renderSankey(data) {
-        var el = document.getElementById('sankey-chart');
-        if (!sankeyChart) {
-            sankeyChart = echarts.init(el, 'dark');
-            window.addEventListener('resize', function() { sankeyChart.resize(); });
-        }
-
-        var nodes = (data.nodes || []).map(function(n) {
-            return { name: n.label + ' (' + n.count + ')' };
-        });
-        var links = (data.links || []).map(function(l) {
-            // Map source/target IDs to labels
-            var srcNode = data.nodes.find(function(n) { return n.id === l.source; });
-            var tgtNode = data.nodes.find(function(n) { return n.id === l.target; });
-            return {
-                source: srcNode ? srcNode.label + ' (' + srcNode.count + ')' : l.source,
-                target: tgtNode ? tgtNode.label + ' (' + tgtNode.count + ')' : l.target,
-                value: l.value
-            };
-        });
-
-        if (nodes.length === 0) {
-            el.innerHTML = '<div class="text-center text-base-content/40 text-sm py-8">No investor data</div>';
-            return;
-        }
-
-        sankeyChart.setOption({
-            tooltip: { trigger: 'item', triggerOn: 'mousemove' },
-            series: [{
-                type: 'sankey',
-                layout: 'none',
-                emphasis: { focus: 'adjacency' },
-                data: nodes,
-                links: links,
-                lineStyle: { color: 'gradient', curveness: 0.5 },
-                itemStyle: { borderWidth: 1, borderColor: '#333' },
-                label: { color: 'oklch(var(--bc)/0.8)', fontSize: 11 }
-            }]
-        });
     }
 
     // --- Communication Matrix (ECharts heatmap) ---
@@ -436,7 +374,6 @@
 
     // --- Init ---
     loadChord();
-    loadSankey();
     loadMatrix();
 })();
 </script>

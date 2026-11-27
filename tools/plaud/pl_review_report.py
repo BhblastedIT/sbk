@@ -1,16 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
+"""Review report of recent Plaud recordings as an HTML page: for each one the speakers, who talks how much, people
+introducing themselves, and whether the naming looks right or needs review.
+"""
 
 from __future__ import annotations
 
@@ -37,7 +28,11 @@ from pl_resolver import _independent_support_groups, resolve_speakers  # noqa: E
 from pl_voice_match import build_clean_registry, emit_voice_evidence, match_speakers  # noqa: E402
 from pl_write import _http, get_auth  # noqa: E402
 
-_RAW = Path.home() / ".sbk-data" / "plaud" / "raw"
+_RAW = (
+    Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+    / "plaud"
+    / "raw"
+)
 _GIORNI = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _SELF_RE = re.compile(r"\b(?:sono|mi chiamo|io sono)\s+([A-Za-zÀ-ÿ]{3,})", re.IGNORECASE)
 

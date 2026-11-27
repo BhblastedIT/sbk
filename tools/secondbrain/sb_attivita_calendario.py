@@ -318,7 +318,11 @@ class Errore(Exception):
 
 
 def cartella_attivita() -> Path:
-    return Path(os.environ.get("SB_ATTIVITA_DIR") or Path.home() / ".sbk-data" / "attivita")
+    return Path(
+        os.environ.get("SB_ATTIVITA_DIR")
+        or Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "attivita"
+    )
 
 
 def cartella_cache() -> Path:
@@ -326,7 +330,11 @@ def cartella_cache() -> Path:
 
 
 def cartella_calendari() -> Path:
-    return Path(os.environ.get("SB_CALENDARI_DIR") or Path.home() / ".sbk-data" / "calendars")
+    return Path(
+        os.environ.get("SB_CALENDARI_DIR")
+        or Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+        / "calendars"
+    )
 
 
 def file_marche() -> Path:

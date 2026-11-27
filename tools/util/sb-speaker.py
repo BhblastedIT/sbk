@@ -1,38 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Who the "Speaker N" labels were, recording by recording: the recordings whose facts are attributed to a generic
+speaker, with topic and, on request, the first lines of the transcript.
+"""
 
 from __future__ import annotations
 

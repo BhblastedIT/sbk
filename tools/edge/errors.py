@@ -152,7 +152,7 @@ def policy_for(err: EdgeError | type[EdgeError]) -> ErrorPolicy:
 
     cls = err if isinstance(err, type) else type(err)
     if not issubclass(cls, EdgeError):
-        raise TypeError(f"{cls!r} non è un EdgeError")
+        raise TypeError(f"{cls!r} is not an EdgeError")
 
     by_class = {row.error: row for row in ERROR_TABLE}
     if cls in by_class:

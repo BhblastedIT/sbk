@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Plaud speaker overview: who speaks in each recording, the minutes still without a name and how solid each name is; writes quadro.json (--stampa only prints)."""
+"""Plaud speaker overview: who speaks in each recording, the minutes still without a name and how solid each name is; writes quadro.json (--print-only only prints)."""
 
 
 
@@ -41,7 +41,9 @@ if str(_REPO) not in sys.path:
 from tools.plaud.pl_context_emit import emit_all  # noqa: E402
 from tools.plaud.regole.nomi import OWNER_CANONICO, OWNER_PRIMO, OWNER_TOKENS  # noqa: E402
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 RAW = DATA / "plaud" / "raw"
 QUADRO = DATA / "plaud" / "quadro"
 DETTAGLI = DATA / "plaud" / "dettagli"
@@ -727,12 +729,12 @@ def aggrega(regs: list[dict], extra: dict) -> dict:
     fuori_kb = sorted((r for r in regs if not r["fatti_kb"]), key=lambda r: -r["durata_min"])
 
     gruppi = [
-        ("calendario e testo", "invitati a quell'ora e un nome detto nel testo"),
-        ("incontro piccolo a calendario", "una o due persone invitate, pochi speaker"),
-        ("nome detto nel testo", "qualcuno la chiama per nome o si presenta"),
-        ("prima separare le voci", "Plaud ha messo tutto su uno speaker solo"),
-        ("invitati, incontro grande", "a calendario ma con più invitati che speaker"),
-        ("nessun indizio", "niente calendario né nomi nel testo: voce, tue conferme, contesto"),
+        ("calendar and text", "invitees at that time and a name said in the text"),
+        ("small meeting in the calendar", "one or two invitees, few speakers"),
+        ("name said in the text", "someone calls the voice by name or introduces themselves"),
+        ("split the voices first", "Plaud put everything on a single speaker"),
+        ("invitees, large meeting", "in the calendar, but with more invitees than speakers"),
+        ("no clue", "no calendar and no names in the text: voice, your confirmations, context"),
     ]
     conta_g = {g: {"voci": 0, "minuti": 0.0} for g, _ in gruppi}
     gruppo_reg: dict[str, int] = {}
@@ -742,17 +744,17 @@ def aggrega(regs: list[dict], extra: dict) -> dict:
             if v["livello"] != "senza nome":
                 continue
             if r.get("una_voce_sola"):
-                g = "prima separare le voci"
+                g = "split the voices first"
             elif c["invitati"] and v["indizi_testo"]:
-                g = "calendario e testo"
+                g = "calendar and text"
             elif 1 <= c["invitati"] <= 2 and len(r["voci"]) <= 3:
-                g = "incontro piccolo a calendario"
+                g = "small meeting in the calendar"
             elif v["indizi_testo"]:
-                g = "nome detto nel testo"
+                g = "name said in the text"
             elif c["invitati"]:
-                g = "invitati, incontro grande"
+                g = "invitees, large meeting"
             else:
-                g = "nessun indizio"
+                g = "no clue"
             ordine = [x for x, _ in gruppi].index(g)
             gruppo_reg[r["id"]] = min(gruppo_reg.get(r["id"], 99), ordine)
             conta_g[g]["voci"] += 1
@@ -1162,7 +1164,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=((__doc__ or "").strip().splitlines() or ["Plaud speaker overview"])[0]
     )
-    ap.add_argument("--stampa", action="store_true", help="compute and print, without writing")
+    ap.add_argument(
+        "--print-only",
+        dest="stampa",
+        action="store_true",
+        help="compute and print, without writing",
+    )
+    # Older Italian name, kept as a hidden alias.
+    ap.add_argument("--stampa", dest="stampa", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
     agg, regs = calcola()
     adesso = dt.datetime.now().astimezone().isoformat(timespec="seconds")
@@ -1210,7 +1219,7 @@ def main() -> int:
             )
         )
         print("kb", {k: v for k, v in agg["kb"].items() if k != "piu_lunghe_fuori"})
-        print("mancano", len(agg["mancano"]), "di cui con indizi", agg["mancano_con_indizi"])
+        print("missing", len(agg["mancano"]), "of which with clues", agg["mancano_con_indizi"])
         return 0
     QUADRO.mkdir(parents=True, exist_ok=True)
     storia_p = QUADRO / "storia.jsonl"

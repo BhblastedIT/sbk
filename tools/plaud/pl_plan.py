@@ -1,26 +1,12 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Write-back plan for one Plaud transcript: resolves each speaker and applies the write policy, and prints what
+would be written and what needs review. It writes nothing.
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -67,7 +53,7 @@ def _enforce_name_uniqueness(decisions: dict[str, WriteDecision]) -> None:
                 write_name=None,
                 enroll=False,
                 certain=False,
-                reason=f"nome ambiguo: '{d.write_name}' assegnato a più speaker nella nota, non scrivo",
+                reason=f"ambiguous name: '{d.write_name}' given to more than one speaker in the note, not writing",
             )
 
 
@@ -154,7 +140,11 @@ def _load_raw_segments(source_file: str) -> list[dict[str, Any]]:
 
         return _ld(source_file)
     except Exception:  # noqa: BLE001
-        raw_dir = Path.home() / ".sbk-data" / "plaud" / "raw"
+        raw_dir = (
+            Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
+            / "plaud"
+            / "raw"
+        )
         p = Path(source_file)
         if not p.is_absolute():
             p = raw_dir / source_file
@@ -185,7 +175,7 @@ def _print_plan(plan: dict[str, Any]) -> None:
         for w in plan["review"]:
             print(f"  {w['speaker_id']:12} {w['reason']}")
     if plan["noops"]:
-        print("\nNESSUN WRITE:")
+        print("\nNO WRITE:")
         for w in plan["noops"]:
             print(f"  {w['speaker_id']:12} {w['action']:16} {w['reason']}")
 
@@ -193,12 +183,12 @@ def _print_plan(plan: dict[str, Any]) -> None:
 if __name__ == "__main__":
     import argparse
 
-    ap = argparse.ArgumentParser(description="Piano write-back Plaud (resolve+policy, no write)")
+    ap = argparse.ArgumentParser(description="Plaud write-back plan (resolve + policy, no write)")
     ap.add_argument(
-        "source_file", help="nome file raw in ~/.sbk-data/plaud/raw/ o path assoluto"
+        "source_file", help="raw file name in <data root>/plaud/raw/, or an absolute path"
     )
-    ap.add_argument("--json", action="store_true", help="stampa il piano come JSON")
-    ap.add_argument("--calibrated", action="store_true", help="abilita corsia AUTO calibrata")
+    ap.add_argument("--json", action="store_true", help="print the plan as JSON")
+    ap.add_argument("--calibrated", action="store_true", help="enable the calibrated AUTO lane")
     args = ap.parse_args()
     plan = plan_from_file(args.source_file, calibrated=args.calibrated)
     if args.json:

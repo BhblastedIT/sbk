@@ -1,28 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Google Drive L1: classifies the downloaded documents (contracts, financial statements...), extracts their text,
+and writes documents, contacts and interactions parquet files with a summary.
+"""
 
 from __future__ import annotations
 

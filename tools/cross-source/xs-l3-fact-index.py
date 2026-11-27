@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
+"""Fact search index: builds l3/fact-index.json from the extracted facts (high and medium confidence, names
+resolved), rebuilt only when the sources change; --search tests a query.
+"""
 
 from __future__ import annotations
 
@@ -277,8 +270,13 @@ def main():
         return
 
     if not RELATIONSHIP_FACTS_FILE.exists():
-        log.error(f"Source file not found: {RELATIONSHIP_FACTS_FILE}")
-        sys.exit(1)
+        # Written by the paid relationship extract (--all with spending consent), never by --ingest:
+        # a first install has none yet. Nothing to index, not an error.
+        log.info(
+            f"No relationship facts yet ({RELATIONSHIP_FACTS_FILE.name}, written by the paid "
+            "relationship extract): nothing to index"
+        )
+        return
 
     log.info("Building fact search index...")
     data = SBKData()

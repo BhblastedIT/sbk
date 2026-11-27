@@ -66,7 +66,7 @@
         <div class="flex-1 truncate">
             {% if ev.source_type == 'email' and ev.thread_id %}
                 <a href="#" class="hover:underline"
-                   hx-get="/partials/thread_viewer?source_type=email&source_id={{ ev.thread_id }}"
+                   hx-get="/partials/thread/email/{{ ev.thread_id }}"
                    hx-target="#modal-body" hx-swap="innerHTML"
                    onclick="document.getElementById('thread-modal').showModal()">
                     {{ ev.summary }}

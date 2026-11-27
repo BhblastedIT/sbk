@@ -99,6 +99,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sqlite3
 import sys
@@ -113,7 +114,7 @@ if str(_TOOLS_DIR) not in sys.path:
 
 from conteggio import Conteggio, FileIlleggibile  # noqa: E402
 
-DEFAULT_STORE = Path.home() / ".sbk-data"
+DEFAULT_STORE = Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser()
 
 
 

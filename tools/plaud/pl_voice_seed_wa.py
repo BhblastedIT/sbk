@@ -1,32 +1,17 @@
 #!/usr/bin/env python3
-""
+"""Seeds a clean voice registry from the voice notes in your WhatsApp exports: clips of each 1:1 contact and of you,
+matched to the knowledge base.
 
+It reads the exports under <data root>/whatsapp only. To read exports kept somewhere else (for example an unzipped
+export in ~/Downloads), name that folder: --folder PATH (repeatable). No other folder is ever walked.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/plaud/pl_voice_seed_wa.py {scan,build,show} [--folder PATH ...]
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 import unicodedata
@@ -43,8 +28,15 @@ except ImportError:  # pragma: no cover
     import pl_voice_encoder as enc  # type: ignore[no-redef]
 
 _HOME = Path.home()
-WA_ROOTS = [_HOME / ".sbk-data" / "whatsapp", _HOME / "Downloads"]
-CLEAN_REGISTRY_PATH = _HOME / ".sbk-data" / "plaud" / "_voice_registry_clean.json"
+# Only the data root by default; other folders are read only when you pass them (--folder).
+WA_ROOTS = [
+    Path(os.environ.get("SBK_DATA_ROOT") or _HOME / ".sbk-data").expanduser() / "whatsapp",
+]
+CLEAN_REGISTRY_PATH = (
+    Path(os.environ.get("SBK_DATA_ROOT") or _HOME / ".sbk-data").expanduser()
+    / "plaud"
+    / "_voice_registry_clean.json"
+)
 
 
 _ATTACH_RE = re.compile(r"\]\s+([^:]{2,40}?):\s*‎?<attached:\s*([^>]+\.opus)>")
@@ -282,34 +274,49 @@ def load_clean_registry(path: Path | None = None) -> dict[str, Any]:
 def _main() -> int:
     import argparse
 
-    ap = argparse.ArgumentParser(description="Seed registro voci pulito da WhatsApp")
+    ap = argparse.ArgumentParser(
+        description="Seed a clean voice registry from the voice notes of your WhatsApp exports "
+        "(<data root>/whatsapp; other folders only with --folder)"
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("scan")
-    pb = sub.add_parser("build")
+    cartella = argparse.ArgumentParser(add_help=False)
+    cartella.add_argument(
+        "--folder",
+        action="append",
+        type=Path,
+        default=[],
+        metavar="PATH",
+        help="also read the WhatsApp exports in this folder (repeatable); nothing else is walked",
+    )
+    sub.add_parser("scan", parents=[cartella])
+    pb = sub.add_parser("build", parents=[cartella])
     pb.add_argument("--max-clips", type=int, default=15)
     sub.add_parser("show")
     args = ap.parse_args()
+    roots = [*WA_ROOTS, *(p.expanduser() for p in getattr(args, "folder", []))]
 
     if args.cmd == "scan":
-        people, self_clips = collect_person_clips()
-        print(f"Persone (controparti 1:1 con vocali): {len(people)}")
+        people, self_clips = collect_person_clips(roots)
+        print(f"People (1:1 contacts with voice notes): {len(people)}")
         for k, e in sorted(people.items(), key=lambda x: -len(x[1]["clips"])):
-            print(f"  {e['name']:30} {len(e['clips']):>4} vocali  chats={e['chats']}")
+            print(f"  {e['name']:30} {len(e['clips']):>4} voice notes  chats={e['chats']}")
         print(f"Your voice notes (self): {len(self_clips)}")
     elif args.cmd == "build":
 
         def _prog(name, n):
-            print(f"  [ok] {name:30} {n:>3} clip  (salvato)", flush=True)
+            print(f"  [ok] {name:30} {n:>3} clip  (saved)", flush=True)
 
-        print("Build incrementale (resume attivo, salva dopo ogni persona)...", flush=True)
-        reg = seed_incremental(max_clips=args.max_clips, resume=True, on_progress=_prog)
-        print(f"Registro pulito: {CLEAN_REGISTRY_PATH}  ({reg['n_people']} persone)")
+        print("Incremental build (resume on, saves after each person)...", flush=True)
+        reg = seed_incremental(
+            roots=roots, max_clips=args.max_clips, resume=True, on_progress=_prog
+        )
+        print(f"Clean registry: {CLEAN_REGISTRY_PATH}  ({reg['n_people']} people)")
     elif args.cmd == "show":
         reg = load_clean_registry()
         if not reg:
-            print("Nessun registro pulito. Esegui 'build'.")
+            print("No clean registry. Run 'build'.")
             return 1
-        print(f"Persone: {reg['n_people']}")
+        print(f"People: {reg['n_people']}")
         for e in reg["entries"]:
             print(f"  {e['name']:30} {e['n_clips']:>3} clip  entity={e['entity_id']}")
     return 0

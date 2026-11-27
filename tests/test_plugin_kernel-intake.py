@@ -513,8 +513,11 @@ def test_merge_cli_with_only_plugin_data(tmp_path):
 def test_merge_cli_with_no_data_says_so(tmp_path):
     (tmp_path / "empty").mkdir()
     res = _run("xs-l2-merge.py", [], tmp_path / "empty")
-    assert res.returncode == 1
-    assert "plugin-contacts.parquet" in res.stderr
+    # D26: a first install with no data is "nothing to merge yet" (exit 0), naming what starts a
+    # contact; with an earlier merged book it still refuses (tests/test_kit_first_ingest.py).
+    assert res.returncode == 0, res.stderr[-3000:]
+    assert "Nothing to merge yet" in res.stderr and "plugin" in res.stderr
+    assert not (tmp_path / "empty" / "enriched" / "contacts-merged.parquet").exists()
 
 
 # --------------------------------------------------------------- knowledge

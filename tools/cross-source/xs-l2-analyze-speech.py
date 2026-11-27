@@ -1,20 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Analyses how you speak, from your own segments in Plaud, Tactiq and Attio transcripts: questions, imperatives,
+language mix, recurring phrases and topics, into enriched/speech-analysis.json.
+"""
 
 import argparse
 import json

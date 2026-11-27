@@ -1071,9 +1071,9 @@ extension ProvaAttivita {
         }
         let env = ProcessInfo.processInfo.environment
         let dir = env["SB_ATTIVITA_DIR"] ?? ""
-        guard dir.contains("prova"), env["SB_POOL_SWITCH"]?.contains("non-esiste") == true,
+        guard dir.contains("prova"), env["SBK_APP_CLAUDE"] == "0",
               env["SB_ATTIVITA_TRASCRIVI"]?.contains("non-esiste") == true else {
-            print("REFUSED: needs a copy of the data and a fake AccountPool and recipe")
+            print("REFUSED: needs a copy of the data, SBK_APP_CLAUDE=0 and a fake recipe")
             return false
         }
 
@@ -1098,7 +1098,7 @@ extension ProvaAttivita {
             await store.caricaVoce()
         }
         let r1 = store.voceAttivita?.richieste?.first
-        controlla("the written request stops without AccountPool: «\(r1?.stato_nome ?? "") · \(r1?.motivo ?? "")»", r1?.stato == "non_riuscita")
+        controlla("the written request stops without your consent to Claude Code sessions: «\(r1?.stato_nome ?? "") · \(r1?.motivo ?? "")»", r1?.stato == "non_riuscita")
         controlla("has the Retry button from the engine: \(r1?.riprova ?? [])", r1?.riprova?.first == "voce-riprova")
         controlla("shows among the page's requests", store.richiesteAVista.contains { $0.id == r1?.id })
 

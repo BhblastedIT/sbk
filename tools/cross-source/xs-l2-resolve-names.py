@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Advanced name resolution for the entity map, with five strategies: phone numbers, Slack users, relationship
+transitivity, organization context and the Attio cross-reference (--all or --strategy <name>; --report).
+"""
 
 from __future__ import annotations
 

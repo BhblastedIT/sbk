@@ -37,7 +37,7 @@ from typing import Any
 
 try:
     from .pl_types import Provenance
-except ImportError:  # pragma: no cover - importato come modulo top-level senza package
+except ImportError:  # pragma: no cover - imported as a top-level module without a package
     try:
         from plaud.pl_types import Provenance
     except ImportError:
@@ -143,7 +143,7 @@ class WriteLedger:
 
 
         if not file_id:
-            raise ValueError("file_id obbligatorio per registrare una scrittura nel ledger")
+            raise ValueError("file_id is required to record a write in the ledger")
         entry: dict[str, Any] = {
             "file_id": file_id,
             "version_ms": version_ms,
@@ -247,7 +247,7 @@ def _as_ledger(write_ledger: Any) -> WriteLedger:
         return write_ledger
     if isinstance(write_ledger, list):
         return WriteLedger(write_ledger)
-    raise TypeError(f"write_ledger non supportato: {type(write_ledger)!r}")
+    raise TypeError(f"write_ledger not supported: {type(write_ledger)!r}")
 
 
 def resolve_provenance(

@@ -1,14 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
+"""Checks that the scripts which must never run twice at the same time take their lock, and that none of them is
+running in duplicate right now.
+"""
 
 from __future__ import annotations
 

@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Applies the automatic entity-resolution decisions: takes the enriched review queue and records the clear
+merge or reject decisions in entity-decisions.json, without repeating the ones already decided.
+"""
 
 import json
 import sys
@@ -41,12 +22,12 @@ DECISIONS_FILE = DATA_DIR / "entity-decisions.json"
 def load_enriched_review():
     ""
     if not INPUT_FILE.exists():
-        print(f"ERRORE: {INPUT_FILE} non trovato. Eseguire xs-l3-enrich-review.py prima.")
+        print(f"ERROR: {INPUT_FILE} not found. Run xs-l3-enrich-review.py first.")
         sys.exit(1)
 
     with open(INPUT_FILE) as f:
         items = json.load(f)
-    print(f"Caricati {len(items)} items da entity-review-enriched.json")
+    print(f"Loaded {len(items)} items from entity-review-enriched.json")
     return items
 
 
@@ -57,7 +38,7 @@ def load_existing_decisions():
 
     with open(DECISIONS_FILE) as f:
         data = json.load(f)
-    print(f"Decisioni esistenti: {len(data.get('decisions', []))} entries")
+    print(f"Existing decisions: {len(data.get('decisions', []))} entries")
     return data
 
 
@@ -228,33 +209,33 @@ def main():
     print("ENTITY RESOLUTION AUTO-DECISIONS")
     print(f"{'=' * 60}")
     print(f"\nInput: {len(items)} items in review queue")
-    print(f"Gia' decisi (skip): {stats['skipped_already_decided']}")
+    print(f"Already decided (skipped): {stats['skipped_already_decided']}")
     print(f"\nMERGE ({total_merge} items):")
-    print(f"  Rule 1 (stesso LinkedIn):    {stats['rule1_linkedin_merge']}")
-    print(f"  Rule 2 (stesso telefono):    {stats['rule2_phone_merge']}")
+    print(f"  Rule 1 (same LinkedIn):      {stats['rule1_linkedin_merge']}")
+    print(f"  Rule 2 (same phone):         {stats['rule2_phone_merge']}")
     print(f"  Rule 3 (match_score>=90):    {stats['rule3_score90_merge']}")
     print(f"\nREJECT ({total_reject} items):")
-    print(f"  Rule 4 (LinkedIn diversi):   {stats['rule4_linkedin_reject']}")
-    print(f"  Rule 5 (cognomi diversi):    {stats['rule5_surname_reject']}")
+    print(f"  Rule 4 (different LinkedIn): {stats['rule4_linkedin_reject']}")
+    print(f"  Rule 5 (different surname):  {stats['rule5_surname_reject']}")
     print(f"  Rule 6 (score < 30):         {stats['rule6_score30_reject']}")
-    print(f"\nTotale auto-decisi: {total_merge + total_reject}")
-    print(f"Residuo manual review: {stats['uncovered']}")
+    print(f"\nTotal auto-decided: {total_merge + total_reject}")
+    print(f"Left for manual review: {stats['uncovered']}")
     print(f"{'=' * 60}")
 
     if args.dry_run:
-        print("\n[DRY RUN] Nessun file scritto.")
+        print("\n[DRY RUN] No file written.")
 
 
         merges = [d for d in new_decisions if d["action"] == "merge"]
         rejects = [d for d in new_decisions if d["action"] == "reject"]
 
         if merges:
-            print("\nEsempi MERGE (primi 5):")
+            print("\nMERGE examples (first 5):")
             for d in merges[:5]:
                 print(f"  {d['keys']}  ({d['source']}: {d['reason']})")
 
         if rejects:
-            print("\nEsempi REJECT (primi 5):")
+            print("\nREJECT examples (first 5):")
             for d in rejects[:5]:
                 print(f"  {d['keys']}  ({d['source']}: {d['reason']})")
 
@@ -266,8 +247,8 @@ def main():
 
 
     DECISIONS_FILE.write_text(json.dumps(existing, indent=2, ensure_ascii=False))
-    print(f"\nScritto: {DECISIONS_FILE}")
-    print(f"Totale decisioni nel file: {len(existing['decisions'])}")
+    print(f"\nWritten: {DECISIONS_FILE}")
+    print(f"Total decisions in the file: {len(existing['decisions'])}")
 
 
 from pipeline_decorator import pipeline_step

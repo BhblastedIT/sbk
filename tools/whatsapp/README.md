@@ -92,6 +92,14 @@ Both imports take `--declare complete` when the files are every chat of your pho
 - `wa-check-ego-invariant.py` prints `I-WA   green`. `I-WA2 RED` means many chats do not contain you:
   a spelling of your name is missing from `own_names`.
 
+**What you get** With WhatsApp alone, `--ingest` gives you people: each one-to-one chat partner, and
+everyone who wrote from a number you have not saved, becomes a contact and a person in the knowledge
+base. A chat partner you saved by name is keyed by that name (the phone's export writes the saved name,
+not the number); a number you have not saved is keyed by the number, and is also its name until another
+source names it. Group members you saved by name only, who never chat with you one to one, stay out.
+When another source knows the same phone, or the same full name that no one else has, the two become
+one person ([A first run](../../docs/CONNECTING.md#after-a-download)).
+
 **Limits**
 - Manual: SBK sees only what you exported. For newer messages you export again and import again; the
   same message is never written twice, nothing already imported is removed, and a chat file that a
@@ -110,8 +118,9 @@ says so at the top of the file:
 - `wa-l0-chatstorage.py` reads a copy of the iPhone's chat database (`ChatStorage.sqlite`). SBK has no
   step that gets that copy from a phone.
 - `wa-l1-transcribe-audio.py` and `wa-l1-inject-transcripts.py`: voice notes transcribed on your Mac
-  with whisper.cpp, then written into the chats. The transcription needs the relationship scores of a
-  later pipeline stage and stops without them.
+  with whisper.cpp, then written into the chats. The transcription needs `--attachments-dir <folder>`
+  (your exported attachments, one sub-folder per chat; there is no default folder) and the relationship
+  scores of a later pipeline stage, and stops without them.
 - `wa-l1-process-videos.py`: video audio transcribed locally, keyframes with `ffmpeg`.
 - `wa-l1-extract-docs.py` and `wa-l1-extract-photos.py`: text of documents and of screenshots from the
   attachments indexed by `--attachments-dir`. The pipeline runs them only when you ask, after the WhatsApp

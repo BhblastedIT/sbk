@@ -391,7 +391,7 @@ def installa(bundle: Path) -> None:
             shutil.rmtree(DESTINAZIONE)
         if vecchia.exists():
             vecchia.rename(DESTINAZIONE)
-        sys.exit(f"⛔ installazione fallita, rimessa la versione di prima: {e}")
+        sys.exit(f"⛔ install failed, the previous version is back in place: {e}")
     if vecchia.exists():
         _archivia(vecchia)
 
@@ -471,23 +471,39 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=((__doc__ or "").strip().splitlines() or ["Build and install the SBK macOS app"])[0]
     )
-    ap.add_argument("--solo-build", action="store_true")
     ap.add_argument(
-        "--chiudi",
+        "--build-only",
+        dest="solo_build",
+        action="store_true",
+        help="build and package the app, do not install it",
+    )
+    ap.add_argument(
+        "--close",
+        dest="chiudi",
         action="store_true",
         help="closes SBK if it is open (only if requested)",
     )
-    ap.add_argument("--apri", action="store_true")
     ap.add_argument(
-        "--aggiorna",
+        "--open", dest="apri", action="store_true", help="opens the app after installing it"
+    )
+    ap.add_argument(
+        "--update",
+        dest="aggiorna",
         action="store_true",
         help="like the terminal: closes the app without questions, replaces it, reopens it; background runs continue",
     )
     ap.add_argument(
-        "--torna-a",
+        "--roll-back-to",
+        dest="torna_a",
         metavar="VERSION",
         help="rollback: reinstalls an archived version, without recompiling",
     )
+    # Older Italian names, kept as hidden aliases.
+    ap.add_argument("--solo-build", dest="solo_build", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--chiudi", dest="chiudi", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--apri", dest="apri", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--aggiorna", dest="aggiorna", action="store_true", help=argparse.SUPPRESS)
+    ap.add_argument("--torna-a", dest="torna_a", metavar="VERSION", help=argparse.SUPPRESS)
     args = ap.parse_args()
 
     if args.torna_a:

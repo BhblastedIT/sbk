@@ -105,37 +105,9 @@ def _get_client():
 
 
 
-_CHIAVE_DEL_LOTTO: dict[str, str] = {}
-CHIAVE_DEI_LOTTI_VECCHI = "sbk"
-
-
-def _usa_la_chiave_del_lotto(batch_id: str) -> None:
-    nome = _CHIAVE_DEL_LOTTO.get(batch_id)
-    if not nome:
-        return
-    from xs_anthropic_client import usa_chiave
-
-    usa_chiave(nome)
-
-
 def _crea_lotto(richieste: list, label: str) -> str:
-    ""
-
-    from xs_anthropic_client import chiave_in_uso, classify_error, passa_alla_riserva
-
-    try:
-        batch = _get_client().messages.batches.create(requests=richieste)
-    except Exception as e:
-        prima = chiave_in_uso()
-        if classify_error(e) is None or not passa_alla_riserva():
-            raise
-        log.warning(
-            f"[{label}] key «{prima}» is not working ({type(e).__name__}): retrying with «{chiave_in_uso()}»"
-        )
-        batch = _get_client().messages.batches.create(requests=richieste)
-    nome = chiave_in_uso()
-    if nome:
-        _CHIAVE_DEL_LOTTO[batch.id] = nome
+    """Submit one batch with the ANTHROPIC_API_KEY client and return its id."""
+    batch = _get_client().messages.batches.create(requests=richieste)
     return batch.id
 
 
@@ -291,7 +263,6 @@ def poll_batch(
     poll_interval: int = 30,
 ) -> dict:
     ""
-    _usa_la_chiave_del_lotto(batch_id)
     client = _get_client()
     prefix = f"[{label}] " if label else ""
 
@@ -332,7 +303,6 @@ def collect_results(
     results = {}
 
     for batch_id in batch_ids:
-        _usa_la_chiave_del_lotto(batch_id)
         client = _get_client()
         for result in client.messages.batches.results(batch_id):
 
@@ -474,8 +444,6 @@ def save_batch_state(batch_ids: list[str], id_mapping: dict[str, str], state_fil
         "batch_ids": batch_ids,
         "id_mapping": id_mapping,
         "submitted_at": time.time(),
-
-        "chiavi": {b: _CHIAVE_DEL_LOTTO[b] for b in batch_ids if b in _CHIAVE_DEL_LOTTO},
     }
     state_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -493,7 +461,4 @@ def load_batch_state(state_file: Path) -> tuple[list[str], dict[str, str]] | Non
     except (json.JSONDecodeError, OSError):
         return None
     batch_ids = state.get("batch_ids")
-    chiavi = state.get("chiavi") or {}
-    for b in batch_ids or []:
-        _CHIAVE_DEL_LOTTO.setdefault(b, chiavi.get(b, CHIAVE_DEI_LOTTI_VECCHI))
     return batch_ids, state.get("id_mapping", {})

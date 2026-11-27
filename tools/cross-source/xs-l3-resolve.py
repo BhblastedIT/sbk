@@ -1,22 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Event resolution: for the calendar events of the last and next days, the type (investor, travel, conference,
+social...) and whether a follow-up happened by email, Slack or calendar, into l3/resolved-events.parquet.
+"""
 
 from __future__ import annotations
 
@@ -38,7 +23,7 @@ if str(_THIS_DIR) not in sys.path:
 
 from xs_l3_common import SBKData, setup_logging
 
-from sbk_config import INTERNAL_DOMAINS, L3_DIR, OWN_EMAILS, safe_write_parquet
+from sbk_config import INTERNAL_DOMAINS, L3_DIR, NETWORK_DIR, OWN_EMAILS, safe_write_parquet
 
 log = logging.getLogger("sbk-l3-resolve")
 
@@ -141,10 +126,8 @@ def load_investor_signals(data: SBKData) -> set[str]:
 
     names: set[str] = set()
     # Optional, user-maintained list in a documented, generic format:
-    # sbk/network/investors.json -> {"investors": ["Name One", "Name Two"]}
-    index_path = (
-        Path(__file__).resolve().parent.parent.parent / "sbk" / "network" / "investors.json"
-    )
+    # <data root>/network/investors.json -> {"investors": ["Name One", "Name Two"]}
+    index_path = NETWORK_DIR / "investors.json"
 
     if not index_path.exists():
         log.debug(f"Investor list not found: {index_path}")
@@ -166,9 +149,9 @@ def load_investor_signals(data: SBKData) -> set[str]:
 
 def _load_investor_fund_domains() -> set[str]:
     """First part of your investors' e-mail domains ("fundname" for fundname.com), from the
-    same optional list as the investor names: sbk/network/investors.json ->
+    same optional list as the investor names: <data root>/network/investors.json ->
     {"fund_domains": ["fundname", ...]}. Empty by default."""
-    path = Path(__file__).resolve().parent.parent.parent / "sbk" / "network" / "investors.json"
+    path = NETWORK_DIR / "investors.json"
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -513,7 +496,7 @@ def _check_calendar_signal(event: dict, external_emails: list[str], data: SBKDat
                     "source": "calendar",
                     "type": "follow_up_scheduled",
                     "date": str(other_dt),
-                    "detail": f"Evento futuro: {other_ev.get('summary', '')[:80]} (con {', '.join(list(overlap)[:2])})",
+                    "detail": f"Upcoming event: {other_ev.get('summary', '')[:80]} (with {', '.join(list(overlap)[:2])})",
                 }
             )
             break
@@ -627,7 +610,7 @@ def main():
     df = resolve_events(data, days_back=args.days_back, days_forward=args.days_forward)
 
     if df.empty:
-        print("Nessun evento trovato nel periodo selezionato.")
+        print("No events found in the selected period.")
         return
 
 
@@ -637,14 +620,14 @@ def main():
         df = df[df["resolution_status"] == args.status]
 
     if df.empty:
-        print("Nessun evento corrisponde ai filtri.")
+        print("No event matches the filters.")
         return
 
 
     if args.json:
         print(df.to_json(orient="records", force_ascii=False, indent=2))
     elif args.dry_run:
-        print(f"\n=== Event Resolution: {len(df)} eventi ===\n")
+        print(f"\n=== Event Resolution: {len(df)} events ===\n")
         status_counts = df["resolution_status"].value_counts().to_dict()
         type_counts = df["event_type"].value_counts().to_dict()
         print(f"  Status: {status_counts}")
@@ -670,7 +653,7 @@ def main():
 
         OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
         safe_write_parquet(df, OUTPUT_FILE, index=False)
-        print(f"\nEventi risolti: {len(df)}")
+        print(f"\nEvents resolved: {len(df)}")
         print(f"Output: {OUTPUT_FILE}")
 
         status_counts = df["resolution_status"].value_counts().to_dict()

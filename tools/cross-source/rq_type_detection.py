@@ -667,7 +667,7 @@ SYSTEM_PROMPT = (
 CLASSIFICATION_PROMPT = """Analyze the relationship between {person_a} and {person_b}.
 
 Context:
-- {person_a}: CEO at Acme (advertising/tech company)
+- {person_a}: the user, who owns this knowledge base
 - {person_b}: {role_b}{company_b}
 - Interaction period: {first_date} to {last_date}
 - Total weighted interactions: {total_interactions}

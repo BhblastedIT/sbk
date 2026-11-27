@@ -1,5 +1,5 @@
-# Manifest job registro — rq-02b-signals
-# Additivo/shadow: state off|shadow, nessun call-site esistente ricablato.
+# Job registry manifest: rq-02b-signals
+# Additive/shadow: state off|shadow, no existing call site rewired.
 job_id: rq-02b-signals
 cmd: python3
 args:
@@ -17,4 +17,4 @@ fragile: false
 artifact_refs:
 - relationship-facts.parquet
 forbidden_adapter_types: []
-description: RQ-02b estrazione segnali.
+description: RQ-02b signal extraction.

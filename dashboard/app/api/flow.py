@@ -23,13 +23,6 @@ async def communication_chord(
     return await asyncio.to_thread(bridge.get_communication_chord, top_n, channel)
 
 
-@router.get("/sankey")
-async def investor_sankey(request: Request):
-    ""
-    bridge = request.app.state.bridge
-    return await asyncio.to_thread(bridge.get_investor_sankey)
-
-
 @router.get("/matrix")
 async def communication_matrix(request: Request, top_n: int = Query(default=30, ge=1, le=200)):
     ""

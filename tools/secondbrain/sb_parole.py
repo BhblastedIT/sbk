@@ -173,6 +173,16 @@ FONTI: dict[str, tuple[str, str]] = {
     "imap-caldav": ("IMAP and CalDAV", "Any mailbox and calendar you reach with an app password"),
     "zoom": ("Zoom", "Your meetings, who was there and the transcripts"),
     "databases": ("Your databases", "People and events from a database of your own"),
+    "teams": ("Microsoft Teams", "Your 1:1 and group chats at work"),
+    "contacts": ("Contacts", "Your address book, from an export or Google Contacts"),
+    "telegram": ("Telegram", "The chats you export from Telegram Desktop"),
+    "hubspot": ("HubSpot", "Your CRM contacts, companies, deals, notes and tasks"),
+    "pipedrive": ("Pipedrive", "Your CRM persons, deals, activities and notes"),
+    "atlassian": ("Jira and Confluence", "Your issues and the pages you wrote"),
+    "linear": ("Linear", "Your issues, with status, due dates and comments"),
+    "fireflies": ("Fireflies", "Your meetings, transcripts and action items"),
+    "fathom": ("Fathom", "Your meetings, summaries and action items"),
+    "granola": ("Granola", "Your meeting notes and who was there"),
     "slack": ("Slack", "Channels and direct messages"),
     "whatsapp": ("WhatsApp", "The chats you export from your phone"),
     "attio": ("Attio", "The CRM, with companies, deals, notes and recordings"),
@@ -201,6 +211,7 @@ COME_A_MANO: dict[str, str] = {
     "linkedin": "You download the export from LinkedIn.",
     "ai-history": "You ask for it: SBK reads your Claude Code logs and the AI chat exports you give it.",
     "databases": "You ask for it: SBK runs the read-only queries you declared on your own database.",
+    "telegram": "You export your data from Telegram Desktop and the import brings it in.",
 }
 
 
@@ -220,6 +231,9 @@ PASSI_A_MANO: dict[str, str] = {
     "agree let it write the files on how you work.",
     "databases": "Ask Claude to read your databases again. It runs the queries you declared in sbk.config.json, "
     "read-only, then maps the rows to people and events.",
+    "telegram": "In Telegram Desktop open Settings, Advanced, Export Telegram data. Tick Personal chats and "
+    "Private groups, untick Only my messages, choose Machine-readable JSON and export. Then ask Claude to "
+    "import the folder.",
 }
 
 
@@ -233,6 +247,7 @@ TOCCA_A_TE: dict[str, str] = {
     "linkedin": "Your turn, download the export from LinkedIn.",
     "ai-history": "Your turn, ask Claude to read your AI history again.",
     "databases": "Your turn, ask Claude to read your databases again.",
+    "telegram": "Your turn, export your data again from Telegram Desktop.",
 }
 
 
@@ -242,6 +257,7 @@ PASSI_GIRO: dict[str, str] = {
     "slack-index": "Slack, channel list",
     "slack-canali": "Slack, channels",
     "slack-dm": "Slack, direct messages",
+    "contacts-google": "Contacts, Google",
     "backup-kb": "Backup of the brain",
     "ingest": "Re-read and update",
     "tutto": "Re-read with the paid steps",
@@ -517,8 +533,8 @@ GUIDA: dict = {
     ],
     "sezioni": "Overview says whether you can trust the data and what to fix. Sources shows where the data comes from and "
     "how fresh it is. Pipeline shows all the steps, phase by phase, with the last time of each. Run follows "
-    "what's running, with the lanes and the log, including runs launched from a terminal. Spending and keys holds the estimate "
-    "of the paid steps and the queue of API keys. Rules says how each source is downloaded and what each step does. "
+    "what's running, with the lanes and the log, including runs launched from a terminal. Spending and API key holds the estimate "
+    "of the paid steps and whether your ANTHROPIC_API_KEY is set. Rules says how each source is downloaded and what each step does. "
     "Tools holds the alerts, the settings, the Mac's memory and the disk. Mail holds the rules for your mailboxes, "
     "who stays in the Main inbox and who goes to a label. To sign holds the contracts awaiting your signature. Pages "
     "holds the pages I prepared for you, Inspiration the things you save because they inspire you.",
@@ -591,10 +607,8 @@ COMPLETA: dict[str, str] = {
     "documenti_mai": "documents not yet counted",
     "fermo_dal": "idle since {data}",
     "mai_fatto": "never done",
-    "chiave_nessuna": "No usable key in the queue, the run will try with the environment's one.",
-    "chiave_paga": "Key «{nome}» pays, it's its turn.",
-    "chiave_riserva": "If the quota runs out, {riserve} takes over.",
-    "chiave_senza_riserva": "There is no reserve.",
+    "chiave_nessuna": "ANTHROPIC_API_KEY is not set, so the paid steps cannot start. Put it in .env or in the environment.",
+    "chiave_paga": "The paid steps use {nome}.",
     "stima": "Estimate {quando}.",
     "stima_dopo_run": "Estimate {quando}, made after the last run.",
     "nota": "It's an estimate, the real figure may change.",

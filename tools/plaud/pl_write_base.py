@@ -94,7 +94,7 @@ class RenameDiff:
         for ch in self.changes:
             lines.append(f"  seg[{ch.index}] '{ch.old_speaker}' -> '{ch.new_speaker}'")
         if not self.changes:
-            lines.append("  (nessun segmento combacia con gli op di rename)")
+            lines.append("  (no segment matches the rename ops)")
         return "\n".join(lines)
 
 
@@ -147,21 +147,21 @@ class CircuitBreaker:
         now = self.clock() if now is None else now
         if self._blocked_until is not None and now < self._blocked_until:
             raise CircuitBreakerOpen(
-                f"rate-limit stop attivo fino a {self._blocked_until:.0f} (now {now:.0f})"
+                f"rate-limit stop active until {self._blocked_until:.0f} (now {now:.0f})"
             )
         self._roll_day(now)
         if self._writes_today >= self.limits.max_writes_per_day:
             raise CircuitBreakerOpen(
-                f"cap giornaliero raggiunto: {self._writes_today}/{self.limits.max_writes_per_day}"
+                f"daily cap reached: {self._writes_today}/{self.limits.max_writes_per_day}"
             )
         if self._consecutive_errors >= self.limits.stop_after_consecutive_errors:
-            raise CircuitBreakerOpen(f"stop dopo {self._consecutive_errors} errori consecutivi")
+            raise CircuitBreakerOpen(f"stopped after {self._consecutive_errors} errors in a row")
         if (
             self._last_write_ts is not None
             and (now - self._last_write_ts) < self.limits.min_seconds_between_writes
         ):
             wait = self.limits.min_seconds_between_writes - (now - self._last_write_ts)
-            raise CircuitBreakerOpen(f"ritmo umano: attendere ancora {wait:.1f}s")
+            raise CircuitBreakerOpen(f"human pace: wait {wait:.1f}s more")
 
     def record_success(self, now: float | None = None) -> None:
         now = self.clock() if now is None else now
@@ -281,7 +281,7 @@ class WriteExecutor(ABC):
             return WriteResult(
                 file_id=file_id,
                 status="aborted",
-                reason="abort-zero-match: nessun segmento combacia con gli op",
+                reason="abort-zero-match: no segment matches the ops",
                 diff=diff,
                 dry_run=dry_run,
                 provenance=Provenance.UNKNOWN,
@@ -292,7 +292,7 @@ class WriteExecutor(ABC):
             return WriteResult(
                 file_id=file_id,
                 status="dry_run",
-                reason="dry-run: nessuna scrittura eseguita",
+                reason="dry run: nothing written",
                 diff=diff,
                 dry_run=True,
                 provenance=Provenance.UNKNOWN,

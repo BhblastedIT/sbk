@@ -1,18 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Attachments index: for your top people, the files exchanged with each of them across WhatsApp, email, Slack,
+Drive, Attio and Notion, by category, into enriched/person-attachments-index.json.
+"""
 
 from __future__ import annotations
 
@@ -30,6 +19,7 @@ if str(_TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(_TOOLS_DIR))
 
 import pandas as pd
+from text_utils import normalize_phone
 
 from sbk_config import (
     ATTIO_DIR,
@@ -159,6 +149,9 @@ def _load_top_people(top_n: int, person_filter: str | None) -> pd.DataFrame:
 
 
 
+    if not CONTACTS_MERGED_FILE.exists():
+        log.info("No merged contacts yet (%s): the L2 merge writes them first", CONTACTS_MERGED_FILE)
+        return pd.DataFrame(columns=["person_id", "name", "all_emails", "phone_primary"])
     contacts = pd.read_parquet(CONTACTS_MERGED_FILE)
 
     if person_filter:
@@ -248,7 +241,7 @@ def _build_phone_to_person() -> dict[str, tuple[str, str]]:
         name = row.get("name", "")
         phone = row.get("phone_primary")
         if pd.notna(phone) and phone:
-            normalized = re.sub(r"[^\d+]", "", str(phone))
+            normalized = normalize_phone(str(phone))
             if normalized:
                 phone_map[normalized] = (pid, name)
 
@@ -283,8 +276,8 @@ def _build_slack_user_map() -> dict[str, tuple[str, str]]:
 
 
 def _normalize_phone(phone: str) -> str:
-    ""
-    return re.sub(r"[^\d+]", "", str(phone))
+    """The shared normaliser (text_utils.normalize_phone, phone_country_code applied)."""
+    return normalize_phone(str(phone or ""))
 
 
 def _extract_email_from_header(header: str) -> str:
@@ -528,6 +521,10 @@ def scan_slack(
 
     from slack_esclusi import e_escluso, esclusi
 
+    if not SLACK_CONVERSATIONS_DIR.exists() and not SLACK_DM_DIR.exists():
+        # Slack never downloaded (not connected yet): nothing to scan, no channel index needed.
+        log.info("  Slack: nothing downloaded yet, skipped")
+        return results
     fuori = esclusi()
 
     def _scan_dir(scan_dir: Path, label: str) -> int:
@@ -873,8 +870,15 @@ def main():
 
     contacts_df = _load_top_people(args.top, args.person)
     if contacts_df.empty:
-        log.error("No target people found. Exiting.")
-        sys.exit(1)
+        if args.person:
+            log.error("Nobody in the merged book matches '%s'", args.person)
+            sys.exit(1)
+        # A first install whose book is empty (or not written yet): nothing to do yet.
+        log.info("No people in the merged book yet: nothing to scan")
+        if not args.dry_run:
+            ENRICHED_DIR.mkdir(parents=True, exist_ok=True)
+            OUTPUT_FILE.write_text("{}\n", encoding="utf-8")
+        return
 
     target_pids = set(contacts_df["person_id"].tolist())
     log.info("Target people: %d", len(target_pids))

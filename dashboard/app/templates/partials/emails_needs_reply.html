@@ -48,7 +48,7 @@
                     </div>
                     <div class="text-xs mt-0.5">
                         <a href="#" class="hover:underline font-medium"
-                           hx-get="/partials/thread_viewer?source_type=email&source_id={{ email.thread_id }}"
+                           hx-get="/partials/thread/email/{{ email.thread_id }}"
                            hx-target="#modal-body" hx-swap="innerHTML"
                            onclick="document.getElementById('thread-modal').showModal()">
                             {{ email.subject }}

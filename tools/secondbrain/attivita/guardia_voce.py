@@ -1,63 +1,14 @@
 #!/usr/bin/env python3
-""
+"""Guard of the voice-task session: a Claude Code PreToolUse hook that decides whether a tool call may run.
 
+It reads the tool call from stdin and lets through only the task engine command
+(.venv/bin/python tools/secondbrain/sb-motore.py cose <verb> ...) on the tasks of the current request, within
+limits on how many tasks it touches, deletes and how many views it creates or changes (SB_VOCE_* variables),
+plus writing ESITO.json in the request folder. Anything else is blocked (exit 2), and every decision is logged
+in guardia.log in that folder. sb_attivita_voce.py installs it; it is not meant to be run by hand.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Usage: guardia_voce.py --cartella <request folder> --richiesta <id> --attivita <tasks folder> < event.json
+"""
 
 from __future__ import annotations
 
@@ -726,7 +677,10 @@ def _decidi(argv: list[str]) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ""
+    """Exit 0 lets the tool call run, exit 2 blocks it; on any error the call is blocked."""
+    if (sys.argv[1:] if argv is None else argv)[:1] in (["-h"], ["--help"]):
+        print(__doc__)
+        return 0
     try:
         return _decidi(sys.argv[1:] if argv is None else argv)
     except BaseException:  # noqa: BLE001 whatever goes wrong, the gesture does not start

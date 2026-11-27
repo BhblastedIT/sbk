@@ -1,60 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Actions of the Inspiration section: open, understand, re-read, correct and file the items you saved, with a Claude
+Code session in the background, which uses your own claude login and runs only after you opt in (sb_own_claude.py).
+Called as sb-motore.py inspiration <action> ...
+"""
 
 from __future__ import annotations
 
@@ -77,10 +25,13 @@ from pathlib import Path
 
 QUI = Path(__file__).resolve().parent
 ROOT = QUI.parents[1]
-RADICE = Path(
-    os.environ.get("SB_INSPIRATION_RADICE")
-    or Path.home() / ".sbk-data" / "inspiration"
-)
+if str(QUI) not in sys.path:
+    sys.path.insert(0, str(QUI))
+import sb_inspiration_root  # noqa: E402
+
+# The archive folder: inspiration.archive_dir in sbk.config.json (or SB_INSPIRATION_RADICE).
+# Unset = Inspiration is off and esegui() says so (sb_inspiration_root.py).
+RADICE = sb_inspiration_root.root()
 CASA_ARCHIVIO = RADICE / "archivio"
 MODELLI = QUI / "inspiration"
 VENV = ROOT / ".venv" / "bin" / "python"
@@ -105,19 +56,17 @@ AGENT_CLI = os.environ.get("SB_AGENT_CLI") or "agent-cli"
 
 
 
+def _own():
+    """sb_own_claude: your own `claude` login and your consent for background sessions."""
+    if str(QUI) not in sys.path:
+        sys.path.insert(0, str(QUI))
+    import sb_own_claude
+
+    return sb_own_claude
+
+
 def _trova_claude():
-    scelto = os.environ.get("SB_CLAUDE_CLI")
-    if scelto:
-        return scelto
-    for p in (
-        shutil.which("claude"),
-        Path.home() / ".local" / "bin" / "claude",
-        "/opt/homebrew/bin/claude",
-        "/usr/local/bin/claude",
-    ):
-        if p and Path(p).exists():
-            return str(p)
-    return "claude"
+    return _own().find_claude() or os.environ.get("SB_CLAUDE_CLI") or "claude"
 
 
 CLAUDE = _trova_claude()
@@ -127,7 +76,6 @@ CLAUDE = _trova_claude()
 
 
 
-POOL_SWITCH = Path(os.environ.get("SB_POOL_SWITCH") or ROOT / "tools" / "account-pool" / "switch")
 
 
 
@@ -169,25 +117,17 @@ DA_ARRETRATI = "rilettura degli arretrati"
 
 
 IMPOSTAZIONI_ARRETRATI = (
-    "punti_per_gruppo",
-    "punti_al_giorno",
     "voci_per_gruppo",
     "equivalente_per_sessione",
 )
 
-
-# Optional account-pool quota file(s): set SB_QUOTA_EFFETTIVO (os.pathsep-separated)
-# to point at your own quota-effective.json. Default looks under ~/.config.
-QUOTA_EFFETTIVO = [
-    Path(p)
-    for p in (
-        os.environ.get("SB_QUOTA_EFFETTIVO")
-        or str(Path.home() / ".config" / "quota" / "quota-effective.json")
-    ).split(os.pathsep)
-    if p
-]
-
-ATTESA_PRESTITO_S = int(os.environ.get("SB_ATTESA_PRESTITO_S") or 600)
+# What each background session sends to Claude, for the consent message (sb_own_claude).
+COSA_MANDATA = {
+    "comprensione": "the saved idea, its files and your notes on it",
+    "rilettura": "the saved idea, its files and your answer",
+    "smistamento": "the reasons written for your saved ideas and your answers",
+    "arretrati": "an older saved idea, its files and your notes on it",
+}
 LUCCHETTO_COMPRENSIONE = CASA_ARCHIVIO / ".comprensione.lock"
 
 
@@ -199,7 +139,8 @@ LUCCHETTO_RILETTURA = CASA_ARCHIVIO / ".rilettura.lock"
 
 
 ATTREZZI_RILETTURA = "Read,Write,Glob,Grep"
-DA_RILETTURA = "rilettura dopo la tua risposta"
+# Must match sb_inspiration.DA_RILETTURA, which reads it back.
+DA_RILETTURA = "reread after your answer"
 
 QUIETE_RILETTURA_S = int(os.environ.get("SB_QUIETE_RILETTURA_S") or 25)
 
@@ -218,10 +159,7 @@ TETTO_A_VUOTO = 12
 CODICI_A_VUOTO = (
     "lancio",
     "scaricatore-occupato",
-    "senza-prestiti",
-    "prestito-nessuno",
-    "prestito-occupato",
-    "prestito-vietato",
+    "senza-consenso",
     "memoria",
 )
 
@@ -348,6 +286,7 @@ FRASI = {
     "lavoro_finito": "The job is done. The result is here",
     "task_non_creata": "The job started, but ClickUp did not create the task. You can create it later, from the backlog",
     "task_non_creata_ferma": "ClickUp did not create the task, the job did not start. Try again, or start without the task",
+    "task_senza_lista": 'No ClickUp list is set for your backlog, so I did not create the task. Put its id in sbk.config.json, "inspiration": {"clickup_lists": {"main": "<list id>"}}, or start without the task',
 
 
 
@@ -395,18 +334,7 @@ FRASI = {
     "uno_parte_altri_aspettano": "One post I read now, the other {n} are still waiting for your yes",
     "uno_parte_altro_aspetta": "One post I read now, the other is still waiting for your yes",
 
-    "quota_manca": "From this Mac I can't reach the Claude subscriptions right now, so I don't understand it yet",
-
-
-    "quota_nessuno": "No Claude subscription is free right now{quando}. When one comes back I'll understand it on my own",
-    "quota_nessuno_spento": "No Claude subscription is free right now{quando}. When one comes back, press Do it now again",
-    "claude_manca": "I can't find Claude on this Mac, so I don't understand it yet. It's an error of mine, the content has nothing to do with it",
-    "prestito_vietato": "I don't understand it yet because of an error of mine with the subscriptions, the content has nothing to do with it",
-
-
-    "comprensione_prestito_nessuno": "No Claude subscription was free{quando}",
-    "comprensione_prestito_occupato": "The Claude subscriptions were all busy even after {attesa} of waiting",
-    "comprensione_prestito_vietato": "It didn't start because of an error of mine with the subscriptions, the content has nothing to do with it",
+    "claude_manca": "I can't find Claude Code on this Mac, so I don't understand it yet. Install it and sign in with `claude`, the content has nothing to do with it",
 
     "comprensione_non_partita": "It didn't start because of an error of mine, the content has nothing to do with it",
     "comprensione_senza_esito": "Understanding was interrupted before finishing",
@@ -423,30 +351,16 @@ FRASI = {
     "rilettura_risposta_in_corso": "I'm still re-reading everything with your answer. As soon as I'm done you'll see it here",
 
     "rilettura_risposta_in_fila": "I have your answer and I'll re-read everything as soon as I can. As soon as I'm done you'll see it here",
-    "rilettura_quota_manca": "From this Mac I can't reach the Claude subscriptions right now, so I'm not re-reading the idea with your answer. The answer stays here",
-    "rilettura_quota_nessuno": "No Claude subscription is free right now{quando}, so I'm not re-reading the idea with your answer. The answer stays here",
-    "rilettura_prestito_nessuno": "For the re-read no Claude subscription was free{quando}",
-    "rilettura_prestito_occupato": "The Claude subscriptions were all busy even after {attesa} of waiting",
-    "rilettura_prestito_vietato": "The re-read didn't start because of an error of mine with the subscriptions",
     "rilettura_niente": "There's no answer of yours to re-read here right now",
 
     "smistamento_non_partita": "sorting didn't start, claude didn't launch on the Mac",
-    "smistamento_prestito_vietato": "AccountPool doesn't lend an account for this model",
     "smistamento_senza_esito": "the sorting session closed without writing the outcome",
     "smistamento_senza_memoria": "the Mac had no free memory for half an hour, I'll try again next round",
     "smistamento_tempo": "the sorting session went past three hours and was stopped",
-    "smistamento_prestito_nessuno": "AccountPool had no subscription to give{quando}",
-    "smistamento_prestito_occupato": "AccountPool had all its loans busy and I waited {attesa}",
-    "smistamento_quota_manca": "AccountPool isn't on this Mac, background sorting can't start",
-    "smistamento_quota_nessuno": "AccountPool has no subscription to give right now{quando}, sorting restarts next round",
 
     "lavoro_sconosciuto": "the job «{chi}» has no model of its own, it won't start",
 
 
-    "arretrati_quota_manca": "from this Mac I can't reach the Claude subscriptions, the backlog re-read won't start",
-    "arretrati_prestito_vietato": "the subscriptions don't lend a model to the backlog re-read",
-    "arretrati_prestito_nessuno": "no subscription with a free model{quando}",
-    "arretrati_prestito_occupato": "the Claude subscriptions were all busy even after {attesa} of waiting",
     "arretrati_senza_memoria": "the Mac had no free memory to start, the idea goes back in the queue",
     "arretrati_memoria_alta": "the Mac's memory rose too high, I stopped the re-read and the idea goes back in the queue",
     "arretrati_non_partita": "the re-read didn't start, claude didn't launch on the Mac",
@@ -455,13 +369,9 @@ FRASI = {
     "arretrati_acceso": "backlog re-read on, group of {n} ideas",
     "arretrati_spento": "backlog re-read off",
     "arretrati_senza_impostazioni": "the backlog re-read numbers are missing ({chiavi}), it won't start",
-    "arretrati_quota_di_prima": "the previous group's quota isn't read yet, the backlog re-read won't restart",
     "arretrati_gruppo_finito": "group done, {n} ideas re-read, the backlog re-read stops until the next turn-on",
-    "arretrati_quota_non_letta": "the quota after the group isn't read, the last reading is from before the end of the group",
-    "arretrati_gruppo_sopra": "subscription {account} took {punti} points in this group, over the {tetto}",
-    "arretrati_giorno_sopra": "subscription {account} took {punti} points today, over the {tetto}",
     "arretrati_storte": "two re-reads in a row ended badly, the backlog re-read stops",
-    "arretrati_prestito": "the subscription loan didn't arrive, the backlog re-read stops",
+    "arretrati_non_permesso": "the Claude Code session didn't start, the backlog re-read stops",
     "arretrati_preparatore": "the idea's entry didn't get prepared, the backlog re-read stops",
     "arretrati_cambiato": "the idea changed while I was re-reading it ({cosa}), the new proposal didn't go in",
     "arretrati_verifica_rossa": "the row check isn't green, the new proposal didn't go in",
@@ -482,7 +392,7 @@ FRASI = {
     "smista_task_no": "ClickUp didn't create the task in {lista}. Try again shortly, the idea stays as it was",
     "smista_esito": "I don't know this outcome",
 
-    "lettore_assente": "The reader for your DM can't be found on the Mac. Tell me in the terminal",
+    "lettore_assente": "Re-reading needs leggi-dm.py, a script of your Inspiration archive that SBK does not ship",
     "rilettura_in_corso": "I'm already re-reading your DM. Wait for it to finish",
     "rilettura_non_riuscita": "I couldn't read your DM on Slack. Try again shortly, and if it happens again tell me in the terminal",
 
@@ -633,6 +543,8 @@ def arch():
     global _ARCH
     if _ARCH is None:
         p = CASA_ARCHIVIO / "archivio.py"
+        if not p.is_file():
+            raise Errore(sb_inspiration_root.needs_archive(p))
         spec = importlib.util.spec_from_file_location("archivio_inspiration", p)
         m = importlib.util.module_from_spec(spec)
         sys.modules["archivio_inspiration"] = m
@@ -945,39 +857,24 @@ def _primo_messaggio(cartella, cosa):
     )
 
 
-def _account_runner(chi):
-    ""
-
-    modulo = POOL_SWITCH / "account_runner.py"
+def _permesso(chi):
+    """Your consent and the `claude` command (sb_own_claude), else an Errore that says how to turn it on."""
+    own = _own()
     try:
-        if not modulo.is_file():
-            raise ImportError(str(modulo))
-        m = sys.modules.get("account_runner")
-        if m is None or Path(getattr(m, "__file__", "") or "").resolve() != modulo.resolve():
-            spec = importlib.util.spec_from_file_location("account_runner", modulo)
-            m = importlib.util.module_from_spec(spec)
-            sys.modules["account_runner"] = m
-            spec.loader.exec_module(m)
-    except (ImportError, OSError, AttributeError):
-        sys.modules.pop("account_runner", None)
-        raise Errore(
-            FRASI.get(f"{chi}_quota_manca")
-            or FRASI["quota_manca" if chi == "comprensione" else "rilettura_quota_manca"]
-        ) from None
-    return m
+        own.check(COSA_MANDATA.get(chi, "what the feature works on"))
+    except own.NotAllowed as e:
+        raise Errore(str(e)) from None
+    except own.ClaudeMissing:
+        raise Errore(FRASI["claude_manca"]) from None
 
 
-def _quando_torna(fino):
-    ""
-
-    if not fino:
-        return ""
+def _permesso_o_motivo(chi):
+    """The consent message, or "" when sessions are allowed."""
     try:
-        return ", the first comes back at " + datetime.datetime.fromtimestamp(float(fino)).strftime(
-            "%H:%M"
-        )
-    except (TypeError, ValueError, OSError, OverflowError):
-        return ""
+        _permesso(chi)
+    except Errore as e:
+        return str(e)
+    return ""
 
 
 def _modello(chi):
@@ -987,96 +884,6 @@ def _modello(chi):
         return MODELLO_PER_LAVORO[chi]
     except KeyError:
         raise Errore(FRASI["lavoro_sconosciuto"].format(chi=chi)) from None
-
-
-def _prestito_in_vista(chi):
-    ""
-
-
-
-
-
-    sbq = _account_runner(chi)
-    try:
-        d = sbq.disponibile(_modello(chi), strumento=STRUMENTO_SOTTOFONDO[chi])
-    except sbq.Vietato as e:
-        print(f"{_adesso()} loan: AccountPool says no ({e})", file=sys.stderr, flush=True)
-        raise Errore(FRASI["prestito_vietato"]) from None
-    except Exception as e:  # noqa: BLE001
-        print(
-            f"{_adesso()} loan: AccountPool doesn't answer on who would give ({e!r}), the background decides",
-            file=sys.stderr,
-            flush=True,
-        )
-        return sbq
-    if not isinstance(d, dict) or d.get("account") or d.get("occupato"):
-        return sbq
-    if chi == "comprensione":
-
-        acceso = _ritmo_acceso()
-        e = Errore(
-            FRASI["quota_nessuno" if acceso else "quota_nessuno_spento"].format(
-                quando=_quando_torna(d.get("fino"))
-            )
-        )
-        e.promette = (
-            acceso
-        )
-        raise e
-    raise Errore(
-        (FRASI.get(f"{chi}_quota_nessuno") or FRASI["rilettura_quota_nessuno"]).format(
-            quando=_quando_torna(d.get("fino"))
-        )
-    )
-
-
-def _attesa_parole(secondi):
-    ""
-    if secondi >= 120:
-        return f"{secondi // 60} minutes"
-    if secondi >= 60:
-        return "one minute"
-    return f"{secondi} seconds"
-
-
-def _prendi_prestito(sbq, chi, voci, titolo):
-    ""
-
-
-
-    nome = STRUMENTO_SOTTOFONDO[chi]
-    modello = _modello(chi)
-    args = {
-        "audit": ",".join(str(v) for v in voci),
-        "lavoro": str(titolo)[:80],
-        "dominio": "sbk",
-        "durata_max": TETTO_COMPRENSIONE_S + 600,
-    }
-    try:
-        try:
-            return sbq.prendi(nome, modello, **args), None
-        except sbq.Occupato as e:
-            if ATTESA_PRESTITO_S <= 0:
-                raise
-            print(
-                f"{_adesso()} {chi}: {e.perche}, waiting up to {ATTESA_PRESTITO_S // 60} minutes",
-                flush=True,
-            )
-            return sbq.prendi(nome, modello, attesa=ATTESA_PRESTITO_S, **args), None
-    except sbq.Occupato as e:
-        return None, (
-            "occupato",
-            FRASI[f"{chi}_prestito_occupato"].format(attesa=_attesa_parole(ATTESA_PRESTITO_S)),
-            e.perche,
-        )
-    except sbq.Nessuno as e:
-        return None, (
-            "nessuno",
-            FRASI[f"{chi}_prestito_nessuno"].format(quando=_quando_torna(e.fino)),
-            e.perche,
-        )
-    except sbq.Vietato as e:
-        return None, ("vietato", FRASI.get(f"{chi}_prestito_vietato") or str(e), str(e))
 
 
 def _esito_claude(cartella):
@@ -1296,7 +1103,6 @@ def _sessione_sottofondo(cartella, titolo, istruzioni, attrezzi, vietati, chi, v
         "inizio": _adesso(),
         "fine": "",
         "uscita": None,
-        "account": "",
     }
     _scrivi_json(processo, stato)
 
@@ -1329,27 +1135,34 @@ def _sessione_sottofondo(cartella, titolo, istruzioni, attrezzi, vietati, chi, v
         fermo(str(e), codice="lavoro-sconosciuto")
         return chiudi(2)
     try:
-        sbq = _account_runner(chi)
+        _permesso(chi)
     except Errore as e:
-        fermo(str(e), codice="senza-prestiti")
+        fermo(str(e), codice="senza-consenso")
         return chiudi(2)
     cmd = _comando_claude(
-        cartella, attrezzi, _primo_messaggio(cartella, istruzioni), vietati, titolo, modello
+        cartella,
+        attrezzi,
+        _primo_messaggio(cartella, istruzioni),
+        vietati,
+        titolo,
+        _own().model(modello),
     )
     esito_claude = {}
 
     def gira():
         ""
-
-
-        prestito, guaio = _prendi_prestito(sbq, chi, voci, titolo)
-        if prestito is None:
-            return guaio
-        with prestito as p:
-            stato.update(account=p.account, prestito=p.id)
+        own = _own()
+        try:
+            sessione = own.session(
+                STRUMENTO_SOTTOFONDO[chi], COSA_MANDATA.get(chi, "what the feature works on")
+            )
+        except (own.NotAllowed, own.ClaudeMissing) as e:
+            return ("senza-consenso", str(e), "")
+        with sessione as p:
+            stato.update(sessione_id=p.id)
             _scrivi_json(processo, stato)
             print(
-                f"{_adesso()} {chi}: claude starting ({titolo}, account {p.account} on loan from AccountPool, {p.id})",
+                f"{_adesso()} {chi}: claude starting ({titolo}, your own login, {p.id})",
                 flush=True,
             )
             with open(cartella / "claude-esito.json", "w") as out:
@@ -1357,40 +1170,19 @@ def _sessione_sottofondo(cartella, titolo, istruzioni, attrezzi, vietati, chi, v
                     proc = subprocess.Popen(
                         cmd,
                         cwd=str(ROOT),
-                        env=p.ambiente(),
+                        env=p.env(),
                         stdin=subprocess.DEVNULL,
                         stdout=out,
                         start_new_session=True,
                     )
                 except OSError as e:
-
-
                     print(f"{_adesso()} {chi}: claude won't start ({e!r})", flush=True)
-                    p.restituisci("did not start")
                     return ("lancio", repr(e)[:160])
 
                 stato["claude_partito"] = _adesso()
                 _scrivi_json(processo, stato)
                 uscita = _aspetta_claude(proc, guardia)
             esito_claude.update(_esito_claude(cartella))
-            if esito_claude:
-                with contextlib.suppress(Exception):
-                    p.uso(
-                        esito_claude
-                    )
-            for nome in ("ESITO.json", "RILETTURA.json", "SMISTAMENTO.jsonl"):
-                if (cartella / nome).is_file():
-                    with contextlib.suppress(Exception):
-                        p.prodotto(cartella / nome)
-            finale = _json_di(cartella / "ESITO.json")
-            finale = finale if isinstance(finale, dict) else {}
-            p.restituisci(
-                "over three hours"
-                if uscita == "tempo"
-                else "stopped for memory"
-                if uscita == "memoria"
-                else str(finale.get("stato") or "no outcome")
-            )
             return uscita
 
 
@@ -1414,9 +1206,9 @@ def _sessione_sottofondo(cartella, titolo, istruzioni, attrezzi, vietati, chi, v
         return chiudi(3)
     if isinstance(uscita, tuple):
         codice, motivo, dettaglio = uscita
-        print(f"{_adesso()} {chi}: no loan from AccountPool, {dettaglio}", flush=True)
-        fermo(motivo, codice=f"prestito-{codice}", dettaglio=str(dettaglio)[:160])
-        return chiudi({"occupato": 76, "nessuno": 7}.get(codice, 2))
+        print(f"{_adesso()} {chi}: no Claude Code session, {motivo}", flush=True)
+        fermo(motivo, codice=codice, dettaglio=str(dettaglio)[:160])
+        return chiudi(2)
     if uscita == "tempo":
         fermo(FRASI[f"{chi}_tempo"], codice="tempo")
         return chiudi(1)
@@ -1667,7 +1459,7 @@ def _rilettura_voce(a, note, r, ultima, impronta, avvio):
         nota["scope_versione"] = int(sc.get("versione") or 0)
         nota["scope_confermato"] = _confermato(sc)
     try:
-        _prestito_in_vista("rilettura")
+        _permesso("rilettura")
         cosa = f"re-read started in the background with their answer from {ultima['quando'][11:16]} ({titolo})"
     except Errore as e:
         nota["chiusa_quando"] = _adesso()
@@ -2641,6 +2433,10 @@ def _scomponi():
 
 def _trascrivi(ident):
     ""
+    script = CASA_ARCHIVIO / "trascrivi-audio.py"
+    if not script.is_file():
+        print(sb_inspiration_root.needs_archive(script), flush=True)
+        return 1
     py = str(VENV if VENV.exists() else sys.executable)
     ambiente = dict(os.environ)
     scomponi = _scomponi()
@@ -3302,7 +3098,7 @@ def avvisa(ident):
             and firma is None
             and (_ricordo_del_pannello(ident, chi, handle) or {}).get("file") is True
         ):
-            saltati.append(f"{chi} non avvisata, il suo RISPOSTE.json non c'è")
+            saltati.append(f"{chi} not notified, its RISPOSTE.json is missing")
             continue
 
 
@@ -3337,10 +3133,10 @@ def avvisa(ident):
 
             print(f"{_adesso()} {chi}: sending, {_perche}", flush=True)
         if not parte:
-            saltati.append(f"{chi} da avvisare, niente di nuovo dell'utente")
+            saltati.append(f"{chi} to notify, nothing new from the user")
             continue
         if not terminale_vivo(handle):
-            fatti.append(f"{chi} non è più aperta")
+            fatti.append(f"{chi} is no longer open")
             continue
         d = _terminale(
             "terminal",
@@ -3353,7 +3149,7 @@ def avvisa(ident):
             timeout=30,
         )
         if d is None:
-            fatti.append(f"{chi} non ha ricevuto l'avviso")
+            fatti.append(f"{chi} did not receive the notice")
             continue
         if scope:
             a.segna_scope_detto(r)
@@ -4126,10 +3922,8 @@ def _capisci_voci(a, note, ids, pannello, avvio, ripresa=False):
             com["chiusa_quando"] = _adesso()
     if not pannello:
         try:
+            _permesso("comprensione")
             _claude_c_e()
-            _prestito_in_vista(
-                "comprensione"
-            )
         except Errore as e:
 
             if avvio == "fallo_adesso" and _tieni_si(ids):
@@ -4535,8 +4329,10 @@ def _cartella_lavoro(org, progetto, cosa):
     ""
 
     # Working-folder root is configurable via SB_INSPIRATION_LAVORO;
-    # default is ~/.sbk-data/work. Layout: <root>/<org>/<project>/<date>-<what>.
-    base = os.environ.get("SB_INSPIRATION_LAVORO") or str(Path.home() / ".sbk-data" / "work")
+    # default is <data root>/work. Layout: <root>/<org>/<project>/<date>-<what>.
+    base = os.environ.get("SB_INSPIRATION_LAVORO") or str(
+        Path(os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data").expanduser() / "work"
+    )
     p = Path(base) / org / progetto / f"{datetime.date.today():%Y-%m-%d}-{cosa}"
     p.mkdir(parents=True, exist_ok=True)
     return p
@@ -4544,8 +4340,24 @@ def _cartella_lavoro(org, progetto, cosa):
 
 
 
-BACKLOG = "900000000000"
-OWNER_CLICKUP = int(os.environ.get("SB_CLICKUP_USER_ID") or "100000000")
+def _config_testo(chiave):
+    """A text value of sbk.config.json, "" when it is not set."""
+    if str(ROOT / "tools") not in sys.path:
+        sys.path.insert(0, str(ROOT / "tools"))
+    try:
+        from sbk_config import user_cfg
+    except ImportError:
+        return ""
+    v = user_cfg(chiave, "")
+    return str(v).strip() if isinstance(v, str | int) and not isinstance(v, bool) else ""
+
+
+# Where Start creates the idea's ClickUp task: your backlog list, the same "main" list of
+# "inspiration.clickup_lists" in sbk.config.json. No default: unset = no task, Start says so.
+BACKLOG = _config_testo("inspiration.clickup_lists.main")
+# Who the task is assigned to: your ClickUp user id, "clickup": {"user_id": "<id>"}.
+# Unset = the task is created without an assignee.
+OWNER_CLICKUP = os.environ.get("SB_CLICKUP_USER_ID") or _config_testo("clickup.user_id")
 # suggested ClickUp destination per project; load from user config.
 # Default keeps only a generic fallback.
 DESTINAZIONE_SUGGERITA = {
@@ -4623,7 +4435,8 @@ def task_proposta(r, cartella):
         f"Suggested destination: {DESTINAZIONE_SUGGERITA.get(progetto, DESTINAZIONE_SUGGERITA['altro'])}",
     ]
     nome = re.sub(r"\s+", " ", f"Inspiration · {r.get('titolo') or r['id']}").strip()[:150]
-    return {"name": nome, "description": "\n\n".join(righe), "assignees": [OWNER_CLICKUP], "priority": 3,
+    assegnati = [int(OWNER_CLICKUP)] if OWNER_CLICKUP.isdigit() else []
+    return {"name": nome, "description": "\n\n".join(righe), "assignees": assegnati, "priority": 3,
             "tags": ["backlog", "inspiration"]}
 
 
@@ -4642,6 +4455,8 @@ def crea_task(r, cartella):
             json.dumps({"quando": _adesso(), **dati}, ensure_ascii=False, indent=1) + "\n"
         )
         return "https://app.clickup.com/t/finto"
+    if not BACKLOG:
+        raise Errore(FRASI["task_senza_lista"])
     cs = _clickup()
     stato, testo = cs.api_post(f"/list/{BACKLOG}/task", dati)
     try:
@@ -7050,6 +6865,10 @@ def _capisci_da_solo(da="bacheca"):
     cfg = _leggi_cfg(CAPISCI_DA_SOLO)
     if not cfg.get("acceso"):
         return []
+    spento = _permesso_o_motivo("comprensione")
+    if spento:
+        _PERCHE_NIENTE[da] = spento
+        return []
     inizio = json.loads(json.dumps(cfg))
     dopo = datetime.timedelta(minutes=float(cfg.get("dopo_minuti") or 0))
     riparti = cfg.get("riparti_fermi_a_vuoto") is True or cfg.get("riparti_fermi_a_vuoto") == "uno"
@@ -7428,6 +7247,9 @@ def smistamento_giro(cosa="adesso"):
     corso = cfg.get("in_corso") or {}
     if corso.get("pid") and _processo_vivo(corso["pid"]):
         return ""
+    spento = _permesso_o_motivo("smistamento")
+    if spento:
+        return f"sorting waits, {spento}"
     a = arch()
     note = a.carica()
     ids = _da_smistare(a, note)[:BLOCCO_SMISTAMENTO]
@@ -7661,97 +7483,6 @@ def _epoca(iso):
     return d.timestamp()
 
 
-def _quota_letta():
-    ""
-
-
-    migliore = None
-    for f in QUOTA_EFFETTIVO:
-        d = _json_di(f)
-        if not isinstance(d, dict) or not isinstance(d.get("accounts"), dict):
-            continue
-        epoca = _epoca(d.get("generatedAt"))
-        if epoca is None:
-            continue
-        if migliore is None or epoca > migliore["epoca"]:
-            migliore = {
-                "generatedAt": str(d.get("generatedAt")),
-                "epoca": epoca,
-                "file": str(f),
-                "accounts": {
-                    str(k): {
-                        "weeklyPct": (v or {}).get("weeklyPct"),
-                        "fableWeeklyPct": (v or {}).get("fableWeeklyPct"),
-                    }
-                    for k, v in d["accounts"].items()
-                    if isinstance(v, dict)
-                },
-            }
-    return migliore
-
-
-def _numero(x):
-    return x if isinstance(x, int | float) and not isinstance(x, bool) else None
-
-
-def _punti_del_gruppo(g, lettura, fresca_dopo=None):
-    ""
-
-
-    prestati = sorted({str(v.get("account")) for v in g.get("voci") or [] if v.get("account")})
-    if not prestati:
-        return {}, "letta"
-    if lettura is None:
-        return {}, "non letta"
-    if fresca_dopo is not None and lettura["epoca"] < fresca_dopo:
-        return {}, "non letta"
-    prima = ((g.get("quota_prima") or {}).get("accounts")) or {}
-    punti = {}
-    for k in prestati:
-        p0 = _numero((prima.get(k) or {}).get("weeklyPct"))
-        p1 = _numero((lettura["accounts"].get(k) or {}).get("weeklyPct"))
-        if p0 is None or p1 is None:
-            return {}, "non letta"
-        punti[k] = p1 - p0
-    return punti, "letta"
-
-
-def _lettura_breve(lettura):
-    if lettura is None:
-        return {"stato": "non letta"}
-    return {k: lettura[k] for k in ("generatedAt", "file", "accounts")}
-
-
-def _arretrati_quota_sopra(cfg, imp):
-    ""
-
-
-    g = cfg.get("gruppo") or {}
-    punti, stato = _punti_del_gruppo(g, _quota_letta()) if g else ({}, "letta")
-    if stato != "letta":
-        punti = {}
-    for k, p in sorted(punti.items()):
-        if p > imp["punti_per_gruppo"]:
-            return FRASI["arretrati_gruppo_sopra"].format(
-                account=k, punti=p, tetto=imp["punti_per_gruppo"]
-            )
-    oggi = (cfg.get("punti_giorno") or {}).get(_adesso()[:10]) or {}
-    for k in sorted(set(oggi) | set(punti)):
-        tot = (_numero(oggi.get(k)) or 0) + (punti.get(k) or 0)
-        if tot > imp["punti_al_giorno"]:
-            return FRASI["arretrati_giorno_sopra"].format(
-                account=k, punti=tot, tetto=imp["punti_al_giorno"]
-            )
-    return ""
-
-
-def _arretrati_conta_giorno(cfg, punti, quando):
-    giorno = str(quando or _adesso())[:10]
-    tab = cfg.setdefault("punti_giorno", {}).setdefault(giorno, {})
-    for k, p in punti.items():
-        tab[k] = (_numero(tab.get(k)) or 0) + p
-
-
 def _arretrati_chiudi_gruppo(cfg, motivo, codice):
     ""
 
@@ -7759,51 +7490,12 @@ def _arretrati_chiudi_gruppo(cfg, motivo, codice):
     g = cfg.get("gruppo") or {}
     fine = max([str(v.get("fine") or "") for v in g.get("voci") or []] or [_adesso()])
     g["fine"] = fine
-    lettura = _quota_letta()
-    punti, stato = _punti_del_gruppo(g, lettura, fresca_dopo=_epoca(fine))
-    g["quota_dopo"] = (
-        _lettura_breve(lettura)
-        if stato == "letta"
-        else {
-            "stato": "non letta",
-            "ultima": (lettura or {}).get("generatedAt") or "",
-        }
-    )
-    if stato == "letta":
-        g["punti"] = punti
-        _arretrati_conta_giorno(cfg, punti, fine)
-    else:
-        cfg["quota_in_attesa"] = True
-        motivo = f"{motivo}; {FRASI['arretrati_quota_non_letta']}"
     g["chiuso"] = {"quando": _adesso(), "codice": codice}
     cfg.setdefault("gruppi", []).append(g)
     cfg["gruppo"] = {}
     cfg["acceso"] = False
     cfg["fermo"] = {"quando": _adesso(), "codice": codice, "motivo": motivo}
     return motivo
-
-
-def _arretrati_rileggi_quota(cfg):
-    ""
-
-    gruppi = cfg.get("gruppi") or []
-    if not cfg.get("quota_in_attesa") or not gruppi:
-        return ""
-    g = gruppi[-1]
-    lettura = _quota_letta()
-    punti, stato = _punti_del_gruppo(g, lettura, fresca_dopo=_epoca(g.get("fine")))
-    if stato != "letta":
-        return ""
-    g["quota_dopo"] = _lettura_breve(lettura)
-    g["punti"] = punti
-    _arretrati_conta_giorno(cfg, punti, g.get("fine"))
-    cfg.pop("quota_in_attesa", None)
-    if isinstance(cfg.get("fermo"), dict):
-        cfg["fermo"]["quota_letta_dopo"] = {"quando": _adesso(), "punti": punti}
-    _scrivi_json(ARRETRATI_GIRO, cfg)
-    return "backlog, group quota read, " + (
-        ", ".join(f"{k} {p}" for k, p in sorted(punti.items())) or "no loan"
-    )
 
 
 def _altro_in_moto(a, note):
@@ -7868,6 +7560,8 @@ def _arretrati_prepara(a, r, cl):
         {"voce": r["id"], "preso_quando": _adesso(), **_impronta_arretrato(a, r)},
     )
     prepara = CASA_ARCHIVIO / "perche-prepara.py"
+    if not prepara.is_file():
+        return False, sb_inspiration_root.needs_archive(prepara)
     try:
         p = subprocess.run(
             [
@@ -7943,13 +7637,13 @@ def _arretrati_accendi(cfg):
         )
         _scrivi_json(ARRETRATI_GIRO, cfg)
         return motivo
-    if cfg.get("quota_in_attesa"):
-        _arretrati_rileggi_quota(cfg)
-        if cfg.get("quota_in_attesa"):
-            motivo = FRASI["arretrati_quota_di_prima"]
-            cfg["fermo"] = {"quando": _adesso(), "codice": "quota-di-prima", "motivo": motivo}
-            _scrivi_json(ARRETRATI_GIRO, cfg)
-            return motivo
+    spento = _permesso_o_motivo("arretrati")
+    if spento:
+        cfg.update(
+            acceso=False, fermo={"quando": _adesso(), "codice": "senza-consenso", "motivo": spento}
+        )
+        _scrivi_json(ARRETRATI_GIRO, cfg)
+        return spento
     ids = [str(i) for i in (cfg.pop("gruppo_ids", None) or []) if str(i).strip()]
     cfg["gruppo"] = {
         "inizio": _adesso(),
@@ -7957,7 +7651,6 @@ def _arretrati_accendi(cfg):
         "ids_scartati": ids[imp["voci_per_gruppo"] :],
         "esiti": {},
         "voci": [],
-        "quota_prima": _lettura_breve(_quota_letta()),
     }
     cfg.update(
         acceso=True,
@@ -7982,7 +7675,7 @@ def _arretrati_ferma(cfg, motivo, codice):
 
 def _arretrati_adesso(cfg):
     if not cfg.get("acceso"):
-        return _arretrati_rileggi_quota(cfg)
+        return ""
     imp = _impostazioni_arretrati(cfg)
     if imp is None:
         return _arretrati_ferma(
@@ -8013,9 +7706,9 @@ def _arretrati_adesso(cfg):
         cfg["storte_di_fila"] = int(cfg.get("storte_di_fila") or 0) + 1
         if cfg["storte_di_fila"] >= 2:
             return _arretrati_ferma(cfg, FRASI["arretrati_storte"], "storte")
-    sopra = _arretrati_quota_sopra(cfg, imp)
-    if sopra:
-        return _arretrati_ferma(cfg, sopra, "quota")
+    spento = _permesso_o_motivo("arretrati")
+    if spento:
+        return _arretrati_ferma(cfg, spento, "senza-consenso")
     seg, ok, _warn = _pressione()
     if seg >= ok:
         cfg["attesa"] = {"quando": _adesso(), "perche": f"memory at {seg * 100:.0f}%"}
@@ -8184,7 +7877,7 @@ def _arretrati_cara(riga, imp):
 
 
 
-    if riga.get("esito") in ("memoria", "prestito") or not riga.get("claude_esito"):
+    if riga.get("esito") in ("memoria", "senza-consenso") or not riga.get("claude_esito"):
         return ""
     costo = riga.get("costo_usd")
     if costo is None:
@@ -8219,8 +7912,8 @@ def arretrati_sottofondo(cartella, voce):
     applicato = {}
     if uscita == 75 or codice in ("memoria", "memoria-alta"):
         tipo, motivo = "memoria", str(esito.get("motivo") or FRASI["arretrati_memoria_alta"])
-    elif codice.startswith("prestito-") or codice in ("senza-prestiti", "lavoro-sconosciuto"):
-        tipo = "prestito"
+    elif codice in ("senza-consenso", "lavoro-sconosciuto"):
+        tipo = "senza-consenso"
         motivo = str(esito.get("motivo") or "") + (
             f" ({esito['dettaglio']})" if esito.get("dettaglio") else ""
         )
@@ -8234,8 +7927,7 @@ def arretrati_sottofondo(cartella, voce):
         "voce": voce,
         "cartella": str(cartella),
         "uscita": uscita,
-        "account": str(proc.get("account") or ""),
-        "prestito": str(proc.get("prestito") or ""),
+        "sessione_id": str(proc.get("sessione_id") or ""),
         "inizio": str(proc.get("inizio") or ""),
         "fine": _adesso(),
         "esito": tipo,
@@ -8256,9 +7948,9 @@ def arretrati_sottofondo(cartella, voce):
         g.setdefault("voci", []).append(riga)
         cfg["in_corso"] = {}
         imp = _impostazioni_arretrati(cfg)
-        if tipo == "prestito":
+        if tipo == "senza-consenso":
             print(
-                f"{_adesso()} {_arretrati_ferma(cfg, FRASI['arretrati_prestito'] + ', ' + motivo, 'prestito')}",
+                f"{_adesso()} {_arretrati_ferma(cfg, FRASI['arretrati_non_permesso'] + ', ' + motivo, 'senza-consenso')}",
                 flush=True,
             )
             return uscita
@@ -8284,8 +7976,6 @@ def arretrati_sottofondo(cartella, voce):
             fermo = _arretrati_ferma(cfg, FRASI["arretrati_storte"], "storte")
         elif cfg.get("acceso") and _arretrati_cara(riga, imp):
             fermo = _arretrati_ferma(cfg, _arretrati_cara(riga, imp), "sessione-cara")
-        elif cfg.get("acceso") and _arretrati_quota_sopra(cfg, imp):
-            fermo = _arretrati_ferma(cfg, _arretrati_quota_sopra(cfg, imp), "quota")
         elif cfg.get("acceso") and _arretrati_finito(g, imp):
             n = sum(1 for e in (g.get("esiti") or {}).values() if e.get("esito") != "fuori")
             fermo = _arretrati_ferma(
@@ -9037,7 +8727,10 @@ def scarichi(piano):
         for nome, cmd, cwd in passi:
             _scrivi_json(SCARICHI_IN_CORSO, {**stato, "passo": nome, "aggiornato": _adesso()})
             if not Path(cmd[2]).is_file():
-                print(f"{_adesso()} {nome}: {cmd[2]} doesn't exist, skipping", flush=True)
+                print(
+                    f"{_adesso()} {nome}: skipped. {sb_inspiration_root.needs_archive(cmd[2])}",
+                    flush=True,
+                )
                 continue
             print(f"{_adesso()} {nome}: starting", flush=True)
             try:
@@ -9141,7 +8834,7 @@ def rileggi(intera=False, da="clic"):
 
 
     if not LEGGI_DM.is_file():
-        raise Errore(FRASI["lettore_assente"])
+        raise Errore(sb_inspiration_root.needs_archive(LEGGI_DM))
     a = arch()
     py = str(VENV if VENV.exists() else sys.executable)
     dal_giro = da == "giro"
@@ -9161,7 +8854,7 @@ def rileggi(intera=False, da="clic"):
             )
         except subprocess.TimeoutExpired:
             with open(RILEGGI_LOG, "a") as fh:
-                fh.write(f"{_adesso()} rileggi: il lettore non ha finito in 150 s\n")
+                fh.write(f"{_adesso()} reread: the reader did not finish in 150 s\n")
             raise Errore(FRASI["rilettura_non_riuscita"]) from None
         durata = time.monotonic() - via
         chi = "rileggi dal giro" if dal_giro else "rileggi"
@@ -9181,7 +8874,7 @@ def rileggi(intera=False, da="clic"):
     if dal_giro and not (nuove or parole or a_parte):
 
         with open(RILEGGI_LOG, "a") as fh:
-            fh.write(f"{_adesso()} {chi}: uscita 0 in {durata:.1f} s, niente di nuovo\n")
+            fh.write(f"{_adesso()} {chi}: exit 0 in {durata:.1f} s, nothing new\n")
         try:
             esito = json.loads(ULTIMA_RILETTURA.read_text(encoding="utf-8"))
             esito = esito if isinstance(esito, dict) else {}
@@ -9438,6 +9131,8 @@ def _registra_esito(argv, out=None, errore=None):
 
 def esegui(argv):
     ""
+    if not sb_inspiration_root.is_on() and not ({"-h", "--help"} & set(argv)):
+        return {"ok": False, "spenta": True, "messaggio": sb_inspiration_root.OFF_MESSAGE}
 
 
     ap = parser()

@@ -46,7 +46,7 @@ triggers a crash.
 
 How the shared budget works, and **what is NOT a fixed number**:
 
-- **File-based lease registry** (`~/.sbk-data/runtime/leases/`), no daemon: a guardian process would
+- **File-based lease registry** (`<data root>/runtime/leases/`, `~/.sbk-data/` by default), no daemon: a guardian process would
   die in exactly the window where it is needed, a file does not. Lazy reaping with `kill(pid, 0)`:
   a crash leaves no phantom reservations.
 - **The tax is computed by subtraction**: anything without a lease is tax — sessions, the browser,
@@ -76,13 +76,17 @@ How the shared budget works, and **what is NOT a fixed number**:
 **DuckDB**: without an explicit `memory_limit` it takes ~80% of RAM per connection. Always use
 `configure_duckdb(con)`.
 
-## The pipeline is manual by design — everything on demand
+## What starts on its own and how to switch it off
 
-Long-running, always-on services are off by default; work runs on demand. The reasoning: on a shared
-workstation the RAM is contended with interactive sessions, so nothing should launch jobs on its own.
-The channels that would start jobs autonomously (an event cascade, the monitor, a scheduler in the
-dashboard) are closed; queued events are kept and nothing is lost. Run the chain explicitly with the
-pipeline runner (see the `pipeline` skill); to re-enable automatic mode: `sb-pipeline-ctl.py on`.
+Long-running, always-on services (dashboard, monitor) are off at startup and run only when you start
+them. The reasoning: on a shared workstation the RAM is contended with interactive sessions. Some jobs
+can still start on their own, and you can switch them off. The channels that can start jobs on their
+own are the event bus (the next step after a download), the
+monitor, and the scheduler in the dashboard (only the intervals set on its pipeline page, all off at
+first). `sb-pipeline-ctl.py off` switches automatic cascades off: the event bus and the dashboard
+scheduler then start nothing, and queued events are kept. `sb-pipeline-ctl.py on` switches automatic
+cascades on again; the switch is the file `<data root>/CASCADES_OFF`, and cascades are on unless it
+exists. Run the chain explicitly with the pipeline runner (see the `pipeline` skill).
 
 | What | Why it is off at startup | How to start it |
 |---|---|---|

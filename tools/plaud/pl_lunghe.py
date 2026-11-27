@@ -44,7 +44,9 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-DATA = Path(os.environ.get("SBK_DATA", Path.home() / ".sbk-data"))
+DATA = Path(
+    os.environ.get("SBK_DATA") or os.environ.get("SBK_DATA_ROOT") or Path.home() / ".sbk-data"
+).expanduser()
 PLAUD = DATA / "plaud"
 INDICE = PLAUD / "raw" / "_file_index.json"
 DETTAGLI = PLAUD / "dettagli"
@@ -538,19 +540,46 @@ def main() -> int:
     ap = argparse.ArgumentParser(
         description=((__doc__ or "").strip().splitlines() or ["Plaud long recordings"])[0]
     )
-    ap.add_argument("comando", choices=["elenco", "piano", "carica", "controlla", "tutte"])
+    # English commands; the older Italian names are accepted too (hidden aliases).
+    comandi = {
+        "list": "elenco",
+        "plan": "piano",
+        "upload": "carica",
+        "check": "controlla",
+        "all": "tutte",
+    }
+
+    def comando(s: str) -> str:
+        if s in comandi.values():
+            return s
+        if s in comandi:
+            return comandi[s]
+        raise argparse.ArgumentTypeError(f"{s!r}: choose from list, plan, upload, check, all")
+
     ap.add_argument(
-        "--minuti",
+        "comando",
+        metavar="{list,plan,upload,check,all}",
+        type=comando,
+        help="list: long recordings · plan/upload/check: one recording (id) · all: upload every one",
+    )
+    ap.add_argument(
+        "--minutes",
+        dest="minuti",
+        metavar="MINUTES",
         type=float,
         default=None,
-        help="with tutte: manual cap in minutes; without it, what is left on Plaud minus the margin",
+        help="with all: manual cap in minutes; without it, what is left on Plaud minus the margin",
     )
     ap.add_argument("id", nargs="?")
     ap.add_argument(
-        "--aspetta",
+        "--wait",
+        dest="aspetta",
         action="store_true",
-        help="with controlla: repeats until the pieces are transcribed",
+        help="with check: repeats until the pieces are transcribed",
     )
+    # Older Italian names, kept as hidden aliases.
+    ap.add_argument("--minuti", dest="minuti", type=float, help=argparse.SUPPRESS)
+    ap.add_argument("--aspetta", dest="aspetta", action="store_true", help=argparse.SUPPRESS)
     a = ap.parse_args()
     if a.comando == "elenco":
         elenco()

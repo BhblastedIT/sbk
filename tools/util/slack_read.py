@@ -1,15 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
+"""Reads Slack with your user token, read-only: the channels you are in (canali), a channel's history (storia), a
+thread (thread) and a user's profile (utente).
+"""
 
 from __future__ import annotations
 

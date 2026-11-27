@@ -53,7 +53,6 @@ from app.api.entity_audit import router as entity_audit_router
 from app.api.events import router as events_router
 from app.api.flow import router as flow_router
 from app.api.focus import router as focus_router
-from app.api.fundraising import router as fundraising_router
 from app.api.graph import router as graph_router
 from app.api.insights import router as insights_router
 from app.api.knowledge import router as knowledge_router
@@ -216,6 +215,9 @@ app = FastAPI(
     description="Personal data pipeline control panel",
     lifespan=lifespan,
 )
+# The routers render partials with this same environment, so every filter and global above (sanitize_nan,
+# markdown, owner_label...) exists there too.
+app.state.templates = templates
 
 
 
@@ -408,6 +410,43 @@ class StaticCacheMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class NoProcessExitMiddleware:
+    """Last line of defence: a SystemExit raised while serving a request (a tool module calling sys.exit) must never
+    end the server. It is logged and answered as a 500 instead. Added first, so it sits closest to the routes."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        started = False
+
+        async def _send(message):
+            nonlocal started
+            if message.get("type") == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, _send)
+        except SystemExit as e:
+            log.error(
+                f"{scope.get('path')}: a tool tried to end the process (exit code {e.code}); "
+                "request answered 500",
+                exc_info=True,
+            )
+            if not started:
+                from starlette.responses import JSONResponse
+
+                await JSONResponse(
+                    {"error": "Internal error: a tool stopped while serving this page"},
+                    status_code=500,
+                )(scope, receive, send)
+
+
+app.add_middleware(NoProcessExitMiddleware)
 app.add_middleware(StaticCacheMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(CSRFProtectionMiddleware)
@@ -451,7 +490,6 @@ app.include_router(meetings_router)
 app.include_router(commitments_router)
 app.include_router(signals_router)
 app.include_router(slack_msg_router)
-app.include_router(fundraising_router)
 app.include_router(insights_router)
 app.include_router(notifications_router)
 app.include_router(admin_router)
@@ -699,31 +737,6 @@ def commitments_page(request: Request):
         {
             "request": request,
             "page": "commitments",
-        },
-    )
-
-
-@app.get("/fundraising", response_class=HTMLResponse)
-def fundraising_page(request: Request, stage: str | None = None):
-    ""
-    bridge = request.app.state.bridge
-    all_pipeline = bridge.get_fundraising_pipeline()
-
-    stage_counts: dict[str, int] = {}
-    for entry in all_pipeline:
-        s = entry.get("stage", "unknown")
-        stage_counts[s] = stage_counts.get(s, 0) + 1
-
-    pipeline = [e for e in all_pipeline if e.get("stage") == stage] if stage else all_pipeline
-    return templates.TemplateResponse(
-        "fundraising.html",
-        {
-            "request": request,
-            "pipeline": pipeline,
-            "total": len(pipeline),
-            "stage_filter": stage or "all",
-            "stage_counts": stage_counts,
-            "page": "fundraising",
         },
     )
 
@@ -1781,14 +1794,6 @@ def partial_person_card(request: Request, q: str = ""):
 
     person = bridge.lookup_person(q)
     if person:
-
-        momentum = None
-        if person.get("email"):
-            m = bridge.get_investor_momentum(email=person["email"])
-            if m.get("entry"):
-                momentum = m["entry"]
-
-
         rq_data = None
         if person.get("email"):
             import json as _rq_json
@@ -1816,7 +1821,6 @@ def partial_person_card(request: Request, q: str = ""):
             {
                 "request": request,
                 "person": person,
-                "momentum": momentum,
                 "rq_data": rq_data,
                 "error": None,
                 "suggestions": None,
@@ -1828,7 +1832,6 @@ def partial_person_card(request: Request, q: str = ""):
             {
                 "request": request,
                 "person": None,
-                "momentum": None,
                 "rq_data": None,
                 "error": f"Person not found: {q}",
                 "suggestions": None,

@@ -1,36 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Phase 1 of the episodes: builds one episode per source document (meeting, call, thread) from the L3 fact tables,
+with its speakers, and links the knowledge-base facts to the episode they came from. Dry run by default; --apply
+writes knowledge/episodes/.
+"""
 
 from __future__ import annotations
 
@@ -272,7 +244,7 @@ def _dove_stanno_gli_episodi() -> dict[str, list[str]]:
     global _INDICE
     if _INDICE is None:
         _INDICE = {}
-        for anno_dir in EPISODES_DIR.iterdir():
+        for anno_dir in EPISODES_DIR.iterdir() if EPISODES_DIR.is_dir() else []:
             if not anno_dir.is_dir():
                 continue
             for f in anno_dir.iterdir():
@@ -307,20 +279,20 @@ def _pretendi_una_rete() -> None:
         raise SystemExit(
             f"cannot verify the store tar ({type(e).__name__}: {e}). "
             "This step rewrites thousands of KB files: without a safety net it does not start. "
-            "uv run python tools/cross-source/xs-l0-refresh.py --copia-del-cervello"
+            "uv run python tools/cross-source/xs-l0-refresh.py --brain-copy"
         ) from e
     if tar is None:
         raise SystemExit(
             "no store tar: this step rewrites thousands of KB files "
             "and without a way back it does not start.\n"
-            "  uv run python tools/cross-source/xs-l0-refresh.py --copia-del-cervello"
+            "  uv run python tools/cross-source/xs-l0-refresh.py --brain-copy"
         )
     giorni = (time.time() - tar.stat().st_mtime) / 86400
     if giorni > 7:
         raise SystemExit(
             f"the most recent store tar is {giorni:.0f} days old ({tar}). "
             "For a mass mutation it is too old: redo it.\n"
-            "  uv run python tools/cross-source/xs-l0-refresh.py --copia-del-cervello"
+            "  uv run python tools/cross-source/xs-l0-refresh.py --brain-copy"
         )
     log.info("safety net: tar from %.1f days ago (%s)", giorni, tar.name)
 
@@ -338,7 +310,12 @@ def write_all(episodes: dict, fact_patch: dict, apply: bool) -> dict:
 
 
 
-    _pretendi_una_rete()
+    # The safety net is asked only when this step changes what is already there (store facts
+    # to patch, or episodes written by an earlier run). A first run only adds new episode files.
+    if fact_patch or _dove_stanno_gli_episodi():
+        _pretendi_una_rete()
+    # Created even with 0 episodes, so the steps after this one (KNOWS) find the folder.
+    EPISODES_DIR.mkdir(parents=True, exist_ok=True)
     for ep in episodes.values():
         anno = _year_of(ep)
         ydir = EPISODES_DIR / anno

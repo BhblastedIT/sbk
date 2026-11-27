@@ -133,5 +133,4 @@ want"): they change it, if they want.
   background, tick, panel).
 - No time estimates. Never invent facts about people or companies: if you do not know, it is not a question for the user (rule
   R7 of the brief), the work searches it.
-- SBK's session protocol (live-state, SESSION-LOG, waits) does not apply here: do not read or touch it.
 - No gestures on the machine outside this folder: do not open apps, touch windows, or send anything to anyone.

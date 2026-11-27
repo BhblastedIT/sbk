@@ -1,16 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
+"""RQ-00: collects every interaction with every person (email, calendar, Slack, Plaud and Tactiq meetings, voice
+memos, Attio calls, WhatsApp), classifies it and gives it a weight, into rq/interaction-weights.parquet, the input
+of the relationship scores.
+"""
 
 from __future__ import annotations
 
@@ -64,7 +56,6 @@ def _wa_batch_rows() -> int:
         return 500_000
 
 
-_WA_BATCH_ROWS = _wa_batch_rows()
 
 
 def _load_sqi_noise_scores() -> dict[str, float]:
@@ -135,7 +126,7 @@ def process_emails() -> pd.DataFrame:
     tipi = rumore.tipi_mittenti()
     if not tipi:
         log.warning(
-            "Tabella dei mittenti assente: il rumore della posta pesa come prima (rifare la lettura della posta)"
+            "Sender table missing: mail noise weighs as before (rerun the mail read)"
         )
     colonne = _per_colonne()
 
@@ -572,16 +563,17 @@ def process_whatsapp() -> pd.DataFrame:
 
     pf = pa.parquet.ParquetFile(wa_file)
     total = pf.metadata.num_rows
-    log.info("Processing WhatsApp interactions (%s righe, lettura a batch)", f"{total:,}")
+    log.info("Processing WhatsApp interactions (%s rows, read in batches)", f"{total:,}")
 
     frames = []
     done = 0
+    _WA_BATCH_ROWS = _wa_batch_rows()  # asked when the step runs, not at import
     for batch in pf.iter_batches(batch_size=_WA_BATCH_ROWS):
         frames.append(_whatsapp_batch_to_frame(batch))
         done += batch.num_rows
         if done % (_WA_BATCH_ROWS * 10) == 0:
             log.info(
-                "  whatsapp %s/%s righe (%.0f%%)", f"{done:,}", f"{total:,}", 100 * done / total
+                "  whatsapp %s/%s rows (%.0f%%)", f"{done:,}", f"{total:,}", 100 * done / total
             )
 
     if not frames:
@@ -640,9 +632,16 @@ def main():
         else:
             log.info("[%s] No interactions found", source)
 
+    if not all_frames and not (RQ_DIR / "interaction-weights.parquet").exists():
+        # A first install whose sources carry no interactions these lanes read (yet): nothing to
+        # weigh and no earlier weights to protect. The scores come once there are interactions.
+        log.info(
+            "No interactions yet in any source (%s): nothing to weigh, no weights written",
+            ", ".join(sources),
+        )
+        return
     if not all_frames:
-
-
+        # Weights from an earlier run exist: an empty result now means an input went missing.
         log.error(
             "No interactions found across any source (%s): nothing to write, exiting with error.",
             ", ".join(sources),
@@ -704,7 +703,7 @@ def main():
 
     n_fn = int(_needs_fn.sum())
     log.info(
-        "Explode: %s righe su %s richiedono lo split (%.2f%%)",
+        "Explode: %s rows out of %s need the split (%.2f%%)",
         f"{n_fn:,}",
         f"{pre_explode:,}",
         100 * n_fn / max(pre_explode, 1),
@@ -816,7 +815,7 @@ def main():
 
         _counts = result["to_addr"].value_counts(dropna=False)
         log.info(
-            "Person mapping: %s valori distinti su %s righe",
+            "Person mapping: %s distinct values over %s rows",
             f"{len(_counts):,}",
             f"{len(result):,}",
         )

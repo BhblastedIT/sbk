@@ -1,36 +1,5 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""ClickUp L1: rereads the local ClickUp backup and writes tasks, people and documents as parquet files."""
 
 from __future__ import annotations
 

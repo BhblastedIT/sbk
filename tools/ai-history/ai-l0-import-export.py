@@ -68,6 +68,7 @@ from ai_common import (
     print_counts,
     stable_id,
     write_messages,
+    write_private,
 )
 from ai_redact import redact
 
@@ -481,9 +482,7 @@ def run(args: argparse.Namespace) -> int:
         out["_unrecognised_files"] = unrecognised
         out["_redactions"] = dict(redactions)
         out["_kept_total"] = len(kept)
-        Path(args.stats_json).write_text(
-            json.dumps(out, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+        write_private(args.stats_json, json.dumps(out, indent=2, sort_keys=True) + "\n")
 
     if args.dry_run:
         print(

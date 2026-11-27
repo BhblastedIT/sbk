@@ -1,74 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Pseudo-identities in the person folder (placeholders such as "Speaker 1" split by recording): finds them, marks
+the unmarked ones (--marca --applica, only on a copy given with --radice) and checks them (--verifica exits 1 on
+a violation).
+"""
 
 from __future__ import annotations
 

@@ -36,13 +36,16 @@ const path = require('path');
 const safety = require('./li-safety.js');
 const { LinkedInSafetyGuard } = safety;
 
-const OUTPUT_DIR = path.join(__dirname, '..', '..', 'sbk', 'raw', 'linkedin');
+// Under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo.
+const OUTPUT_DIR = path.join(process.env.SBK_DATA_ROOT || path.join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw');
 const INPUT_FILE = path.join(OUTPUT_DIR, 'linkedin-all-conversations-raw.json');
 const OUTPUT_FILE = path.join(OUTPUT_DIR, 'linkedin-threads-complete.json');
 const CHECKPOINT_FILE = path.join(OUTPUT_DIR, '.threads-checkpoint.json');
 const SESSION_FILE = path.join(OUTPUT_DIR, 'linkedin-session.json');
 
-const MY_URN = 'ACoAAEXAMPLE_URN_PLACEHOLDER';
+const ownUrn = require('./li-own-urn.js');
+// Your own member id: SBK_LINKEDIN_OWN_URN or sbk.config.json linkedin.own_urn, else read from LinkedIn below.
+let MY_URN = ownUrn.ownUrnFromConfig();
 const BASE = 'https://www.linkedin.com/voyager/api';
 
 
@@ -283,6 +286,7 @@ async function main() {
   if (!me) { console.error('Login failed! Session expired?'); process.exit(1); }
   const myProfile = (me.included || []).find(e => e['$type']?.includes('MiniProfile'));
   console.log(`  Logged in as: ${myProfile?.firstName} ${myProfile?.lastName}\n`);
+  MY_URN = ownUrn.requireOwnUrn(MY_URN || ownUrn.ownUrnFromMe(me));
 
 
   if (!fs.existsSync(INPUT_FILE)) {

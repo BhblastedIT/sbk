@@ -55,7 +55,7 @@ def test_code_has_no_organisation_wide_access_left():
     ).stdout.splitlines()
     hits = []
     for f in files:
-        if not f.endswith((".py", ".swift", ".json", ".yaml", ".yml", ".toml", ".example")):
+        if not f.endswith((".py", ".swift", ".json", ".yaml", ".yml", ".toml", ".example", ".md")):
             continue
         if f.startswith(("lib/", "tests/test_registry_scripts.py")) or "node_modules" in f:
             continue

@@ -1,25 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Knowledge graph: people, organizations and their relationships from the extracted facts, with communities
+(Leiden), centrality and the warm-introduction paths (--warm-intro <email>); saves the graph and exports the
+network graph for the dashboard.
+"""
 
 from __future__ import annotations
 
@@ -2197,7 +2180,7 @@ def main():
         if not acquire_pid_lock("l3-graph", logger=log):
 
 
-            log.warning("l3-graph: lock tenuto da un'altra istanza, exit 75")
+            log.warning("l3-graph: lock held by another instance, exit 75")
             sys.exit(75)
 
     try:
@@ -2222,6 +2205,13 @@ def _main_inner(args):
             mark_last_run("l3-graph")
             return
 
+
+    from sbk_config import ENRICHED_DIR as _ENR
+
+    missing = [n for n in ("contacts-merged.parquet", "entity-map.json") if not (_ENR / n).exists()]
+    if missing:
+        log.error("No merged contacts yet (%s missing in %s): the L2 merge writes them first", ", ".join(missing), _ENR)
+        sys.exit(1)
 
     log.info("Loading SBK data...")
     data = SBKData()

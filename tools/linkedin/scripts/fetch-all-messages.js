@@ -1,4 +1,7 @@
 const fs = require('fs');
+// Files go under the data root (SBK_DATA_ROOT, default ~/.sbk-data), never in the repo or the current folder.
+const LI_RAW = require('path').join(process.env.SBK_DATA_ROOT || require('path').join(require('os').homedir(), '.sbk-data'), 'linkedin', 'raw');
+fs.mkdirSync(LI_RAW, { recursive: true });
 const safety = require('./li-safety.js');
 const { LinkedInSafetyGuard } = safety;
 
@@ -14,7 +17,9 @@ const li_at = session.cookies.find(c => c.name === 'li_at').value;
 const jsessionid = session.cookies.find(c => c.name === 'JSESSIONID').value;
 const csrf = jsessionid.replace(/"/g, '');
 
-const MY_URN = 'ACoAAEXAMPLE_URN_PLACEHOLDER';
+const ownUrn = require('./li-own-urn.js');
+// Your own member id: SBK_LINKEDIN_OWN_URN or sbk.config.json linkedin.own_urn, else read from LinkedIn below.
+let MY_URN = ownUrn.ownUrnFromConfig();
 const BASE = 'https://www.linkedin.com/voyager/api';
 
 
@@ -232,6 +237,7 @@ async function main() {
   if (!me) { console.log('Login failed!'); return; }
   const myProfile = (me.included || []).find(e => e['$type']?.includes('MiniProfile'));
   console.log(`Logged in as: ${myProfile?.firstName} ${myProfile?.lastName}\n`);
+  MY_URN = ownUrn.requireOwnUrn(MY_URN || ownUrn.ownUrnFromMe(me));
 
 
   console.log('--- Step 1: Fetching all conversations ---\n');
@@ -342,11 +348,11 @@ async function main() {
     })),
   };
 
-  fs.writeFileSync('./data/linkedin/linkedin-all-messages.json', JSON.stringify(output, null, 2));
-  console.log('  Saved to data/linkedin/linkedin-all-messages.json');
+  fs.writeFileSync(require('path').join(LI_RAW, 'linkedin-all-messages.json'), JSON.stringify(output, null, 2));
+  console.log('  Saved to ' + require('path').join(LI_RAW, 'linkedin-all-messages.json'));
 
-  fs.writeFileSync('./data/linkedin/linkedin-sent-notes.json', JSON.stringify(myNotes, null, 2));
-  console.log(`  Saved ${myNotes.length} sent messages to data/linkedin/linkedin-sent-notes.json`);
+  fs.writeFileSync(require('path').join(LI_RAW, 'linkedin-sent-notes.json'), JSON.stringify(myNotes, null, 2));
+  console.log(`  Saved ${myNotes.length} sent messages to ${LI_RAW}/linkedin-sent-notes.json`);
 
 
   console.log('\n=== FINAL SUMMARY ===');

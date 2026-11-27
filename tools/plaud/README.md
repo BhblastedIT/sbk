@@ -7,12 +7,17 @@
 Node.js (`npm`) only for the fallback path below.
 **Create it** Nothing to create: SBK reuses the session of your Plaud desktop app.
 **Where the code looks** The session token of the Plaud desktop app, read locally
-(`tools/plaud/pl_auth_refresh.py`); SBK keeps a copy in `~/.sbk-data/secrets/plaud-wt.json`
-(fixed path, it does not follow `SBK_DATA_ROOT`). If that fails, it decrypts the app's storage
+(`tools/plaud/pl_auth_refresh.py`); SBK keeps a copy in `<data root>/secrets/plaud-wt.json`.
+If that fails, it decrypts the app's storage
 (`~/Library/Application Support/Plaud/encryption.json`) with an Electron helper in
 `tools/plaud/electron-decrypt/` (installs Electron with `npm` on first use), using the Keychain entry
 the Plaud app creates for itself (`Plaud Safe Storage` / `Plaud Key`). You do not add any key.
-**sbk.config.json** `plaud.api_base`: the API host of your account's region, default
+**When it runs** The scheduled download (`tools/cross-source/xs-l0-refresh.py`, also with `--only`, and the
+dashboard scheduler) runs Plaud only when `plaud` is in `enabled_sources`: it then runs
+`pl-l0-download.py --direct`, which reads the session token of your Plaud desktop app as described
+above. A `pl-l0-download.py` you run yourself is not gated.
+**sbk.config.json** `"plaud"` in `enabled_sources` for the scheduled download; `plaud.api_base`: the API
+host of your account's region, default
 `https://api-euc1.plaud.ai` (EU); the env variable `SBK_PLAUD_API_BASE` wins.
 **Download**
 ```bash
@@ -29,8 +34,17 @@ transcription yet (recordings of at least 40 seconds, up to 1,200 minutes a day)
 `uv run python tools/impostazioni_pipeline.py` prints every setting in force); `--transcribe` /
 `--no-transcribe` override them for one run. macOS only. `--chrome` is an older mode that reads through an open
 plaud.ai tab in Chrome. The speaker analysis in the pipeline (`tools/plaud/pl-analyze-speakers.py`) recognises
-you from `owner`, `own_names` and `own_emails` in `sbk.config.json`. If you move the data root, also set `SBK_DATA` to the same folder: the Plaud
+you from `owner`, `own_names` and `own_emails` in `sbk.config.json`. The Plaud
 speaker-naming helpers (`pl_lotto.py`, `pl_quadro.py`, `pl_lunghe.py`, `pl_dettagli.py`,
-`pl_quadro_pagina.py`, `regole/*.py`) read that variable, not `SBK_DATA_ROOT`.
+`pl_quadro_pagina.py`, `regole/*.py`) follow `SBK_DATA_ROOT`, and `SBK_DATA` wins when you set it;
+`regole/giudizio.py` reads only `SBK_DATA` (default `~/.sbk-data`), so set it too if you moved the data
+root. Their options:
+`tools/plaud/pl_lotto.py --new` picks a batch of voices for you to confirm (`--count N`, default 50) and
+`--answer N TEXT` records your answer to one of them; `tools/plaud/pl_lunghe.py list` (then `plan`, `upload`,
+`check` with an id, or `all`) splits single-voice recordings over three hours at silences (`--minutes M` with
+`all`, `--wait` with `check`); `tools/plaud/pl_quadro.py --print-only` and
+`tools/plaud/regole/r3_incroci.py --print-only` compute without writing;
+`tools/plaud/regole/r1_fonti.py --no-cache` and `tools/plaud/regole/r2_testo.py --from-scratch` rebuild their
+caches.
 
 This README repeats the plugin's section of the guide, [docs/CONNECTING.md#plaud](../../docs/CONNECTING.md#plaud). Where secrets go, where data lands and what `sbk.config.json` holds: [Before you start](../../docs/CONNECTING.md#before-you-start).

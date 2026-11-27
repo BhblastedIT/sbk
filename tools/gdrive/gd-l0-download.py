@@ -1,19 +1,8 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Google Drive download: the files of each signed-in account (recently modified, all yours, shared with you, shared
+drives, or shared with one person), Google documents exported to text formats, media only on request, with an
+index.
+"""
 
 import argparse
 import io
@@ -108,43 +97,7 @@ _INDICE_PRIMA: dict[str, dict] = {}
 
 
 
-_ARCHIVIO_REGISTRO = DATA_ROOT / "archivio-drive" / "registro.json"
-_ARCHIVIO_RADICE = "SBK · Archive"
 _CARTELLA = "application/vnd.google-apps.folder"
-
-
-def _archivio_sbk(files: list) -> set[str]:
-    ""
-
-
-
-
-    ids: set[str] = set()
-    try:
-        for v in json.loads(_ARCHIVIO_REGISTRO.read_text()).values():
-            ids.update(v[k] for k in ("drive_id", "drive_id_group") if v.get(k))
-    except FileNotFoundError:
-        pass
-    except Exception as e:  # noqa: BLE001
-        log.warning(f"SBK archive registry unreadable, filtering by folder only: {e}")
-    figli: dict[str, list[str]] = {}
-    da_vedere = []
-    for f in files:
-        if f.get("mimeType") != _CARTELLA:
-            continue
-        if f.get("name") == _ARCHIVIO_RADICE:
-            da_vedere.append(f["id"])
-        for p in f.get("parents") or []:
-            figli.setdefault(p, []).append(f["id"])
-    cartelle: set[str] = set()
-    while da_vedere:
-        c = da_vedere.pop()
-        if c not in cartelle:
-            cartelle.add(c)
-            da_vedere.extend(figli.get(c, []))
-    ids.update(cartelle)
-    ids.update(f["id"] for f in files if cartelle.intersection(f.get("parents") or []))
-    return ids
 
 
 
@@ -742,8 +695,6 @@ def _download_batch(
 
     invariati = 0
     gia_fatti = 0
-    archivio = _archivio_sbk(files)
-    di_archivio = 0
     cartelle = _mappa_cartelle(files)
     gruppo = _di_gruppo(account_name, batch_name)
     visivi_gruppo = 0
@@ -755,10 +706,6 @@ def _download_batch(
                 f"[{i}/{total}] Processing... ({downloaded} downloaded, "
                 f"{invariati} unchanged, {skipped} skipped)"
             )
-
-        if f["id"] in archivio:
-            di_archivio += 1
-            continue
 
         if f["id"] in _FILE_FATTI:
             gia_fatti += 1
@@ -824,8 +771,6 @@ def _download_batch(
         f"\n[{account_name}] Done: {downloaded} downloaded, {invariati} unchanged, "
         f"{skipped} skipped, {gia_fatti} already seen by another account"
     )
-    if di_archivio:
-        log.info(f"[{account_name}] {di_archivio} SBK archive files not downloaded")
     if visivi_gruppo:
         log.info(
             f"[{account_name}] {visivi_gruppo} group visual-material files not downloaded "

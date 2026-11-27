@@ -263,23 +263,23 @@ def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Costruisce l'eval-set (ground-truth speaker) dai transcript Plaud."
+        description="Build the eval-set (ground-truth speaker) from the Plaud transcripts."
     )
     parser.add_argument(
         "--raw-dir",
         default=str(_default_raw_dir()),
-        help="Directory dei transcript *.json (default: ~/.sbk-data/plaud/raw).",
+        help="Directory of the *.json transcripts (default: ~/.sbk-data/plaud/raw).",
     )
     parser.add_argument(
         "--out",
         default=str(_default_raw_dir().parent / "eval" / "speaker_eval_set.json"),
-        help="Percorso del JSON di output dell'eval-set.",
+        help="Path of the eval-set output JSON.",
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=None,
-        help="Cappa il numero di file letti (test veloci).",
+        help="Cap the number of files read (quick tests).",
     )
     args = parser.parse_args(argv)
 
@@ -287,9 +287,9 @@ def main(argv: list[str] | None = None) -> int:
     out = save_eval_set(records, args.out, stats=stats)
     print(
         "eval-set: "
-        f"{stats.records} record da {stats.files_with_truth} file rivisti "
-        f"(scanditi {stats.files_scanned}, solo-generici {stats.files_only_generic}, "
-        f"nomi distinti {stats.unique_names}) -> {out}"
+        f"{stats.records} records from {stats.files_with_truth} reviewed files "
+        f"(scanned {stats.files_scanned}, generic-only {stats.files_only_generic}, "
+        f"distinct names {stats.unique_names}) -> {out}"
     )
     return 0
 

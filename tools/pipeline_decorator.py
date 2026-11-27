@@ -92,12 +92,9 @@ def pipeline_step(
 
                 elapsed = time.time() - start
                 if e.code == 0 or e.code is None:
-
-
-
-
-
-
+                    if _da_argparse(e, codice=0):
+                        # -h/--help (or --version): nothing ran, so nothing is written to the data root.
+                        raise
                     step_log.info(
                         "Exited (sys.exit 0) without marking the run: %s (%.1fs)", name, elapsed
                     )
@@ -193,10 +190,9 @@ def _log_metrics(
         log.debug("pipeline metrics logging failed: %s", metrics_err)
 
 
-def _da_argparse(e: SystemExit) -> bool:
-    ""
-
-    if e.code != 2:
+def _da_argparse(e: SystemExit, codice: int = 2) -> bool:
+    """True when argparse raised this SystemExit with the given code (2 = usage error, 0 = --help)."""
+    if (e.code or 0) != codice:
         return False
     tb, ultimo = e.__traceback__, None
     while tb is not None:
@@ -214,7 +210,7 @@ def _con_il_perche(messaggio: str) -> str:
     for flusso in (sys.stdout, sys.stderr):
         try:
             flusso.flush()
-        except Exception:  # noqa: BLE001 — un flusso chiuso non deve fermare la registrazione
+        except Exception:  # noqa: BLE001 — a closed stream must not stop the recording
             pass
     try:
         from pipeline_dlq import coda_del_log

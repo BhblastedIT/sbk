@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
-""
+"""Catalog of your scheduled jobs: the launchd agents in ~/Library/LaunchAgents that run code from this repo or
+the data root, with their schedule and next expected run.
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Job titles, purpose and owner can be added in <data root>/jobs/declared.json. It prints the jobs it finds;
+--write saves the catalog to <data root>/jobs/catalog.json, which jb_status.py reads.
+"""
 
 from __future__ import annotations
 
@@ -922,9 +895,12 @@ def write() -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    import sys
+    import argparse
 
-    cat = write() if "--write" in sys.argv else build()
+    _ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    _ap.add_argument("--write", action="store_true", help="save the catalog to <data root>/jobs/catalog.json")
+    _write = _ap.parse_args().write
+    cat = write() if _write else build()
     ours = [j for j in cat["jobs"] if j["ours"]]
     print(f"{len(cat['jobs'])} jobs discovered, {len(ours)} ours")
     if cat["tz_skew"]["skewed"]:
@@ -938,5 +914,5 @@ if __name__ == "__main__":
     for j in ours:
         nxt = (j["next_expected"] or "")[:16].replace("T", " ")
         print(f"  {j['where']:7} {j['key'][:42]:44} {j['schedule'][:38]:40} next {nxt}")
-    if "--write" in sys.argv:
+    if _write:
         print(f"\nwritten to {CATALOG}")

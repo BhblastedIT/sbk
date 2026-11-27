@@ -1,26 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Plaud write client: renames the speakers of a recording (raw and polished transcript), with a diff first and a
+backup of the segments; --apply writes.
+"""
 
 from __future__ import annotations
 

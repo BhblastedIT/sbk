@@ -498,7 +498,9 @@ def migrate_from_splink_clusters(
 
     knowledge_dir = knowledge_dir or _DEFAULT_KNOWLEDGE_DIR
     splink_path = splink_path or (
-        _P.home() / ".sbk-data" / "enriched" / "entity-clusters-splink.json"
+        _P(os.environ.get("SBK_DATA_ROOT") or _P.home() / ".sbk-data").expanduser()
+        / "enriched"
+        / "entity-clusters-splink.json"
     )
     output_path = output_path or _DEFAULT_CLUSTER_INDEX
 

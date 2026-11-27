@@ -156,6 +156,45 @@ _VIVE = [
         "ctag + ETag on CalDAV, by ETag on ICS. Tested with mocked servers only",
     ),
     Sorgente(
+        "teams",
+        "your Microsoft Teams 1:1 and group chats (work or school account)",
+        "continua",
+        "comunicazione",
+        3,
+        come_si_aggiorna="tools/teams/tm-l0-download.py --all",
+        l1="tools/teams/tm-l1-enrich.py",
+        dato_in=("raw/*/state.json",),
+        note="personal access only: the microsoft365 plugin's own app registration (public "
+        "client, no secret) and stored sign-in (sbk-microsoft365/<label>), plus the per-user "
+        "scope Chat.Read (your own account), which needs no admin consent; sign in with tools/teams/tm-l0-auth.py. "
+        "Work or school accounts only (Graph does not serve chats to personal accounts). Channel "
+        "messages and meeting transcripts need admin consent and are not read. Writes the generic "
+        "intake contract (plugin-contacts / plugin-interactions, read by "
+        "tools/cross-source/plugin_intake.py): chat members reach the contact merge and the "
+        "person facts; one interaction per chat and day, kind message, status done, so never a "
+        "commitment. Incremental per chat on lastModifiedDateTime minus teams.overlap_minutes. "
+        "Tested with a mocked Graph only",
+    ),
+    Sorgente(
+        "contacts",
+        "your address book: a vCard or CSV export, and Google Contacts through the People API",
+        "periodica",
+        "comunicazione",
+        30,
+        come_si_aggiorna="tools/contacts/ct-l0-download.py --all  # Google Contacts; exports "
+        "you make: tools/contacts/ct-l0-import.py <file.vcf|file.csv|folder> --label <label>",
+        l1="tools/contacts/ct-l1-enrich.py",
+        dato_in=("raw/imports/*/manifest.json", "raw/google/*/state.json"),
+        note="personal access only: your own exports (macOS/iCloud/iPhone/Google vCard, Google or "
+        "Outlook CSV) and, optionally, your own Google app (Desktop OAuth client of "
+        "tools/google_oauth.py) with the single scope contacts.readonly, the people/me context, "
+        "READ_SOURCE_TYPE_CONTACT only; login in the Keychain sbk-gcontacts/<label>. Writes the "
+        "contacts:import:<label> / contacts:google:<label> rows of contacts/contacts.parquet (the "
+        "address-book slot read by xs-l1-contacts-enrich) and then runs that kernel step itself. "
+        "Google is incremental with the People API sync token (7-day life, then a full read). "
+        "Tested with synthetic files and a mocked People API only",
+    ),
+    Sorgente(
         "slack",
         "channels and direct messages",
         "continua",
@@ -185,6 +224,29 @@ _VIVE = [
         "xs-pipeline-run.py --ingest --whatsapp-extras",
     ),
     Sorgente(
+        "telegram",
+        "your Telegram chats, exported from Telegram Desktop",
+        "a_richiesta",
+        "comunicazione",
+        30,
+        come_si_aggiorna="tools/telegram/tg-l0-import.py <export folder>  # with no folder: "
+        "<data root>/telegram/exports/",
+        l1="tools/telegram/tg-l1-enrich.py",
+        dato_in=("raw/state.json", "raw/chats/*.json"),
+        note="on request: you export your data from Telegram Desktop (Settings > Advanced > Export "
+        "Telegram data, format Machine-readable JSON) and SBK imports result.json from a local "
+        "folder. No Telegram login, no API id, nothing sent anywhere. Personal chats and private "
+        "groups by default (telegram.chat_types); groups carry the other members' messages only if "
+        "the export was made with 'Only my messages' unticked (Telegram ticks it by default, and "
+        "groups you left always hold only your messages). Merged by message id, an export already "
+        "imported is skipped. Writes the generic intake contract (plugin-contacts / "
+        "plugin-interactions, read by tools/cross-source/plugin_intake.py): the people you chat "
+        "with (phone from the export's contacts list) reach the contact merge and the person "
+        "facts; one interaction per chat and day (kind=message, status done) and one per promise "
+        "found in a message (open for telegram.promise_open_days, then closed). The 30 days are "
+        "only a reminder to export again. Tested with hand-made exports only",
+    ),
+    Sorgente(
         "attio",
         "the CRM: companies, deals, notes, recordings",
         "continua",
@@ -192,9 +254,46 @@ _VIVE = [
         7,
         come_si_aggiorna="tools/attio/at-l0-download.py",
         l1="tools/attio/at-l1-enrich.py",
-        note="supports multiple workspaces, each in its own folder (for example attio/ and "
-        "attio-agency/). Recorded calls are stored one file per recording, with an inventory "
+        note="supports multiple workspaces, each in its own folder (attio/ for the primary one, "
+        "attio-<label>/ for each one in attio.extra_workspaces). Recorded calls are stored one file per recording, with an inventory "
         "in call-recordings.parquet and a receipt in _coverage.json; L1 and L3 read every configured workspace",
+    ),
+    Sorgente(
+        "hubspot",
+        "your HubSpot CRM: contacts, companies, deals, notes and tasks",
+        "continua",
+        "lavoro",
+        7,
+        come_si_aggiorna="tools/hubspot/hs-l0-download.py",
+        l1="tools/hubspot/hs-l1-enrich.py",
+        dato_in=("state.json", "raw/*.json"),
+        note="personal access only: your own user-level OAuth app (developer platform 2026.09, "
+        "isUserLevel true, private distribution) built from tools/hubspot/hubspot-project and "
+        "installed by you with hs-l0-auth.py; HubSpot limits its token to what your user can see, "
+        "and a token reported as account-level is refused. Read-only scopes. By default only the "
+        "records you own (hubspot.only_mine). Writes the generic intake (plugin-contacts / "
+        "plugin-interactions, read by tools/cross-source/plugin_intake.py): deals as kind record "
+        "with due = close date and status open|done|closed, notes as message, tasks as issue with "
+        "due and status open|done; due dates only on items you own. Incremental per object type "
+        "on the modified date minus hubspot.overlap_hours. Tested with a mocked API only",
+    ),
+    Sorgente(
+        "pipedrive",
+        "the CRM: organizations, persons, deals, activities and notes you can see",
+        "continua",
+        "lavoro",
+        7,
+        come_si_aggiorna="tools/pipedrive/pd-l0-download.py",
+        l1="tools/pipedrive/pd-l1-enrich.py",
+        dato_in=("state.json", "raw/*.json"),
+        note="personal access only: your own personal API token (Settings, Personal preferences, "
+        "API), or a private OAuth app you register yourself with read-only scopes; GET calls only. "
+        "An admin can turn off API use for your permission set. Every call spends the company's "
+        "shared daily API budget: max_requests_per_run caps one run. Incremental by update_time "
+        "(one hour of overlap); deleted deals of the last 30 days are dropped, other deletions "
+        "only with --full. Writes the generic intake contract (plugin-contacts / "
+        "plugin-interactions): deals as record with status, activities with due date and done "
+        "status, notes as record; scope 'mine' by default. Tested with a mocked API only",
     ),
     Sorgente(
         "gdrive",
@@ -244,6 +343,64 @@ _VIVE = [
         "people reach the contact merge and the person facts; meetings are written as done, so "
         "they are never commitments, and the transcript text is not read by the kernel yet. "
         "Incremental on the last completed day minus zoom.overlap_days. Tested with a mocked API only",
+    ),
+    Sorgente(
+        "fireflies",
+        "your Fireflies meetings: transcripts, participants, summaries and action items",
+        "continua",
+        "comunicazione",
+        7,
+        come_si_aggiorna="tools/fireflies/ff-l0-download.py",
+        l1="tools/fireflies/ff-l1-enrich.py",
+        dato_in=("raw/state.json", "raw/meetings/*.json"),
+        note="personal access only: the API key of your own Fireflies account (Integrations -> "
+        "Fireflies API), GraphQL queries only, meetings where you are organizer or participant "
+        "(transcripts(user_id: <you>)) or, with only_organized, the ones you organized. Writes "
+        "the generic intake contract (plugin-contacts / plugin-interactions, read by "
+        "tools/cross-source/plugin_intake.py): people reach the contact merge and the person "
+        "facts; meetings are written as done; action items whose owner is you are open "
+        "commitments (Fireflies has no done state for them). Incremental on the last completed "
+        "run minus fireflies.overlap_days; stops cleanly at the daily quota (Free 500/day). "
+        "Tested with a mocked API only",
+    ),
+    Sorgente(
+        "fathom",
+        "your Fathom meetings: invitees, summaries, transcripts and action items",
+        "continua",
+        "comunicazione",
+        7,
+        come_si_aggiorna="tools/fathom/fa-l0-download.py",
+        l1="tools/fathom/fa-l1-enrich.py",
+        dato_in=("raw/state.json", "raw/meetings/*.json"),
+        note="personal access only: your own Fathom API key (X-Api-Key), one read-only endpoint "
+        "(GET /meetings). By default only the meetings you recorded (recorded_by[] = "
+        "fathom.recorded_by or own_emails); --all-visible adds those shared with you or your team. "
+        "Writes the generic intake contract (plugin-contacts / plugin-interactions, read by "
+        "tools/cross-source/plugin_intake.py): people reach the contact merge and the person facts; "
+        "meetings are written as done; an open action item assigned to you becomes a commitment. "
+        "Incremental on the last completed run minus fathom.overlap_days (14). "
+        "Tested with a mocked API only",
+    ),
+    Sorgente(
+        "granola",
+        "your Granola meeting notes: summaries, private notes, transcripts, attendees",
+        "continua",
+        "comunicazione",
+        7,
+        come_si_aggiorna="tools/granola/gr-l0-download.py  # free plan, the CSV export you "
+        "download: tools/granola/gr-l0-import-csv.py <file.csv>",
+        l1="tools/granola/gr-l1-enrich.py",
+        dato_in=("raw/state.json", "raw/notes/*.json"),
+        note="personal access only: a personal Granola API key (Business plan, Personal notes "
+        "scope, Bearer on public-api.granola.ai/v1, GET only), or on the free plan the CSV export "
+        "of your own notes imported from a local file (gr-l0-import-csv.py). Never workspace API "
+        "keys or admin controls. Writes the generic intake contract (plugin-contacts / "
+        "plugin-interactions, read by tools/cross-source/plugin_intake.py): attendees and "
+        "calendar invitees reach the contact merge and the person facts; notes are written as "
+        "done (kind=meeting, the summary, private notes and transcript in text), so they are "
+        "never commitments, and the text is not read by the kernel yet. Incremental on "
+        "updated_after = start of the last complete run minus granola.overlap_days. "
+        "Tested with a mocked API and a hand-made CSV only",
     ),
     Sorgente(
         "notion",
@@ -336,6 +493,41 @@ _VIVE = [
         "extract that produces `commitment` entities in the store. Supports multiple workspaces.",
     ),
     Sorgente(
+        "atlassian",
+        "Jira issues you created, are assigned or watch, and Confluence pages you created or edited",
+        "continua",
+        "lavoro",
+        7,
+        come_si_aggiorna="tools/atlassian/as-l0-download.py",
+        l1="tools/atlassian/as-l1-enrich.py",
+        dato_in=("state.json", "raw/issues.json", "raw/pages.json"),
+        note="personal access only: your own Atlassian API token (with or without scopes) and the "
+        "email of your account, basic auth, GET calls only, Atlassian Cloud sites only. A scoped "
+        "token goes through api.atlassian.com/ex/<product>/<cloud id>. Incremental: Jira by "
+        "relative JQL minutes since the last run plus one hour, Confluence by lastmodified from "
+        "the day before; --full drops what no longer matches. Writes the generic intake contract "
+        "(plugin-contacts / plugin-interactions): issues with due date and status open|done, "
+        "pages as record. Tested with a mocked API only",
+    ),
+    Sorgente(
+        "linear",
+        "your Linear issues: assigned, created, subscribed, with status, due dates and comments",
+        "continua",
+        "lavoro",
+        7,
+        come_si_aggiorna="tools/linear/ln-l0-download.py",
+        l1="tools/linear/ln-l1-enrich.py",
+        dato_in=("state.json", "raw/issues.json", "raw/comments.json"),
+        note="personal access only: your own personal API key (Settings > Account > Security & "
+        "Access, Read permission is enough), one workspace per key; admins can turn member keys "
+        "off. GraphQL queries only, mutations refused in the client. Writes the generic intake "
+        "(plugin-contacts / plugin-interactions, read by tools/cross-source/plugin_intake.py): "
+        "issues as kind issue with owner_role assignee|author|other, status open|done|cancelled|"
+        "closed, due only when the issue is yours; comments as message, done. Incremental on "
+        "updatedAt minus linear.overlap_hours; open issues that left your filter are re-read by "
+        "id. Tested with a mocked API only",
+    ),
+    Sorgente(
         "personio",
         "the personnel records",
         "periodica",
@@ -350,9 +542,11 @@ _VIVE = [
         l1="tools/personio/pe-l1-enrich.py",
         stadi_l1=(("personio_assenze", "tools/personio/pe-l2-absences-daily.py"),),
         note=(
-            "an HR source: it changes when someone joins or leaves. Downloads several "
-            "targets (people records, absences in days and in hours, balances, contract "
-            "history, documents, compensation, org chart); attendance records are not included"
+            "an organisation HR source: its credentials need Personio admin rights, so it is "
+            "for a company that gives you them, not a personal app. It changes when someone "
+            "joins or leaves. Downloads several targets (people records, absences in days and "
+            "in hours, balances, contract history, documents, compensation, org chart); "
+            "attendance records are not included"
         ),
     ),
     Sorgente(

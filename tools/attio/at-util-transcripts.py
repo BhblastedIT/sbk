@@ -1,21 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+"""Attio call transcripts L1: parses the downloaded call transcripts, resolves each speaker to an email, and writes
+a transcripts index, the interactions with each person, and the corpus of what you said.
+"""
 
 from __future__ import annotations
 

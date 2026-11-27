@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
-""
-
-
-
-
-
-
-
-
-
-
-
-
+"""Writes today's snapshot of the relationship scores from the event store, so the scores can be compared day by
+day (--dry to only show the stats).
+"""
 
 from __future__ import annotations
 
@@ -55,7 +45,7 @@ def main() -> None:
 
         if chi := un_run_alla_volta.chi_gira():
             log.warning(
-                "Snapshot saltato stanotte: gira gia' %s (lock tenuto). Lo fa lo stadio rqv4_snapshot della rilettura.",
+                "Snapshot skipped tonight: %s is already running (lock held). The rqv4_snapshot stage of the re-read does it.",
                 ", ".join(chi),
             )
             return

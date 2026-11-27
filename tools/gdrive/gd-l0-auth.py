@@ -1,15 +1,9 @@
 #!/usr/bin/env python3
-""
+"""Google Drive sign-in: opens the browser to authorize read-only Drive access for one account with your own OAuth
+client (Desktop app) and stores the token in the Keychain (sbk-gdrive/<label>).
 
-
-
-
-
-
-
-
-
-
+Usage: uv run python tools/gdrive/gd-l0-auth.py --account <label>
+"""
 
 import argparse
 import json

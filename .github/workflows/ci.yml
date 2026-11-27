@@ -1,0 +1,24 @@
+name: ci
+
+# Server-side backstop for a public repo: scan every push and pull request for
+# secrets, so a contributor who did not install the local pre-commit hook (or used
+# --no-verify) still cannot land a credential. No repository secret is needed:
+# gitleaks-action is free for public repositories.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  gitleaks:
+    name: secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so gitleaks scans every commit in the PR/push
+      - uses: gitleaks/gitleaks-action@v2

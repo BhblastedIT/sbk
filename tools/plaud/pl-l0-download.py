@@ -142,7 +142,9 @@ def get_token_direct():
             raise RuntimeError("npm not installed. Install Node.js to use --direct.")
         print(f"  Electron not installed. Installing in {ELECTRON_WRAPPER_DIR}...")
         subprocess.run(
-            ["npm", "install", "electron", "--no-audit", "--no-fund"],
+            # Pin the exact version declared in electron-decrypt/package.json instead of
+            # letting a bare name resolve electron@latest (supply-chain: avoid a silent jump).
+            ["npm", "install", "electron@42.2.0", "--no-audit", "--no-fund"],
             cwd=ELECTRON_WRAPPER_DIR,
             check=True,
             timeout=300,
